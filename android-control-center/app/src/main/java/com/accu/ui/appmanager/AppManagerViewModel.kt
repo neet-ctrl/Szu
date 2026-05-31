@@ -1,17 +1,12 @@
 package com.accu.ui.appmanager
 
-import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.graphics.drawable.Drawable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.accu.data.db.entities.AppRecordEntity
+import com.accu.connection.AccuConnectionManager
 import com.accu.data.db.entities.FrozenAppEntity
 import com.accu.data.repositories.AppRepository
 import com.accu.data.repositories.FreezeMethod
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import timber.log.Timber
@@ -55,8 +50,8 @@ enum class AppFilter { ENABLED, DISABLED, FROZEN, HIDDEN, SYSTEM, USER }
 
 @HiltViewModel
 class AppManagerViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val appRepository: AppRepository,
+    private val connectionManager: AccuConnectionManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AppManagerUiState())
@@ -70,37 +65,34 @@ class AppManagerViewModel @Inject constructor(
     private fun loadApps() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(
-                    PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
-                        PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS
-                )
-                val models = packages.mapNotNull { pkg ->
-                    val ai = pkg.applicationInfo ?: return@mapNotNull null
-                    val apkFile = java.io.File(ai.sourceDir)
+                // Always load from the connected target device via ADB
+                val packages = connectionManager.listPackages()
+                val models = packages.map { pkg ->
+                    val label = pkg.packageName.split(".")
+                        .lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg.packageName
                     AppUiModel(
-                        packageName = pkg.packageName,
-                        appName = pm.getApplicationLabel(ai).toString(),
-                        versionName = pkg.versionName ?: "",
-                        versionCode = pkg.longVersionCode,
-                        isSystemApp = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
-                        isEnabled = ai.enabled,
-                        isFrozen = false,
-                        isHidden = false,
-                        installTime = pkg.firstInstallTime,
-                        lastUpdateTime = pkg.lastUpdateTime,
-                        apkSize = apkFile.length(),
-                        targetSdk = ai.targetSdkVersion,
-                        minSdk = ai.minSdkVersion,
-                        dataDir = ai.dataDir ?: "",
-                        sourceDir = ai.sourceDir ?: "",
+                        packageName    = pkg.packageName,
+                        appName        = label,
+                        versionName    = "",
+                        versionCode    = 0L,
+                        isSystemApp    = pkg.isSystem,
+                        isEnabled      = pkg.isEnabled,
+                        isFrozen       = false,
+                        isHidden       = false,
+                        installTime    = 0L,
+                        lastUpdateTime = 0L,
+                        apkSize        = 0L,
+                        targetSdk      = 0,
+                        minSdk         = 0,
+                        dataDir        = "",
+                        sourceDir      = pkg.apkPath,
                     )
                 }
                 _state.update { it.copy(apps = models, isLoading = false) }
                 applyFilters()
             } catch (e: Exception) {
-                Timber.e(e)
-                _state.update { it.copy(isLoading = false) }
+                Timber.e(e, "AppManagerViewModel: failed to load apps from target device")
+                _state.update { it.copy(isLoading = false, snackbarMessage = "Failed to load apps — check connection") }
             }
         }
     }

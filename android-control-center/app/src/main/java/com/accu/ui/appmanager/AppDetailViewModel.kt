@@ -1,14 +1,11 @@
 package com.accu.ui.appmanager
 
-import android.content.Context
-import android.content.pm.PackageManager
-import android.content.pm.PermissionInfo
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.data.repositories.AppRepository
 import com.accu.data.repositories.FreezeMethod
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -57,85 +54,135 @@ data class ComponentUiModel(
 
 @HiltViewModel
 class AppDetailViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
+    private val connectionManager: AccuConnectionManager,
     private val appRepository: AppRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AppDetailUiState())
     val state: StateFlow<AppDetailUiState> = _state.asStateFlow()
 
+    /**
+     * Load app details from the TARGET device via `dumpsys package <pkg>`.
+     * Never reads PackageManager of the local (ACCU host) device.
+     */
     fun load(packageName: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val pkg = pm.getPackageInfo(
-                    packageName,
-                    PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
-                        PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS or
-                        PackageManager.GET_PERMISSIONS
-                )
-                val ai = pkg.applicationInfo!!
-                val appName = pm.getApplicationLabel(ai).toString()
-                val apkFile = java.io.File(ai.sourceDir)
+                val dump = connectionManager.exec("dumpsys package $packageName 2>/dev/null").output
 
-                // Permissions
-                val requestedPerms = pkg.requestedPermissions?.toList() ?: emptyList()
-                val requestedFlags = pkg.requestedPermissionsFlags?.toList() ?: emptyList()
-                val permissions = requestedPerms.mapIndexed { i, permName ->
-                    val granted = requestedFlags.getOrNull(i)?.and(PackageManager.GET_PERMISSIONS) != 0
-                    val pi = try { pm.getPermissionInfo(permName, 0) } catch (_: Exception) { null }
-                    PermissionUiModel(
-                        name = permName,
-                        isGranted = granted,
-                        isProtected = pi?.protection == PermissionInfo.PROTECTION_SIGNATURE,
-                        protection = pi?.protection ?: 0,
-                    )
+                val versionName = dump.lineSequence()
+                    .mapNotNull { Regex("versionName=([^\\s]+)").find(it)?.groupValues?.getOrNull(1) }
+                    .firstOrNull() ?: ""
+
+                val versionCode = dump.lineSequence()
+                    .mapNotNull { Regex("versionCode=(\\d+)").find(it)?.groupValues?.getOrNull(1)?.toLongOrNull() }
+                    .firstOrNull() ?: 0L
+
+                val targetSdk = dump.lineSequence()
+                    .mapNotNull { Regex("targetSdk=(\\d+)").find(it)?.groupValues?.getOrNull(1)?.toIntOrNull() }
+                    .firstOrNull() ?: 0
+
+                val minSdk = dump.lineSequence()
+                    .mapNotNull { Regex("minSdk=(\\d+)").find(it)?.groupValues?.getOrNull(1)?.toIntOrNull() }
+                    .firstOrNull() ?: 0
+
+                val codePath = dump.lineSequence()
+                    .mapNotNull { Regex("codePath=(.+)").find(it)?.groupValues?.getOrNull(1)?.trim() }
+                    .firstOrNull() ?: ""
+
+                val dataDir = dump.lineSequence()
+                    .mapNotNull { Regex("dataDir=(.+)").find(it)?.groupValues?.getOrNull(1)?.trim() }
+                    .firstOrNull() ?: ""
+
+                val isEnabled = !dump.contains("enabled=false") && !dump.contains("enabledCaller=")
+
+                // APK size via stat on target
+                val sizeRaw = if (codePath.isNotBlank())
+                    connectionManager.exec("stat -c %s $codePath 2>/dev/null || du -b $codePath 2>/dev/null | awk '{print \$1}'").output.trim()
+                else ""
+                val apkSize = sizeRaw.lines().firstOrNull()?.trim()?.toLongOrNull() ?: 0L
+
+                // Permissions: parse "requested permissions:" block
+                val permissions = mutableListOf<PermissionUiModel>()
+                val grantedPerms = mutableSetOf<String>()
+                var inGranted = false
+                var inRequested = false
+                val requestedPerms = mutableListOf<String>()
+
+                for (line in dump.lines()) {
+                    when {
+                        line.trimStart().startsWith("requested permissions:") -> { inRequested = true; inGranted = false }
+                        line.trimStart().startsWith("install permissions:") ||
+                        line.trimStart().startsWith("runtime permissions:") -> { inGranted = true; inRequested = false }
+                        line.trimStart().startsWith("User ") && inGranted -> inGranted = false
+                        inRequested && line.trimStart().startsWith("android.") -> {
+                            requestedPerms.add(line.trim())
+                        }
+                        inGranted && line.contains(":") -> {
+                            val perm = line.trim().substringBefore(":").trim()
+                            if (perm.startsWith("android.")) grantedPerms.add(perm)
+                        }
+                    }
+                }
+                requestedPerms.forEach { perm ->
+                    permissions.add(PermissionUiModel(
+                        name        = perm,
+                        isGranted   = perm in grantedPerms,
+                        isProtected = false,
+                    ))
                 }
 
-                // Activities
-                val activities = pkg.activities?.map {
-                    ComponentUiModel(it.name, it.enabled, "activity")
-                } ?: emptyList()
+                // Components: parse activity/service/receiver/provider blocks
+                val activities  = mutableListOf<ComponentUiModel>()
+                val services    = mutableListOf<ComponentUiModel>()
+                val receivers   = mutableListOf<ComponentUiModel>()
+                val providers   = mutableListOf<ComponentUiModel>()
 
-                // Services
-                val services = pkg.services?.map {
-                    ComponentUiModel(it.name, it.enabled, "service")
-                } ?: emptyList()
+                val activityPat  = Regex("\\s+(${Regex.escape(packageName)}/[.\\w\$]+)\\s+filter.*", RegexOption.IGNORE_CASE)
+                val servicePat   = Regex("\\s+Service\\s+(${Regex.escape(packageName)}/[.\\w\$]+):", RegexOption.IGNORE_CASE)
+                val receiverPat  = Regex("\\s+Receiver\\s+(${Regex.escape(packageName)}/[.\\w\$]+):", RegexOption.IGNORE_CASE)
+                val providerPat  = Regex("\\s+Provider\\s+(${Regex.escape(packageName)}/[.\\w\$]+):", RegexOption.IGNORE_CASE)
 
-                // Receivers
-                val receivers = pkg.receivers?.map {
-                    ComponentUiModel(it.name, it.enabled, "receiver")
-                } ?: emptyList()
+                for (line in dump.lines()) {
+                    activityPat.find(line)?.groupValues?.getOrNull(1)?.let {
+                        if (activities.none { a -> a.name == it }) activities.add(ComponentUiModel(it, true, "activity"))
+                    }
+                    servicePat.find(line)?.groupValues?.getOrNull(1)?.let {
+                        if (services.none { s -> s.name == it }) services.add(ComponentUiModel(it, true, "service"))
+                    }
+                    receiverPat.find(line)?.groupValues?.getOrNull(1)?.let {
+                        if (receivers.none { r -> r.name == it }) receivers.add(ComponentUiModel(it, true, "receiver"))
+                    }
+                    providerPat.find(line)?.groupValues?.getOrNull(1)?.let {
+                        if (providers.none { p -> p.name == it }) providers.add(ComponentUiModel(it, true, "provider"))
+                    }
+                }
 
-                // Providers
-                val providers = pkg.providers?.map {
-                    ComponentUiModel(it.name, it.enabled, "provider")
-                } ?: emptyList()
+                val appName = packageName.split(".").lastOrNull()
+                    ?.replaceFirstChar { it.uppercase() } ?: packageName
 
                 _state.update {
                     it.copy(
-                        isLoading = false,
+                        isLoading   = false,
                         packageName = packageName,
-                        appName = appName,
-                        versionName = pkg.versionName ?: "",
-                        versionCode = pkg.longVersionCode,
-                        minSdk = ai.minSdkVersion,
-                        targetSdk = ai.targetSdkVersion,
-                        apkSize = apkFile.length(),
-                        installTime = pkg.firstInstallTime,
-                        lastUpdate = pkg.lastUpdateTime,
-                        sourceDir = ai.sourceDir ?: "",
-                        dataDir = ai.dataDir ?: "",
-                        isEnabled = ai.enabled,
+                        appName     = appName,
+                        versionName = versionName,
+                        versionCode = versionCode,
+                        minSdk      = minSdk,
+                        targetSdk   = targetSdk,
+                        apkSize     = apkSize,
+                        sourceDir   = codePath,
+                        dataDir     = dataDir,
+                        isEnabled   = isEnabled,
                         permissions = permissions,
-                        activities = activities,
-                        services = services,
-                        receivers = receivers,
-                        providers = providers,
+                        activities  = activities,
+                        services    = services,
+                        receivers   = receivers,
+                        providers   = providers,
                     )
                 }
             } catch (e: Exception) {
-                Timber.e(e)
+                Timber.e(e, "AppDetailViewModel: failed to load $packageName from target device")
                 _state.update { it.copy(isLoading = false) }
             }
         }

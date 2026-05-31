@@ -1,15 +1,11 @@
 package com.accu.data.repositories
 
-import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import com.accu.data.db.dao.AppRecordDao
 import com.accu.data.db.dao.FrozenAppDao
 import com.accu.data.db.dao.BlockedComponentDao
 import com.accu.data.db.dao.DebloatPresetDao
 import com.accu.data.db.entities.*
 import com.accu.utils.ShizukuUtils
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -19,7 +15,6 @@ import javax.inject.Singleton
 
 @Singleton
 class AppRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val appRecordDao: AppRecordDao,
     private val frozenAppDao: FrozenAppDao,
     private val blockedComponentDao: BlockedComponentDao,
@@ -35,44 +30,23 @@ class AppRepository @Inject constructor(
 
     suspend fun refreshAppList() = withContext(Dispatchers.IO) {
         try {
-            val entities = if (connectionManager.isRemoteSession()) {
-                // Remote: shell-based listing via exec() → routes to the target device
-                connectionManager.listPackages().map { pkg ->
-                    AppRecordEntity(
-                        packageName    = pkg.packageName,
-                        appName        = pkg.packageName.split(".").lastOrNull()
-                                            ?.replaceFirstChar { it.uppercase() } ?: pkg.packageName,
-                        versionName    = "",
-                        versionCode    = 0L,
-                        installTime    = 0L,
-                        lastUpdateTime = 0L,
-                        isSystemApp    = pkg.isSystem,
-                        isEnabled      = pkg.isEnabled,
-                    )
-                }
-            } else {
-                // Local: full data via Android PackageManager API
-                val pm = context.packageManager
-                pm.getInstalledPackages(
-                    PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
-                    PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS
-                ).mapNotNull { pkg ->
-                    val ai = pkg.applicationInfo ?: return@mapNotNull null
-                    AppRecordEntity(
-                        packageName    = pkg.packageName,
-                        appName        = pm.getApplicationLabel(ai).toString(),
-                        versionName    = pkg.versionName ?: "",
-                        versionCode    = pkg.longVersionCode,
-                        installTime    = pkg.firstInstallTime,
-                        lastUpdateTime = pkg.lastUpdateTime,
-                        isSystemApp    = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0,
-                        isEnabled      = ai.enabled,
-                    )
-                }
+            // Always load from the connected target device via exec() — never local PackageManager
+            val entities = connectionManager.listPackages().map { pkg ->
+                AppRecordEntity(
+                    packageName    = pkg.packageName,
+                    appName        = pkg.packageName.split(".").lastOrNull()
+                                        ?.replaceFirstChar { it.uppercase() } ?: pkg.packageName,
+                    versionName    = "",
+                    versionCode    = 0L,
+                    installTime    = 0L,
+                    lastUpdateTime = 0L,
+                    isSystemApp    = pkg.isSystem,
+                    isEnabled      = pkg.isEnabled,
+                )
             }
             appRecordDao.insertAll(entities)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to refresh app list")
+            Timber.e(e, "Failed to refresh app list from target device")
         }
     }
 
@@ -84,12 +58,8 @@ class AppRepository @Inject constructor(
 
     suspend fun freezeApp(packageName: String, method: FreezeMethod = FreezeMethod.DISABLE): Boolean = withContext(Dispatchers.IO) {
         try {
-            val appName = if (connectionManager.isRemoteSession()) {
-                packageName.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: packageName
-            } else {
-                try { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(packageName, 0)).toString() }
-                catch (_: Exception) { packageName }
-            }
+            // Always derive app name from package name — never query local PackageManager
+            val appName = packageName.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: packageName
             val result = when (method) {
                 FreezeMethod.DISABLE   -> shizukuUtils.execShizuku("pm disable-user --user 0 $packageName")
                 FreezeMethod.SUSPEND   -> shizukuUtils.execShizuku("am suspend-packages $packageName")
@@ -163,13 +133,9 @@ class AppRepository @Inject constructor(
 
     suspend fun extractApk(packageName: String, destPath: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val src = if (connectionManager.isRemoteSession()) {
-                // Remote: resolve APK path via pm path (routes to target device)
-                shizukuUtils.execShizuku("pm path $packageName").output
-                    .removePrefix("package:").trim()
-            } else {
-                context.packageManager.getApplicationInfo(packageName, 0).sourceDir
-            }
+            // Always resolve APK path via pm path on the target device — never local PackageManager
+            val src = shizukuUtils.execShizuku("pm path $packageName").output
+                .removePrefix("package:").trim()
             shizukuUtils.execShizuku("cp $src $destPath").isSuccess
         } catch (e: Exception) { Timber.e(e); false }
     }

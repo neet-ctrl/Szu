@@ -1,12 +1,5 @@
 package com.accu.ui.storage
 
-import android.app.usage.StorageStatsManager
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import android.os.Environment
-import android.os.StatFs
-import android.os.storage.StorageManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -34,7 +27,6 @@ import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.components.LoadingScreen
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import timber.log.Timber
@@ -56,7 +48,6 @@ data class StorageCategory(val name: String, val bytes: Long, val color: Color, 
 
 @HiltViewModel
 class StorageViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val shizukuUtils: ShizukuUtils,
     private val connectionManager: com.accu.connection.AccuConnectionManager,
 ) : ViewModel() {
@@ -69,38 +60,14 @@ class StorageViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true) }
 
-            val cacheTotal: Long
-            val total: Long
-            val free: Long
-
-            if (connectionManager.isRemoteSession()) {
-                // Remote: get storage stats via df command on target device
-                val dfOut = shizukuUtils.execShizuku("df /data 2>/dev/null | tail -1").output.trim()
-                val dfParts = dfOut.split(Regex("\\s+"))
-                // df output: Filesystem 1K-blocks Used Available Use% Mounted
-                total = (dfParts.getOrNull(1)?.toLongOrNull() ?: 0L) * 1024
-                free  = (dfParts.getOrNull(3)?.toLongOrNull() ?: 0L) * 1024
-
-                // Cache: sum /data/data/*/cache on target
-                val duOut = shizukuUtils.execShizuku("du -sb /data/data/*/cache 2>/dev/null | awk '{sum += \$1} END {print sum}'").output.trim()
-                cacheTotal = duOut.toLongOrNull() ?: 0L
-            } else {
-                // Local: fast Java API
-                val stat = StatFs(Environment.getDataDirectory().path)
-                total = stat.totalBytes; free = stat.availableBytes
-
-                var localCache = 0L
-                try {
-                    context.packageManager.getInstalledPackages(PackageManager.GET_META_DATA).forEach { pkg ->
-                        try {
-                            val dir = context.packageManager.getApplicationInfo(pkg.packageName, 0).dataDir
-                            val cacheDir = java.io.File("$dir/cache")
-                            if (cacheDir.exists()) localCache += dirSize(cacheDir)
-                        } catch (_: Exception) {}
-                    }
-                } catch (_: Exception) {}
-                cacheTotal = localCache
-            }
+            // Always query the connected target device via exec() — never local StatFs/PackageManager
+            val dfOut   = shizukuUtils.execShizuku("df /data 2>/dev/null | tail -1").output.trim()
+            val dfParts = dfOut.split(Regex("\\s+"))
+            // df output: Filesystem 1K-blocks Used Available Use% Mounted
+            val total      = (dfParts.getOrNull(1)?.toLongOrNull() ?: 0L) * 1024
+            val free       = (dfParts.getOrNull(3)?.toLongOrNull() ?: 0L) * 1024
+            val duOut      = shizukuUtils.execShizuku("du -sb /data/data/*/cache 2>/dev/null | awk '{sum += \$1} END {print sum}'").output.trim()
+            val cacheTotal = duOut.toLongOrNull() ?: 0L
 
             val used = total - free
             val categories = listOf(
@@ -118,13 +85,8 @@ class StorageViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isScanning = true, scanProgress = 0f) }
 
-            // Get package list from target device (shell) or local (PackageManager)
-            val packageNames: List<String> = if (connectionManager.isRemoteSession()) {
-                connectionManager.listPackages().map { it.packageName }
-            } else {
-                try { context.packageManager.getInstalledPackages(0).map { it.packageName } }
-                catch (_: Exception) { emptyList() }
-            }
+            // Always get package list from connected target device — never local PackageManager
+            val packageNames: List<String> = connectionManager.listPackages().map { it.packageName }
 
             var succeeded = 0
             packageNames.forEachIndexed { i, pkgName ->
@@ -159,11 +121,6 @@ class StorageViewModel @Inject constructor(
 
     fun analyzeApps() { viewModelScope.launch { shizukuUtils.execShizuku("cmd package list packages -s -3 -e") } }
     fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
-
-    private fun dirSize(dir: java.io.File): Long {
-        if (!dir.exists()) return 0L
-        return dir.walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

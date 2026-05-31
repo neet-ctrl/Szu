@@ -1,19 +1,17 @@
 package com.accu.ui.network
 
-import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiManager
-import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.data.repositories.ShellRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 data class NetworkUiState(
@@ -31,13 +29,14 @@ data class NetworkUiState(
     val networkType: String? = null,
     val dnsServer: String? = null,
     val privateDnsMode: String? = null,
-    val privateDnsHost: String? = null
+    val privateDnsHost: String? = null,
+    val isLoading: Boolean = true,
 )
 
 @HiltViewModel
 class NetworkViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val shellRepository: ShellRepository
+    private val connectionManager: AccuConnectionManager,
+    private val shellRepository: ShellRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NetworkUiState())
@@ -47,38 +46,74 @@ class NetworkViewModel @Inject constructor(
         loadNetworkState()
     }
 
-    private fun loadNetworkState() {
-        viewModelScope.launch {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val wifiManager = context.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            val network = cm.activeNetwork
-            val capabilities = cm.getNetworkCapabilities(network)
-            val isWifi = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
-            val isCellular = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true
-            val isVpn = capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-            val wifiInfo = wifiManager.connectionInfo
-            val ssid = if (isWifi && wifiInfo.ssid != null && wifiInfo.ssid != "<unknown ssid>")
-                wifiInfo.ssid.trim('"') else null
-
-            _uiState.update {
-                it.copy(
-                    isWifiEnabled = wifiManager.isWifiEnabled,
-                    isMobileDataEnabled = isCellular,
-                    isVpnActive = isVpn,
-                    wifiSsid = ssid,
-                    wifiSignalStrength = if (isWifi) wifiInfo.rssi else null,
-                    networkType = when {
-                        isWifi -> "Wi-Fi"
-                        isCellular -> "Mobile"
-                        else -> "None"
-                    }
-                )
-            }
-            // Get IP
+    fun loadNetworkState() {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val ipResult = shellRepository.execute("ip route get 8.8.8.8 | awk '{print \$7}'")
-                _uiState.update { it.copy(ipAddress = ipResult.trim().ifBlank { null }) }
-            } catch (_: Exception) {}
+                _uiState.update { it.copy(isLoading = true) }
+
+                // All queries run on the TARGET device via exec()
+                val wifiOn       = connectionManager.exec("settings get global wifi_on 2>/dev/null").output.trim()
+                val mobileOn     = connectionManager.exec("settings get global mobile_data 2>/dev/null").output.trim()
+                val airplaneOn   = connectionManager.exec("settings get global airplane_mode_on 2>/dev/null").output.trim()
+                val nfcOn        = connectionManager.exec("settings get secure nfc_on 2>/dev/null || settings get global nfc_on 2>/dev/null").output.trim()
+                val btState      = connectionManager.exec("settings get global bluetooth_on 2>/dev/null").output.trim()
+
+                // Wi-Fi SSID from wpa_supplicant or dumpsys
+                val ssidRaw  = connectionManager.exec(
+                    "dumpsys wifi 2>/dev/null | grep -m1 'SSID:' | sed 's/.*SSID: //' | sed 's/,.*//' | tr -d '\"'"
+                ).output.trim()
+
+                // IP address of target device
+                val ipRaw    = connectionManager.exec(
+                    "ip route get 8.8.8.8 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print \$2}'"
+                ).output.trim()
+
+                // VPN: check for tun/vpn interface
+                val vpnRaw   = connectionManager.exec(
+                    "ip link show 2>/dev/null | grep -c 'tun\\|ppp\\|vpn'"
+                ).output.trim()
+
+                // Carrier name from telephony
+                val carrier  = connectionManager.exec(
+                    "getprop gsm.operator.alpha 2>/dev/null"
+                ).output.trim()
+
+                // Network type
+                val netType  = connectionManager.exec(
+                    "dumpsys connectivity 2>/dev/null | grep -oE 'type: (WIFI|MOBILE|ETHERNET)[^,]*' | head -1 | sed 's/type: //'"
+                ).output.trim()
+
+                // Private DNS
+                val dnsMode  = connectionManager.exec("settings get global private_dns_mode 2>/dev/null").output.trim()
+                val dnsHost  = connectionManager.exec("settings get global private_dns_specifier 2>/dev/null").output.trim()
+
+                // Hotspot
+                val hotspotRaw = connectionManager.exec(
+                    "dumpsys wifi 2>/dev/null | grep -m1 'isWifiApEnabled\\|SoftApState' | grep -i 'true\\|started'"
+                ).output.trim()
+
+                _uiState.update {
+                    it.copy(
+                        isLoading             = false,
+                        isWifiEnabled         = wifiOn == "1",
+                        isMobileDataEnabled   = mobileOn == "1",
+                        isAirplaneModeEnabled = airplaneOn == "1",
+                        isNfcEnabled          = nfcOn == "1",
+                        isBluetoothEnabled    = btState == "1",
+                        isVpnActive           = (vpnRaw.toIntOrNull() ?: 0) > 0,
+                        wifiSsid              = ssidRaw.ifBlank { null },
+                        ipAddress             = ipRaw.ifBlank { null },
+                        carrierName           = carrier.ifBlank { null },
+                        networkType           = netType.ifBlank { if (wifiOn == "1") "Wi-Fi" else if (mobileOn == "1") "Mobile" else "None" },
+                        isHotspotEnabled      = hotspotRaw.isNotBlank(),
+                        privateDnsMode        = dnsMode.ifBlank { null },
+                        privateDnsHost        = dnsHost.ifBlank { null },
+                    )
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "NetworkViewModel: failed to load state from target device")
+                _uiState.update { it.copy(isLoading = false) }
+            }
         }
     }
 
@@ -86,7 +121,7 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isWifiEnabled
             val cmd = if (current) "svc wifi disable" else "svc wifi enable"
-            shellRepository.execute(cmd)
+            connectionManager.exec(cmd)
             _uiState.update { it.copy(isWifiEnabled = !current) }
         }
     }
@@ -95,7 +130,7 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isMobileDataEnabled
             val cmd = if (current) "svc data disable" else "svc data enable"
-            shellRepository.execute(cmd)
+            connectionManager.exec(cmd)
             _uiState.update { it.copy(isMobileDataEnabled = !current) }
         }
     }
@@ -104,10 +139,9 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isHotspotEnabled
             val cmd = if (current) "svc wifi hotspot disable" else "svc wifi hotspot enable"
-            val result = shellRepository.execute(cmd)
-            if (result.isNotBlank() && result.contains("error", ignoreCase = true)) {
-                // keep current state, surface error
-            } else {
+            val result = connectionManager.exec(cmd)
+            if (!result.output.contains("error", ignoreCase = true) &&
+                !result.error.contains("error", ignoreCase = true)) {
                 _uiState.update { it.copy(isHotspotEnabled = !current) }
             }
         }
@@ -117,7 +151,7 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isBluetoothEnabled
             val cmd = if (current) "svc bluetooth disable" else "svc bluetooth enable"
-            shellRepository.execute(cmd)
+            connectionManager.exec(cmd)
             _uiState.update { it.copy(isBluetoothEnabled = !current) }
         }
     }
@@ -126,7 +160,7 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isNfcEnabled
             val cmd = if (current) "svc nfc disable" else "svc nfc enable"
-            shellRepository.execute(cmd)
+            connectionManager.exec(cmd)
             _uiState.update { it.copy(isNfcEnabled = !current) }
         }
     }
@@ -135,15 +169,17 @@ class NetworkViewModel @Inject constructor(
         viewModelScope.launch {
             val current = _uiState.value.isAirplaneModeEnabled
             val newVal = if (current) 0 else 1
-            shellRepository.execute("settings put global airplane_mode_on $newVal")
-            shellRepository.execute("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state ${!current}")
+            connectionManager.exec("settings put global airplane_mode_on $newVal")
+            connectionManager.exec("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state ${!current}")
             _uiState.update { it.copy(isAirplaneModeEnabled = !current) }
         }
     }
 
     fun openPrivateDnsSettings() {
         viewModelScope.launch {
-            shellRepository.execute("am start -a android.settings.PRIVATE_DNS_SETTINGS")
+            connectionManager.exec("am start -a android.settings.PRIVATE_DNS_SETTINGS")
         }
     }
+
+    fun refresh() { loadNetworkState() }
 }

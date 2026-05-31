@@ -1,27 +1,16 @@
 package com.accu.ui.dashboard
 
-import android.app.ActivityManager
-import android.app.usage.UsageStatsManager
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.BatteryManager
-import android.os.Environment
-import android.os.StatFs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.accu.data.repositories.AppRepository
+import com.accu.connection.AccuConnectionManager
 import com.accu.data.repositories.NavigationHistoryRepository
 import com.accu.data.repositories.ShellRepository
-import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
-import java.util.Calendar
 import javax.inject.Inject
 
 data class DashboardUiState(
@@ -47,9 +36,9 @@ data class QuickStats(
     val ramUsedMb: Long = 0L,
     val ramTotalMb: Long = 0L,
     val batteryLevel: Int = 0,
-    val cpuCores: Int = Runtime.getRuntime().availableProcessors(),
-    val androidVersion: String = android.os.Build.VERSION.RELEASE,
-    val deviceModel: String = android.os.Build.MODEL,
+    val cpuCores: Int = 0,
+    val androidVersion: String = "",
+    val deviceModel: String = "",
     val savedCommandCount: Int = 0,
     val recordingsCount: Int = 0,
 )
@@ -85,10 +74,8 @@ data class SearchResult(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val appRepository: AppRepository,
+    private val connectionManager: AccuConnectionManager,
     private val shellRepository: ShellRepository,
-    private val shizukuUtils: ShizukuUtils,
     private val historyRepo: NavigationHistoryRepository,
 ) : ViewModel() {
 
@@ -99,7 +86,7 @@ class DashboardViewModel @Inject constructor(
 
     init {
         loadDashboard()
-        startAccuMonitor()
+        startConnectionMonitor()
         collectHistory()
     }
 
@@ -117,41 +104,63 @@ class DashboardViewModel @Inject constructor(
     private fun loadDashboard() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val allApps = pm.getInstalledPackages(0)
-                val userApps = allApps.filter { it.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 }
-                val sysApps = allApps.size - userApps.size
+                // ── App counts from target device ─────────────────────────────
+                val userAppsRaw = connectionManager.exec("pm list packages -3 2>/dev/null | wc -l").output.trim()
+                val sysAppsRaw  = connectionManager.exec("pm list packages -s 2>/dev/null | wc -l").output.trim()
+                val userApps    = userAppsRaw.toIntOrNull() ?: 0
+                val sysApps     = sysAppsRaw.toIntOrNull() ?: 0
 
-                val stat = StatFs(Environment.getDataDirectory().path)
-                val freeBytes = stat.availableBytes
-                val totalBytes = stat.totalBytes
-                val freeGb = freeBytes / (1024f * 1024f * 1024f)
-                val totalGb = totalBytes / (1024f * 1024f * 1024f)
+                // ── RAM from target /proc/meminfo ─────────────────────────────
+                val memRaw   = connectionManager.exec("cat /proc/meminfo 2>/dev/null").output
+                val memTotal = memRaw.lineSequence()
+                    .firstOrNull { it.startsWith("MemTotal:") }
+                    ?.replace(Regex("[^0-9]"), "")?.trim()?.toLongOrNull()?.div(1024) ?: 0L
+                val memAvail = memRaw.lineSequence()
+                    .firstOrNull { it.startsWith("MemAvailable:") }
+                    ?.replace(Regex("[^0-9]"), "")?.trim()?.toLongOrNull()?.div(1024) ?: 0L
+                val memUsed = (memTotal - memAvail).coerceAtLeast(0L)
 
-                val actManager = context.getSystemService(ActivityManager::class.java)
-                val memInfo = ActivityManager.MemoryInfo()
-                actManager.getMemoryInfo(memInfo)
-                val usedMb = (memInfo.totalMem - memInfo.availMem) / (1024 * 1024)
-                val totalMb = memInfo.totalMem / (1024 * 1024)
+                // ── Storage from target df /data ──────────────────────────────
+                val dfRaw   = connectionManager.exec("df /data 2>/dev/null | tail -1").output.trim()
+                val dfParts = dfRaw.split(Regex("\\s+"))
+                val totalKb = dfParts.getOrNull(1)?.toLongOrNull() ?: 0L
+                val freeKb  = dfParts.getOrNull(3)?.toLongOrNull() ?: 0L
+                val totalGb = totalKb * 1024L / (1024f * 1024f * 1024f)
+                val freeGb  = freeKb  * 1024L / (1024f * 1024f * 1024f)
+
+                // ── Battery from target dumpsys ───────────────────────────────
+                val battRaw   = connectionManager.exec("dumpsys battery 2>/dev/null | grep -m1 'level:'").output.trim()
+                val battLevel = battRaw.replace(Regex("[^0-9]"), "").take(3).toIntOrNull() ?: 0
+
+                // ── CPU cores from target ─────────────────────────────────────
+                val cpuRaw   = connectionManager.exec("nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo 2>/dev/null").output.trim()
+                val cpuCores = cpuRaw.lines().firstOrNull()?.trim()?.toIntOrNull() ?: 1
+
+                // ── Device info from target getprop ───────────────────────────
+                val model   = connectionManager.exec("getprop ro.product.model 2>/dev/null").output.trim()
+                val version = connectionManager.exec("getprop ro.build.version.release 2>/dev/null").output.trim()
 
                 val savedCmds = shellRepository.getCommandCount()
-
-                val modules = buildModuleCards()
+                val modules   = buildModuleCards()
 
                 _uiState.update {
                     it.copy(
                         quickStats = QuickStats(
-                            installedApps = userApps.size,
-                            systemApps = sysApps,
-                            freeStorageGb = freeGb,
-                            totalStorageGb = totalGb,
-                            ramUsedMb = usedMb,
-                            ramTotalMb = totalMb,
+                            installedApps    = userApps,
+                            systemApps       = sysApps,
+                            freeStorageGb    = freeGb,
+                            totalStorageGb   = totalGb,
+                            ramUsedMb        = memUsed,
+                            ramTotalMb       = memTotal,
+                            batteryLevel     = battLevel,
+                            cpuCores         = cpuCores,
+                            androidVersion   = version.ifBlank { "—" },
+                            deviceModel      = model.ifBlank { "—" },
                             savedCommandCount = savedCmds,
                         ),
-                        moduleCards = modules,
+                        moduleCards   = modules,
                         recentActions = buildRecentActions(),
-                        isLoading = false,
+                        isLoading     = false,
                     )
                 }
             } catch (e: Exception) {
@@ -161,17 +170,19 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    private fun startAccuMonitor() {
+    private fun startConnectionMonitor() {
         viewModelScope.launch {
             while (true) {
-                val status = when {
-                    shizukuUtils.isRootAvailable() -> AccuConnectionStatus.ROOT_MODE
-                    shizukuUtils.isShizukuAvailable() -> AccuConnectionStatus.RUNNING
-                    shizukuUtils.isShizukuInstalled(context) -> AccuConnectionStatus.NOT_RUNNING
-                    else -> AccuConnectionStatus.NOT_INSTALLED
+                val status = when (connectionManager.getConnectionState()) {
+                    AccuConnectionManager.ConnectionState.CONNECTED_ROOT     -> AccuConnectionStatus.ROOT_MODE
+                    AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS -> AccuConnectionStatus.RUNNING
+                    AccuConnectionManager.ConnectionState.CONNECTED_OTG      -> AccuConnectionStatus.RUNNING
+                    AccuConnectionManager.ConnectionState.CONNECTING         -> AccuConnectionStatus.UNKNOWN
+                    AccuConnectionManager.ConnectionState.DISCONNECTED       -> AccuConnectionStatus.NOT_RUNNING
+                    else                                                     -> AccuConnectionStatus.UNKNOWN
                 }
                 _uiState.update { it.copy(accuStatus = status) }
-                delay(3000)
+                delay(5000)
             }
         }
     }
@@ -190,7 +201,6 @@ class DashboardViewModel @Inject constructor(
                             item.tags.any { it.equals(q, ignoreCase = true) }    -> 60
                             item.subtitle.contains(q, ignoreCase = true)         -> 50
                             item.tags.any { it.contains(q, ignoreCase = true) }  -> 35
-                            // multi-word: all words must match somewhere
                             q.contains(' ') && q.split(' ').all { word ->
                                 item.title.contains(word, ignoreCase = true) ||
                                 item.subtitle.contains(word, ignoreCase = true) ||
@@ -217,48 +227,51 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun buildModuleCards(): List<ModuleCard> = listOf(
-        ModuleCard("accu",       "ACCU Connection",   "Privilege & wireless ADB",      "wifi_protected_setup", "accu_center", 0xFF4A56E2),
-        ModuleCard("shell",      "Shell Terminal",    "ADB commands & scripts",        "terminal",        "shell",             0xFF00D4FF),
-        ModuleCard("debloat",    "Debloat",           "Remove bloatware",              "delete",          "debloat",           0xFFFF1744),
-        ModuleCard("freeze",     "Freeze Apps",       "Suspend & hide packages",       "ac_unit",         "freeze_apps",       0xFF00BCD4),
-        ModuleCard("privacy",    "Privacy Center",    "Block trackers & components",   "security",        "privacy",           0xFFFF6D00),
-        ModuleCard("custom",     "Customization",     "Themes, colors & dark mode",    "palette",         "customization",     0xFFD500F9),
-        ModuleCard("storage",    "Storage Center",    "Clean & analyze storage",       "storage",         "storage",           0xFF00E676),
-        ModuleCard("files",      "File Manager",      "Advanced file management",      "folder",          "file_manager",      0xFFFFD600),
-        ModuleCard("installer",  "Installer Center",  "APK install with options",      "install_mobile",  "installer",         0xFF4A56E2),
-        ModuleCard("keymapper",  "Key Mapper",        "Remap keys & gestures",         "keyboard",        "automation",        0xFF7C4DFF),
-        ModuleCard("language",   "Language Center",   "Per-app language selection",    "language",        "language_center",   0xFF00BFA5),
-        ModuleCard("network",    "Network Center",    "Wi-Fi & mobile data",           "wifi",            "network_center",    0xFF2196F3),
-        ModuleCard("audio",      "Audio Center",      "DSP equalizer & effects",       "equalizer",       "audio_center",      0xFFE91E63),
-        ModuleCard("calls",      "Call Recorder",     "Rootless call recording",       "call",            "call_recorder",     0xFF4CAF50),
-        ModuleCard("widgets",    "Smart Widgets",     "At-a-Glance enhancements",      "widgets",         "widgets",           0xFFFF9800),
-        ModuleCard("learning",   "Learning Center",   "Guides & tutorials",            "school",          "learning_center",   0xFF9C27B0),
+        ModuleCard("accu",       "ACCU Connection",   "Privilege & wireless ADB",      "wifi_protected_setup", "accu_center",      0xFF4A56E2),
+        ModuleCard("shell",      "Shell Terminal",    "ADB commands & scripts",        "terminal",             "shell",            0xFF00D4FF),
+        ModuleCard("debloat",    "Debloat",           "Remove bloatware",              "delete",               "debloat",          0xFFFF1744),
+        ModuleCard("freeze",     "Freeze Apps",       "Suspend & hide packages",       "ac_unit",              "freeze_apps",      0xFF00BCD4),
+        ModuleCard("privacy",    "Privacy Center",    "Block trackers & components",   "security",             "privacy",          0xFFFF6D00),
+        ModuleCard("custom",     "Customization",     "Themes, colors & dark mode",    "palette",              "customization",    0xFFD500F9),
+        ModuleCard("storage",    "Storage Center",    "Clean & analyze storage",       "storage",              "storage",          0xFF00E676),
+        ModuleCard("files",      "File Manager",      "Advanced file management",      "folder",               "file_manager",     0xFFFFD600),
+        ModuleCard("installer",  "Installer Center",  "APK install with options",      "install_mobile",       "installer",        0xFF4A56E2),
+        ModuleCard("keymapper",  "Key Mapper",        "Remap keys & gestures",         "keyboard",             "automation",       0xFF7C4DFF),
+        ModuleCard("language",   "Language Center",   "Per-app language selection",    "language",             "language_center",  0xFF00BFA5),
+        ModuleCard("network",    "Network Center",    "Wi-Fi & mobile data",           "wifi",                 "network_center",   0xFF2196F3),
+        ModuleCard("audio",      "Audio Center",      "DSP equalizer & effects",       "equalizer",            "audio_center",     0xFFE91E63),
+        ModuleCard("calls",      "Call Recorder",     "Rootless call recording",       "call",                 "call_recorder",    0xFF4CAF50),
+        ModuleCard("widgets",    "Smart Widgets",     "At-a-Glance enhancements",      "widgets",              "widgets",          0xFFFF9800),
+        ModuleCard("learning",   "Learning Center",   "Guides & tutorials",            "school",               "learning_center",  0xFF9C27B0),
     )
 
-    private fun buildRecentActions(): List<RecentAction> {
+    /** Show recently-installed user apps from the target device. */
+    private suspend fun buildRecentActions(): List<RecentAction> {
         return try {
-            val pm = context.packageManager
-            pm.getInstalledPackages(0)
-                .filter { pkg -> pkg.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 }
-                .sortedByDescending { it.lastUpdateTime }
-                .take(8)
+            // pm list packages -3 lists all user packages; reverse to approximate recency
+            val out = connectionManager.exec(
+                "pm list packages -3 2>/dev/null | sed 's/package://' | tail -8"
+            ).output
+            out.lines()
+                .filter { it.isNotBlank() }
+                .reversed()
                 .mapIndexed { index, pkg ->
-                    val name = try { pm.getApplicationLabel(pkg.applicationInfo!!).toString() } catch (_: Exception) { pkg.packageName }
-                    RecentAction(id = (index + 1).toLong(), title = name, subtitle = "Updated ${formatRelativeTime(pkg.lastUpdateTime)}", iconRes = "install_mobile", route = "app_detail/${pkg.packageName}")
+                    val pkgTrimmed = pkg.trim()
+                    val label = pkgTrimmed.split(".").lastOrNull()
+                        ?.replaceFirstChar { it.uppercase() } ?: pkgTrimmed
+                    RecentAction(
+                        id       = (index + 1).toLong(),
+                        title    = label,
+                        subtitle = pkgTrimmed,
+                        iconRes  = "install_mobile",
+                        route    = "app_detail/$pkgTrimmed",
+                    )
                 }
-                .ifEmpty { listOf(RecentAction(id = -1L, title = "Welcome to ACC", subtitle = "No recently updated apps", iconRes = "home", route = null)) }
+                .ifEmpty {
+                    listOf(RecentAction(id = -1L, title = "Welcome to ACCU", subtitle = "Connected to target device", iconRes = "home", route = null))
+                }
         } catch (_: Exception) {
-            listOf(RecentAction(id = -2L, title = "Welcome to ACC", subtitle = "Android Control Center", iconRes = "home", route = null))
-        }
-    }
-
-    private fun formatRelativeTime(timeMs: Long): String {
-        val diff = System.currentTimeMillis() - timeMs
-        return when {
-            diff < 60_000 -> "just now"
-            diff < 3_600_000 -> "${diff / 60_000}m ago"
-            diff < 86_400_000 -> "${diff / 3_600_000}h ago"
-            else -> "${diff / 86_400_000}d ago"
+            listOf(RecentAction(id = -2L, title = "Welcome to ACCU", subtitle = "Android Control Center", iconRes = "home", route = null))
         }
     }
 
