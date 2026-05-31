@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.accu.ui.components.InfoTooltipIcon
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -81,6 +82,12 @@ fun DeduplicatorScreen(onBack: () -> Unit) {
             TopAppBar(
                 title = { Text("Deduplicator") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Deduplicator",
+                        description = "Finds identical files stored in multiple locations by comparing file content (MD5/SHA-256 hash), not just filenames.\n\nHow it works:\n1. Choose scan locations (Photos, Videos, Downloads, etc.)\n2. Tap Scan — ACCU hashes all files in those locations\n3. Files with matching hashes are grouped together\n4. Select which duplicates to delete; the original (oldest or largest) is kept\n\nSafe to use — ACCU never deletes without your confirmation. Wasted space is shown before any deletion.",
+                    )
+                },
             )
         }
     ) { padding ->

@@ -406,10 +406,26 @@ private fun CertificatesTab(packageName: String, context: android.content.Contex
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Certificate ${i+1}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
+                    val certClipboard = LocalClipboardManager.current
                     cert.forEach { (key, value) ->
-                        Row(Modifier.fillMaxWidth()) {
-                            Text(key, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(80.dp))
-                            Text(value, style = MaterialTheme.typography.bodySmall, fontFamily = if (key.contains("SHA") || key == "Serial" || key == "MD5") FontFamily.Monospace else FontFamily.Default, modifier = Modifier.weight(1f))
+                        val isCopyable = key.contains("SHA") || key == "Serial" || key == "MD5" || key == "Subject" || key == "Issuer"
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(key, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(75.dp))
+                            Text(
+                                value,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = if (key.contains("SHA") || key == "Serial" || key == "MD5") FontFamily.Monospace else FontFamily.Default,
+                                modifier = Modifier.weight(1f),
+                                maxLines = if (key.contains("SHA") || key == "MD5" || key == "Serial") 1 else 2,
+                            )
+                            if (isCopyable) {
+                                IconButton(
+                                    onClick = { certClipboard.setText(AnnotatedString(value)) },
+                                    modifier = Modifier.size(24.dp),
+                                ) {
+                                    Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                }
+                            }
                         }
                     }
                 }
@@ -561,9 +577,19 @@ private fun DetailSection(title: String, content: @Composable ColumnScope.() -> 
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(120.dp))
+    val clipboardManager = LocalClipboardManager.current
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(110.dp))
         Text(value, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = { clipboardManager.setText(AnnotatedString(value)) },
+            modifier = Modifier.size(24.dp),
+        ) {
+            Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        }
     }
 }
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -200,7 +201,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Output Control ────────────────────────────────────────────
             item {
-                DSPSection("Output Control", Icons.Default.VolumeUp, null, null) {
+                DSPSection("Output Control", Icons.Default.VolumeUp, null, null, infoDescription = "Master output gain and hard limiter. Increase gain to boost overall volume; enable the limiter to prevent clipping/distortion at high volumes.\n\nLimiter threshold is in dBFS — values near 0 (e.g. −0.2 dB) prevent any clipping without audible pumping.") {
                     DspSlider("Output gain", outputGain, -10f..10f, "%.1f dB") { outputGain = it }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("Limiter"); Text("Prevent clipping at output", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -212,7 +213,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Bass & Treble ─────────────────────────────────────────────
             item {
-                DSPSection("Bass & Treble", Icons.Default.GraphicEq, bassEnabled, { bassEnabled = it }) {
+                DSPSection("Bass & Treble", Icons.Default.GraphicEq, bassEnabled, { bassEnabled = it }, infoDescription = "Bass boost adds low-frequency energy below the chosen frequency. Treble adds sparkle/air above 5 kHz.\n\nModes:\n• Natural Bass — gentle shelf, good for casual listening\n• Pure Bass — more aggressive sub-bass boost\n• Boom — extreme low-end for EDM/hip-hop\n\nTip: Bass boost >12 dB can cause distortion on drivers with limited excursion.") {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded, { expanded = it }) {
                         OutlinedTextField(bassMode, {}, readOnly = true, label = { Text("Bass mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
@@ -230,7 +231,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Stereo Widening ──────────────────────────────────────────
             item {
-                DSPSection("Stereo Widening", Icons.Default.Headset, stereoEnabled, { stereoEnabled = it }) {
+                DSPSection("Stereo Widening", Icons.Default.Headset, stereoEnabled, { stereoEnabled = it }, infoDescription = "Expands the perceived stereo field by processing the mid/side channels.\n\nModes:\n• Haas Effect — slight time delay to one channel for spaciousness\n• Dolby Stereo — Dolby-style matrix widening\n• Simple Stereo — straight mid/side width control\n\nHigh strength values (>80%) can cause mono compatibility issues and headache-inducing listening fatigue.") {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded, { expanded = it }) {
                         OutlinedTextField(stereoMode, {}, readOnly = true, label = { Text("Mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
@@ -263,7 +264,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Reverberation ─────────────────────────────────────────────
             item {
-                DSPSection("Reverberation", Icons.Default.BlurOn, reverbEnabled, { reverbEnabled = it }) {
+                DSPSection("Reverberation", Icons.Default.BlurOn, reverbEnabled, { reverbEnabled = it }, infoDescription = "Simulates listening in a physical space by adding reflections and decay.\n\nPresets:\n• Small Room — tight, close ambience\n• Large Hall — cathedral-style, long tail\n• Live Stage — concert-hall feel for music\n\nWet/Dry ratio: Wet controls reverb level; Dry controls original signal. Keep Dry at 100 for natural sound.") {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded, { expanded = it }) {
                         OutlinedTextField(reverbPreset, {}, readOnly = true, label = { Text("Preset") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
@@ -283,7 +284,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Compressor ───────────────────────────────────────────────
             item {
-                DSPSection("Compander / Compressor", Icons.Default.Compress, compressorEnabled, { compressorEnabled = it }) {
+                DSPSection("Compander / Compressor", Icons.Default.Compress, compressorEnabled, { compressorEnabled = it }, infoDescription = "Reduces the dynamic range so quiet parts are louder and loud parts are softer — great for podcasts and spoken word.\n\n• Threshold — level above which compression kicks in (dBFS)\n• Ratio — how much compression to apply (4:1 is moderate, 10:1 is limiting)\n• Attack/Release — how fast the compressor responds\n• Makeup Gain — compensate for volume lost during compression") {
                     DspSlider("Threshold", compressorThreshold, -60f..0f, "%.0f dB") { compressorThreshold = it }
                     DspSlider("Ratio", compressorRatio, 1f..20f, "%.0f:1") { compressorRatio = it }
                     DspSlider("Attack", compressorAttack, 1f..100f, "%.0f ms") { compressorAttack = it }
@@ -303,7 +304,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Crossfeed ────────────────────────────────────────────────
             item {
-                DSPSection("Crossfeed (Headphone)", Icons.Default.Headphones, crossfeedEnabled, { crossfeedEnabled = it }) {
+                DSPSection("Crossfeed (Headphone)", Icons.Default.Headphones, crossfeedEnabled, { crossfeedEnabled = it }, infoDescription = "Crossfeed blends a small amount of the left channel into the right and vice versa, simulating how our ears hear speakers in a room. This reduces listening fatigue caused by hard stereo panning in headphones.\n\nModes:\n• BS2B 700 Hz — Bauer stereophonic-to-binaural at 700 Hz cut-off (most natural)\n• BS2B 650 Hz — slightly wider crossfeed\n• CMoy — minimal crossfeed\n\nRecommended for long listening sessions.") {
                     Text("Reduces stereo separation for headphone listening to simulate speaker sound-stage.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(6.dp))
                     var expanded by remember { mutableStateOf(false) }
@@ -320,7 +321,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── DDC ──────────────────────────────────────────────────────
             item {
-                DSPSection("DDC (Device Correction)", Icons.Default.Equalizer, ddcEnabled, { ddcEnabled = it }) {
+                DSPSection("DDC (Device Correction)", Icons.Default.Equalizer, ddcEnabled, { ddcEnabled = it }, infoDescription = "DDC (Digital Device Correction) applies a correction filter designed specifically for your headphone or speaker model to flatten its frequency response.\n\nLoad a .vdc file generated for your device from databases like AutoEq or SquigLink. This is the most accurate way to EQ because it uses measured data rather than guesswork.\n\nCompatible formats: VDC files (RootlessJamesDSP format).") {
                     Text("Applies Digital Device Correction profiles to compensate for device-specific frequency response characteristics.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(6.dp))
                     OutlinedButton(onClick = { ddcFilePicker.launch(Intent(Intent.ACTION_GET_CONTENT).apply { type = "*/*"; putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("*/*")) }) }, Modifier.fillMaxWidth()) {
@@ -369,13 +370,16 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 }
 
 @Composable
-private fun DSPSection(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean?, onToggle: ((Boolean) -> Unit)?, content: @Composable ColumnScope.() -> Unit) {
+private fun DSPSection(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean?, onToggle: ((Boolean) -> Unit)?, infoDescription: String? = null, content: @Composable ColumnScope.() -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
         Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                if (infoDescription != null) {
+                    InfoTooltipIcon(title = title, description = infoDescription)
+                }
                 if (enabled != null && onToggle != null) Switch(checked = enabled, onCheckedChange = onToggle)
             }
             Spacer(Modifier.height(8.dp))

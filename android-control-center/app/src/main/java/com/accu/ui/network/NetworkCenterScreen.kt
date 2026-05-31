@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -295,9 +297,19 @@ private fun NetworkToggleCard(
 
 @Composable
 private fun NetworkInfoRow(label: String, value: String, icon: ImageVector) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val clipboardManager = LocalClipboardManager.current
+    val copyable = value != "N/A" && value != "Not connected" && value != "No SIM" && value != "Unknown" && value != "Default" && value != "Yes" && value != "No"
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
         Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
         Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (copyable) {
+            IconButton(
+                onClick = { clipboardManager.setText(AnnotatedString(value)) },
+                modifier = Modifier.size(24.dp),
+            ) {
+                Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            }
+        }
     }
 }

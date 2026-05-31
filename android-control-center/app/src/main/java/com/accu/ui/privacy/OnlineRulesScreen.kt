@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import com.accu.ui.components.InfoTooltipIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -118,6 +119,10 @@ fun OnlineRulesScreen(onBack: () -> Unit) {
                             Text("$appliedCount applied", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
+                    InfoTooltipIcon(
+                        title = "Tracker Rules",
+                        description = "Tracker rules let you block advertising, analytics, and data-collection SDKs in any installed app — no root required (uses Shizuku to apply package-level firewall rules).\n\nCategories:\n• Advertising — Ad networks (Google AdMob, Meta Ads, etc.)\n• Analytics — Usage tracking (Adjust, AppsFlyer, Segment, etc.)\n• Crash Reporting — Error reporting (Firebase Crashlytics, etc.)\n• Identification — Fingerprinting/device ID SDKs\n\nApplied rules survive app updates. Toggle individual rules to unblock specific SDKs.",
+                    )
                     IconButton(onClick = {
                         scope.launch {
                             isLoading = true

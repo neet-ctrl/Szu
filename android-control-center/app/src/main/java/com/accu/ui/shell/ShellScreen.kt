@@ -614,14 +614,20 @@ private fun CommandHistorySheet(
                 Text("No history yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
+            val clipboardManager = LocalClipboardManager.current
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(history.reversed()) { cmd ->
                     ListItem(
                         headlineContent = { Text(cmd, fontFamily = FontFamily.Monospace, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         leadingContent = { Icon(Icons.Outlined.History, null, Modifier.size(18.dp)) },
                         trailingContent = {
-                            IconButton(onClick = { onDeleteCommand(cmd) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(16.dp))
+                            Row {
+                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(cmd)) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Outlined.ContentCopy, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { onDeleteCommand(cmd) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(16.dp))
+                                }
                             }
                         },
                         modifier = Modifier.clickable { onSelectCommand(cmd) }
@@ -663,14 +669,20 @@ private fun BookmarksSheet(
                 }
             }
         } else {
+            val clipboardManager = LocalClipboardManager.current
             LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(bookmarks) { cmd ->
                     ListItem(
                         headlineContent = { Text(cmd, fontFamily = FontFamily.Monospace, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         leadingContent = { Icon(Icons.Outlined.Bookmark, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = {
-                            IconButton(onClick = { onDeleteBookmark(cmd) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(16.dp))
+                            Row {
+                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(cmd)) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Outlined.ContentCopy, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                IconButton(onClick = { onDeleteBookmark(cmd) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(16.dp))
+                                }
                             }
                         },
                         modifier = Modifier.clickable { onSelectBookmark(cmd) }.clip(RoundedCornerShape(8.dp))
@@ -730,10 +742,16 @@ private fun CommandExamplesSheet(examples: List<CommandExample>, onSelectExample
 
 @Composable
 private fun AiAnalysisSheet(command: String, analysis: AiAnalysisState, onApplySuggestion: (String) -> Unit) {
+    val clipboardManager = LocalClipboardManager.current
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-            Text("AI Command Analysis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("AI Command Analysis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (analysis.explanation.isNotEmpty()) {
+                IconButton(onClick = { clipboardManager.setText(AnnotatedString(analysis.explanation)) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Outlined.ContentCopy, "Copy analysis", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         if (command.isNotEmpty()) {
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
