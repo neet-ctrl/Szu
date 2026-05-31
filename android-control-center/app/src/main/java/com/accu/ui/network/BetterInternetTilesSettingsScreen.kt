@@ -113,7 +113,7 @@ fun BetterInternetTilesSettingsScreen(onBack: () -> Unit) {
                 Text("Choose how tiles execute toggle commands", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            items(ShellMethod.entries) { method ->
+            items(ShellMethod.entries, key = { "method_${it.name}" }) { method ->
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
@@ -145,7 +145,7 @@ fun BetterInternetTilesSettingsScreen(onBack: () -> Unit) {
                 Text("Controls how often tile state is refreshed from the system", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            items(TileSyncMode.entries) { mode ->
+            items(TileSyncMode.entries, key = { "syncmode_${it.name}" }) { mode ->
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
