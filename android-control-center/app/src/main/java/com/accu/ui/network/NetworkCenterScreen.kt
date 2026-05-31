@@ -1,38 +1,46 @@
 package com.accu.ui.network
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.components.SectionHeaderWithInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NetworkCenterScreen(viewModel: NetworkViewModel = hiltViewModel()) {
+fun NetworkCenterScreen(
+    onBack: () -> Unit = {},
+    viewModel: NetworkViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Network Center", fontWeight = FontWeight.Bold)
-                        InfoTooltipIcon(
-                            title = "Network Center",
-                            description = "Control all network connections and add Quick Settings tiles.\n\nBetter Internet Tiles features:\n• Wi-Fi, Mobile Data, Hotspot tiles\n• Bluetooth and NFC tiles\n• Airplane Mode tile\n\nAll tiles use Shizuku to actually toggle (unlike stock Android tiles that open settings).\n\nHow to add tiles: Pull down notification shade → tap pencil icon → drag ACC tiles to active area."
-                        )
-                    }
+            ACCTopBar(
+                title = "Network Center",
+                onBack = onBack,
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Network Center",
+                        description = "Control all network connections and add Quick Settings tiles.\n\nBetter Internet Tiles features:\n• Wi-Fi, Mobile Data, Hotspot tiles\n• Bluetooth and NFC tiles\n• Airplane Mode tile\n\nAll tiles use Shizuku to actually toggle (unlike stock Android tiles that open settings).\n\nHow to add tiles: Pull down notification shade → tap pencil icon → drag ACC tiles to active area."
+                    )
                 }
             )
         }

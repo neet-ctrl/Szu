@@ -8,14 +8,21 @@ import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageManager
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -143,24 +150,9 @@ fun StorageScreen(
     Scaffold(topBar = { ACCTopBar(title = "Storage Center", actions = { IconButton(onClick = viewModel::loadStorage) { Icon(Icons.Default.Refresh, "Refresh") } }) }, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         if (state.isLoading) { LoadingScreen("Analyzing storage…") }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Storage circle
+            // Circular storage ring chart
             item {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Device Storage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(12.dp))
-                        LinearProgressIndicator(
-                            progress = { if (state.totalBytes > 0) state.usedBytes.toFloat() / state.totalBytes else 0f },
-                            modifier = Modifier.fillMaxWidth().height(16.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) { Text("Used", style = MaterialTheme.typography.labelSmall); Text(formatBytes(state.usedBytes), fontWeight = FontWeight.Bold) }
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { Text("Free", style = MaterialTheme.typography.labelSmall); Text(formatBytes(state.freeBytes), fontWeight = FontWeight.Bold, color = Color(0xFF00E676)) }
-                            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) { Text("Total", style = MaterialTheme.typography.labelSmall); Text(formatBytes(state.totalBytes), fontWeight = FontWeight.Bold) }
-                        }
-                    }
-                }
+                StorageRingCard(state = state)
             }
             // Categories
             item {
@@ -170,13 +162,23 @@ fun StorageScreen(
                         Spacer(Modifier.height(8.dp))
                         state.categories.forEach { cat ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(cat.icon, null, tint = cat.color, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
+                                Surface(shape = RoundedCornerShape(4.dp), color = cat.color.copy(0.15f), modifier = Modifier.size(28.dp)) {
+                                    Box(contentAlignment = Alignment.Center) { Icon(cat.icon, null, tint = cat.color, modifier = Modifier.size(16.dp)) }
+                                }
+                                Spacer(Modifier.width(10.dp))
                                 Text(cat.name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                Text(formatBytes(cat.bytes), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                Text(formatBytes(cat.bytes), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = cat.color)
                             }
-                            if (state.totalBytes > 0) LinearProgressIndicator(progress = { cat.bytes.toFloat() / state.totalBytes }, modifier = Modifier.fillMaxWidth().height(4.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp)), color = cat.color, trackColor = MaterialTheme.colorScheme.surfaceVariant)
-                            Spacer(Modifier.height(4.dp))
+                            if (state.totalBytes > 0) {
+                                val animPct by animateFloatAsState(targetValue = cat.bytes.toFloat() / state.totalBytes, animationSpec = tween(800), label = "cat")
+                                LinearProgressIndicator(
+                                    progress = { animPct },
+                                    modifier = Modifier.fillMaxWidth().height(4.dp).padding(start = 38.dp),
+                                    color = cat.color,
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
                         }
                     }
                 }
@@ -230,6 +232,73 @@ fun StorageScreen(
     }
 }
 
+@Composable
+private fun StorageRingCard(state: StorageUiState) {
+    val usedFraction = if (state.totalBytes > 0) state.usedBytes.toFloat() / state.totalBytes else 0f
+    val animFraction by animateFloatAsState(targetValue = usedFraction, animationSpec = tween(1000, easing = FastOutSlowInEasing), label = "ring")
+
+    val ringColor1 = if (usedFraction > 0.85f) Color(0xFFE53935) else if (usedFraction > 0.6f) Color(0xFFFF6D00) else Color(0xFF4A56E2)
+    val ringColor2 = if (usedFraction > 0.85f) Color(0xFFFF8A80) else if (usedFraction > 0.6f) Color(0xFFFFCC80) else Color(0xFF7986CB)
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Card(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(130.dp)) {
+                Canvas(modifier = Modifier.size(130.dp)) {
+                    val stroke = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Round)
+                    val inset = 9.dp.toPx()
+                    val arcSize = Size(size.width - inset * 2, size.height - inset * 2)
+                    drawArc(color = trackColor, startAngle = -210f, sweepAngle = 240f, useCenter = false, topLeft = androidx.compose.ui.geometry.Offset(inset, inset), size = arcSize, style = stroke)
+                    if (animFraction > 0f) {
+                        drawArc(
+                            brush = Brush.sweepGradient(listOf(ringColor1, ringColor2, ringColor1)),
+                            startAngle = -210f,
+                            sweepAngle = 240f * animFraction,
+                            useCenter = false,
+                            topLeft = androidx.compose.ui.geometry.Offset(inset, inset),
+                            size = arcSize,
+                            style = stroke,
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "${(usedFraction * 100).toInt()}%",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = ringColor1,
+                    )
+                    Text("used", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Device Storage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                StorageStatRow("Used", formatBytes(state.usedBytes), ringColor1)
+                StorageStatRow("Free", formatBytes(state.freeBytes), Color(0xFF00E676))
+                StorageStatRow("Total", formatBytes(state.totalBytes), MaterialTheme.colorScheme.onSurfaceVariant)
+                if (state.cacheBytes > 0) StorageStatRow("Cache", formatBytes(state.cacheBytes), Color(0xFFFF6D00))
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageStatRow(label: String, value: String, color: Color) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Surface(shape = androidx.compose.foundation.shape.CircleShape, color = color.copy(0.15f), modifier = Modifier.size(8.dp)) {}
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = color)
+    }
+}
+
 private fun formatBytes(bytes: Long): String = when {
     bytes < 1024 -> "$bytes B"
     bytes < 1024 * 1024 -> "${"%.1f".format(bytes / 1024f)} KB"
@@ -237,4 +306,3 @@ private fun formatBytes(bytes: Long): String = when {
     else -> "${"%.2f".format(bytes / 1_000_000_000f)} GB"
 }
 
-private fun Modifier.clip(shape: androidx.compose.ui.graphics.Shape) = this

@@ -1,14 +1,20 @@
 package com.accu.ui.callrecorder
 
 import android.text.format.DateUtils
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,20 +55,57 @@ fun CallRecorderScreen(
                 Card(
                     Modifier.fillMaxWidth().padding(16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (state.isRecordingEnabled) AccentGreen.copy(0.1f) else MaterialTheme.colorScheme.surfaceVariant,
+                        containerColor = if (state.isRecordingEnabled) AccentGreen.copy(0.1f) else MaterialTheme.colorScheme.surfaceContainer,
                     ),
                 ) {
                     Column(Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.RadioButtonChecked,
-                                null,
-                                tint = if (state.isRecordingEnabled) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(28.dp),
+                            // Pulsing REC indicator
+                            val recPulse = rememberInfiniteTransition(label = "rec")
+                            val pulseScale by recPulse.animateFloat(
+                                initialValue = 1f,
+                                targetValue = if (state.isRecordingEnabled) 1.3f else 1f,
+                                animationSpec = infiniteRepeatable(tween(700, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                                label = "pulse",
                             )
+                            val pulseAlpha by recPulse.animateFloat(
+                                initialValue = 1f,
+                                targetValue = if (state.isRecordingEnabled) 0.4f else 1f,
+                                animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+                                label = "alpha",
+                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.size(44.dp),
+                            ) {
+                                if (state.isRecordingEnabled) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = AccentGreen.copy(pulseAlpha * 0.25f),
+                                        modifier = Modifier.size(44.dp).scale(pulseScale),
+                                    ) {}
+                                }
+                                Surface(shape = CircleShape, color = if (state.isRecordingEnabled) AccentGreen.copy(0.2f) else MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.size(32.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Icons.Default.RadioButtonChecked,
+                                            null,
+                                            tint = if (state.isRecordingEnabled) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Call Recording", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Call Recording", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                                    if (state.isRecordingEnabled) {
+                                        Surface(shape = RoundedCornerShape(4.dp), color = AccentGreen.copy(0.2f)) {
+                                            Text("● REC", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = AccentGreen, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                }
                                 Text(
                                     if (state.isRecordingEnabled) "Active — calls will be recorded automatically"
                                     else "Inactive — enable to record calls",

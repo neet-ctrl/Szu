@@ -1,6 +1,7 @@
 package com.accu.ui.settings
 
 import android.os.Build
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material.icons.Icons
@@ -8,6 +9,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.navigation.NavController
@@ -36,11 +38,60 @@ fun SettingsScreen(
     var showRootWarnings by remember { mutableStateOf(true) }
     var confirmDestructiveActions by remember { mutableStateOf(true) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Settings", fontWeight = FontWeight.Bold) }) }) { padding ->
+    Scaffold(topBar = { ACCTopBar(title = "Settings") }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = 32.dp),
         ) {
+            // Hero banner
+            item {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer.copy(0.6f),
+                                    MaterialTheme.colorScheme.tertiaryContainer.copy(0.4f),
+                                )
+                            )
+                        )
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.primary.copy(0.15f),
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Android, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                        Column {
+                            Text(
+                                "Android Control Center",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                            )
+                            Text(
+                                "v${BuildConfig.VERSION_NAME} · 17 modules · ${Build.MODEL}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+
             // Service Access
             item { SettingsSectionHeader("Service Access") }
             item {

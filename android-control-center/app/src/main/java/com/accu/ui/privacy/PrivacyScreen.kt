@@ -1,13 +1,17 @@
 package com.accu.ui.privacy
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
@@ -36,9 +40,86 @@ fun PrivacyScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            TabRow(selectedTabIndex = PrivacyTab.entries.indexOf(state.selectedTab)) {
-                PrivacyTab.entries.forEach { tab ->
-                    Tab(selected = state.selectedTab == tab, onClick = { viewModel.onTabChange(tab) }, text = { Text(tab.name.lowercase().replaceFirstChar { it.uppercase() }) })
+
+            // Gradient threat level banner
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                AccentRed.copy(alpha = 0.18f),
+                                MaterialTheme.colorScheme.surface,
+                                AccentCyan.copy(alpha = 0.14f),
+                            )
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PrivacyStatChip("${state.blockedCount}", "Blocked", AccentRed)
+                    PrivacyStatChip("${state.trackerCount}", "Trackers", AccentOrange)
+                    PrivacyStatChip("${state.privacyRules.count { it.isEnabled }}", "Rules", AccentGreen)
+                    Spacer(Modifier.weight(1f))
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (state.blockedCount > 0) AccentGreen.copy(0.15f)
+                                else MaterialTheme.colorScheme.errorContainer.copy(0.5f),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                if (state.blockedCount > 0) Icons.Default.Shield else Icons.Default.GppBad,
+                                null, Modifier.size(14.dp),
+                                tint = if (state.blockedCount > 0) AccentGreen else MaterialTheme.colorScheme.error,
+                            )
+                            Text(
+                                if (state.blockedCount > 0) "Protected" else "Exposed",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (state.blockedCount > 0) AccentGreen else MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Modern scrollable tab row
+            val tabIndex = PrivacyTab.entries.indexOf(state.selectedTab)
+            ScrollableTabRow(
+                selectedTabIndex = tabIndex,
+                edgePadding = 0.dp,
+                indicator = { tabPositions ->
+                    if (tabIndex < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            Modifier.tabIndicatorOffset(tabPositions[tabIndex]),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                divider = {},
+            ) {
+                PrivacyTab.entries.forEachIndexed { i, tab ->
+                    val selected = state.selectedTab == tab
+                    Tab(
+                        selected = selected,
+                        onClick = { viewModel.onTabChange(tab) },
+                        text = {
+                            Text(
+                                tab.name.lowercase().replaceFirstChar { it.uppercase() },
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
+                    )
                 }
             }
 
@@ -53,34 +134,50 @@ fun PrivacyScreen(
 }
 
 @Composable
+private fun PrivacyStatChip(value: String, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
 private fun PrivacyDashboard(state: PrivacyUiState, viewModel: PrivacyViewModel) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Stats
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PrivacyStatCard("Blocked Components", "${state.blockedCount}", AccentRed, Modifier.weight(1f))
-                PrivacyStatCard("Trackers Blocked", "${state.trackerCount}", AccentOrange, Modifier.weight(1f))
-                PrivacyStatCard("Rules Active", "${state.privacyRules.count { it.isEnabled }}", AccentGreen, Modifier.weight(1f))
-            }
-        }
-
         // Quick actions
         item {
-            Card(Modifier.fillMaxWidth()) {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Quick Actions", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    listOf(
-                        "Block All Analytics" to { viewModel.blockTrackersInCategory("Analytics") },
-                        "Block All Ads" to { viewModel.blockTrackersInCategory("Ads") },
-                        "Block Social Trackers" to { viewModel.blockTrackersInCategory("Social") },
-                        "Block Crash Reporters" to { viewModel.blockTrackersInCategory("Crash Reporting") },
-                    ).forEach { (label, action) ->
-                        OutlinedButton(onClick = action, Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            Icon(Icons.Default.Block, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(label)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.FlashOn, null, Modifier.size(18.dp), tint = AccentOrange)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Quick Block", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    val actions = listOf(
+                        Triple("Analytics", Icons.Default.Analytics, AccentCyan),
+                        Triple("Ads", Icons.Default.MoneyOff, AccentOrange),
+                        Triple("Social", Icons.Default.People, AccentPurple),
+                        Triple("Crash Reports", Icons.Default.BugReport, AccentRed),
+                    )
+                    actions.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { (label, icon, color) ->
+                                FilledTonalButton(
+                                    onClick = { viewModel.blockTrackersInCategory(label) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = color.copy(0.12f)),
+                                ) {
+                                    Icon(icon, null, Modifier.size(14.dp), tint = color)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+                                }
+                            }
                         }
+                        Spacer(Modifier.height(6.dp))
                     }
                 }
             }
@@ -88,17 +185,22 @@ private fun PrivacyDashboard(state: PrivacyUiState, viewModel: PrivacyViewModel)
 
         // IFW rules info
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("About Component Blocking", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "ACC uses Intent Firewall (IFW) rules and pm disable to block trackers and components. " +
-                        "Unlike traditional methods, IFW blocks are invisible to the app — it never even receives the intent. " +
-                        "This is more secure than simply disabling components via pm.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.4f)),
+            ) {
+                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.Shield, null, Modifier.size(36.dp).align(Alignment.CenterVertically), tint = MaterialTheme.colorScheme.primary)
+                    Column {
+                        Text("Intent Firewall Blocking", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "IFW blocks are invisible to the app — it never receives the intent. " +
+                            "More secure than pm disable; apps cannot detect or work around it.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -174,12 +276,3 @@ private fun RulesTab(state: PrivacyUiState, viewModel: PrivacyViewModel) {
     }
 }
 
-@Composable
-private fun PrivacyStatCard(label: String, value: String, color: Color, modifier: Modifier) {
-    Card(modifier, colors = CardDefaults.cardColors(containerColor = color.copy(0.1f))) {
-        Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = color)
-            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        }
-    }
-}
