@@ -55,6 +55,10 @@ class AccuConnectionManager @Inject constructor(
         const val NOTIF_ID_PAIRING      = 7001
         const val NOTIF_ID_CONNECTED    = 7002
         const val NOTIF_ID_DISCONNECTED = 7003
+
+        // Intent extras / actions used by the pairing notification
+        const val ACTION_OPEN_PAIRING   = "com.accu.ACTION_OPEN_PAIRING"
+        const val ACTION_OPEN_CONNECTION = "com.accu.OPEN_CONNECTION"
     }
 
     enum class ConnectionState {
@@ -183,8 +187,12 @@ class AccuConnectionManager @Inject constructor(
 
     /**
      * Step 1a — Start auto-discovery of the Android Wireless Debugging *pairing* service.
-     * Shows a notification once the device broadcasts its pairing port via mDNS.
-     * The user only needs to enter the 6-digit code shown in Developer Settings.
+     *
+     * When the user opens Settings → Developer Options → Wireless Debugging →
+     * "Pair device with pairing code", Android broadcasts a `_adb-tls-pairing._tcp`
+     * mDNS service.  This method listens for exactly that event and fires a
+     * notification as soon as it is detected, so the user only needs to enter
+     * the 6-digit code — no manual IP/port entry required.
      */
     fun startPairingDiscovery() {
         if (_state.value == ConnectionState.DISCOVERING ||
@@ -214,6 +222,7 @@ class AccuConnectionManager @Inject constructor(
                         pairingHost = host
                         pairingPort = port
                         _state.value = ConnectionState.AWAITING_CODE
+                        // Post a high-priority notification so the user can tap → enter PIN → connect
                         showPairingCodeNotification(host, port)
                     }
                 })
@@ -393,47 +402,83 @@ class AccuConnectionManager @Inject constructor(
             .createNotificationChannel(channel)
     }
 
+    /**
+     * High-priority notification shown as soon as the device's Wireless Debugging
+     * pairing mDNS service is detected.
+     *
+     * The notification has two actions:
+     *   • Tap body  → opens AdbPairingScreen (step 3 — enter code)
+     *   • "Connect" → same destination (the screen pre-fills IP/port from mDNS)
+     *
+     * The user only needs to type the 6-digit code shown on their screen.
+     */
     private fun showPairingCodeNotification(host: String, port: Int) {
+        // Deep-link intent: open ACCU → AdbPairingScreen
         val openIntent = PendingIntent.getActivity(
-            context, 0,
+            context, NOTIF_ID_PAIRING,
             Intent(context, MainActivity::class.java).apply {
-                action = "com.accu.OPEN_CONNECTION"
+                action = ACTION_OPEN_PAIRING
+                flags  = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("📡 Wireless Debugging Detected — Enter PIN")
+            .setContentText("IP $host · Port $port auto-detected. Tap to enter the 6-digit code.")
+            .setStyle(
+                androidx.core.app.NotificationCompat.BigTextStyle()
+                    .bigText(
+                        "Pairing service found at $host:$port\n\n" +
+                        "Tap \'Enter PIN\' and type the 6-digit code shown in:\n" +
+                        "Settings → Developer Options → Wireless Debugging → Pair device with pairing code"
+                    )
+            )
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_STATUS)
+            .setContentIntent(openIntent)
+            .addAction(
+                android.R.drawable.ic_input_add,
+                "Enter PIN →",
+                openIntent,
+            )
+            .setAutoCancel(false)
+            .setOngoing(true)
+            .build()
+
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+            .notify(NOTIF_ID_PAIRING, notif)
+    }
+
+    private fun showConnectedNotification(ip: String, port: Int) {
+        val notifManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notifManager.cancel(NOTIF_ID_PAIRING) // dismiss the "enter PIN" notification
+
+        val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setContentTitle("✓ ACCU Connected")
+            .setContentText("Wireless ADB active on $ip:$port — all privileged features enabled")
+            .setAutoCancel(true)
+            .build()
+        notifManager.notify(NOTIF_ID_CONNECTED, notif)
+    }
+
+    private fun showDisconnectedNotification() {
+        val openIntent = PendingIntent.getActivity(
+            context, NOTIF_ID_DISCONNECTED,
+            Intent(context, MainActivity::class.java).apply {
+                action = ACTION_OPEN_PAIRING
                 flags  = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("Wireless Debugging Detected")
-            .setContentText("Open ACCU to enter the 6-digit pairing code ($host:$port auto-detected)")
-            .setStyle(androidx.core.app.NotificationCompat.BigTextStyle()
-                .bigText("Pairing service found at $host:$port.\n\nOpen ACCU and enter the 6-digit code shown in:\nSettings → Developer Options → Wireless Debugging"))
-            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(openIntent)
-            .setAutoCancel(false)
-            .setOngoing(true)
-            .build()
-        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
-            .notify(NOTIF_ID_PAIRING, notif)
-    }
-
-    private fun showConnectedNotification(ip: String, port: Int) {
-        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.cancel(NOTIF_ID_PAIRING)
-        val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
-            .setContentTitle("ACCU Connected")
-            .setContentText("Wireless ADB active on $ip:$port — all privileged features enabled")
-            .setAutoCancel(true)
-            .build()
-        nm.notify(NOTIF_ID_CONNECTED, notif)
-    }
-
-    private fun showDisconnectedNotification() {
-        val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("ACCU Disconnected")
-            .setContentText("Privileged access lost. Open ACCU to reconnect.")
+            .setContentText("Privileged access lost. Tap to reconnect.")
+            .setContentIntent(openIntent)
+            .addAction(android.R.drawable.ic_dialog_info, "Reconnect", openIntent)
             .setAutoCancel(true)
             .build()
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)

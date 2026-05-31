@@ -137,11 +137,20 @@ import com.accu.ui.crash.CrashHistoryScreen
 import com.accu.ui.crash.CrashDetailScreen
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(initialRoute: String? = null) {
     val navController = rememberNavController()
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStack?.destination
     val navHistoryViewModel: NavHistoryViewModel = hiltViewModel()
+
+    // Navigate to the requested route on first composition (e.g. when launched from a notification)
+    androidx.compose.runtime.LaunchedEffect(initialRoute) {
+        if (!initialRoute.isNullOrBlank()) {
+            navController.navigate(initialRoute) {
+                launchSingleTop = true
+            }
+        }
+    }
 
     DisposableEffect(navController) {
         val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->

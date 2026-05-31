@@ -109,6 +109,15 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/vnd.android.package-archive" />
             </intent-filter>
+            <!-- ACCU pairing notification deep-link: opens AdbPairingScreen directly -->
+            <intent-filter>
+                <action android:name="com.accu.ACTION_OPEN_PAIRING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.accu.OPEN_CONNECTION" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- Accessibility Service (Key Mapper) -->

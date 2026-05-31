@@ -45,9 +45,30 @@ class ACCApplication : Application(), Configuration.Provider {
             crashRepository.migratePendingCrashes()
         }
 
-        // Check root/wireless ADB state on startup
+        // Check root/wireless ADB state on startup; reconnect if previously paired
         appScope.launch(Dispatchers.IO) {
             connectionManager.checkAndUpdateState()
+            // If not already connected, try to reconnect to the last known ADB session
+            if (!connectionManager.isPrivilegeAvailable()) {
+                val reconnected = connectionManager.reconnect()
+                if (reconnected) {
+                    Timber.i("ACCApplication: auto-reconnected to last ADB session")
+                }
+            }
+        }
+
+        // Always listen for the Android Wireless Debugging pairing mDNS service in the background.
+        // When the user opens Settings → Developer Options → Wireless Debugging → Pair device with
+        // pairing code on their device, Android broadcasts the pairing service via mDNS.
+        // AccuConnectionManager picks it up and posts a notification so the user only needs to
+        // enter the 6-digit code — IP and port are auto-detected.
+        appScope.launch(Dispatchers.IO) {
+            // Only start discovery if not already privileged — avoids redundant mDNS listeners
+            // when the device is already rooted or connected.
+            if (!connectionManager.isPrivilegeAvailable()) {
+                Timber.i("ACCApplication: starting background mDNS pairing discovery")
+                connectionManager.startPairingDiscovery()
+            }
         }
     }
 
