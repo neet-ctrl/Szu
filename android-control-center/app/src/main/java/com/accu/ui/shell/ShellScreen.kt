@@ -44,6 +44,7 @@ enum class ShellMode(val label: String, val icon: androidx.compose.ui.graphics.v
 @Composable
 fun ShellScreen(
     onNavigateToScripts: () -> Unit = {},
+    onNavigateToCommandExamples: () -> Unit = {},
     viewModel: ShellViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()

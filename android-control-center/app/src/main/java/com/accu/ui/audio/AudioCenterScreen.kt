@@ -22,6 +22,13 @@ import com.accu.ui.theme.*
 @Composable
 fun AudioCenterScreen(
     onBack: () -> Unit,
+    onNavigateToGraphicEQ: () -> Unit = {},
+    onNavigateToConvolution: () -> Unit = {},
+    onNavigateToDSPControls: () -> Unit = {},
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToLiveprogParams: () -> Unit = {},
+    onNavigateToParametricEQ: () -> Unit = {},
+    onNavigateToAutoEQ: () -> Unit = {},
     viewModel: AudioViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -37,6 +44,9 @@ fun AudioCenterScreen(
                 title = "Audio Center",
                 onBack = onBack,
                 actions = {
+                    IconButton(onClick = onNavigateToGraphicEQ) { Icon(Icons.Default.Equalizer, "Graphic EQ") }
+                    IconButton(onClick = onNavigateToDSPControls) { Icon(Icons.Default.Tune, "DSP Controls") }
+                    IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings") }
                     IconButton(onClick = { viewModel.toggleDsp() }) {
                         Icon(if (state.dspEnabled) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
                             null, tint = if (state.dspEnabled) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant)

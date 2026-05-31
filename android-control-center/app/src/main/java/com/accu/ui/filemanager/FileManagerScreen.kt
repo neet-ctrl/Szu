@@ -175,6 +175,9 @@ class FileManagerViewModel @Inject constructor(
 @Composable
 fun FileManagerScreen(
     onBack: () -> Unit,
+    onNavigateToFtpServer: () -> Unit = {},
+    onNavigateToFileProperties: (String) -> Unit = {},
+    onNavigateToTextEditor: (String) -> Unit = {},
     viewModel: FileManagerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -202,6 +205,7 @@ fun FileManagerScreen(
                         IconButton(onClick = { viewModel.toggleViewMode() }) { Icon(if (state.viewMode == ViewMode.LIST) Icons.Default.GridView else Icons.Default.ViewList, null) }
                         IconButton(onClick = { viewModel.toggleMultiSelect() }) { Icon(if (state.isMultiSelect) Icons.Default.CheckCircle else Icons.Default.SelectAll, null) }
                         IconButton(onClick = { showCreateFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, "New Folder") }
+                        IconButton(onClick = onNavigateToFtpServer) { Icon(Icons.Default.Cloud, "FTP Server") }
                     },
                 )
                 // Breadcrumbs

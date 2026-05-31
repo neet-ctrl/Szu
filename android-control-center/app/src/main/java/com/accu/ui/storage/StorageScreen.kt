@@ -130,6 +130,8 @@ fun StorageScreen(
     onNavigateToCorpseFinder: () -> Unit = {},
     onNavigateToFileManagerAdvanced: () -> Unit = {},
     onNavigateToLargeFileFinder: () -> Unit = {},
+    onNavigateToStorageAnalyzer: () -> Unit = {},
+    onNavigateToSqueezer: () -> Unit = {},
     viewModel: StorageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -208,6 +210,10 @@ fun StorageScreen(
                                 }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     OutlinedButton(onClick = onNavigateToLargeFileFinder, Modifier.weight(1f)) { Icon(Icons.Default.FindInPage, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Large Files") }
+                                    OutlinedButton(onClick = onNavigateToSqueezer, Modifier.weight(1f)) { Icon(Icons.Default.Compress, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Squeezer") }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(onClick = onNavigateToStorageAnalyzer, Modifier.weight(1f)) { Icon(Icons.Default.PieChart, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Analyzer") }
                                 }
                             }
                         }

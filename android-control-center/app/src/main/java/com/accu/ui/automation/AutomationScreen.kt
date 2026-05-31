@@ -75,6 +75,9 @@ class AutomationViewModel @Inject constructor(
 @Composable
 fun AutomationScreen(
     onBack: () -> Unit,
+    onNavigateToKeyMapList: () -> Unit = {},
+    onNavigateToKeyMapperSettings: () -> Unit = {},
+    onNavigateToAdvanced: () -> Unit = {},
     viewModel: AutomationViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -82,7 +85,19 @@ fun AutomationScreen(
     LaunchedEffect(state.snackbarMessage) { state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() } }
 
     Scaffold(
-        topBar = { ACCTopBar(title = if (state.selectedTab == AutomationTab.KEY_MAPPINGS) "Key Mapper" else "Automation", onBack = onBack) },
+        topBar = {
+            ACCTopBar(
+                title = if (state.selectedTab == AutomationTab.KEY_MAPPINGS) "Key Mapper" else "Automation",
+                onBack = onBack,
+                actions = {
+                    if (state.selectedTab == AutomationTab.KEY_MAPPINGS) {
+                        IconButton(onClick = onNavigateToKeyMapList) { Icon(Icons.Default.List, "Key Map List") }
+                        IconButton(onClick = onNavigateToKeyMapperSettings) { Icon(Icons.Default.Settings, "Settings") }
+                        IconButton(onClick = onNavigateToAdvanced) { Icon(Icons.Default.Tune, "Advanced") }
+                    }
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = { if (state.selectedTab == AutomationTab.KEY_MAPPINGS) viewModel.insertSampleMapping() else viewModel.insertSampleProfile() }) {
@@ -98,7 +113,7 @@ fun AutomationScreen(
             }
 
             when (state.selectedTab) {
-                AutomationTab.KEY_MAPPINGS -> KeyMappingsTab(state = state, viewModel = viewModel)
+                AutomationTab.KEY_MAPPINGS -> KeyMappingsTab(state = state, viewModel = viewModel, onNavigateToKeyMapList = onNavigateToKeyMapList)
                 AutomationTab.AUTOMATION   -> AutomationProfilesTab(state = state, viewModel = viewModel)
             }
         }
@@ -106,13 +121,19 @@ fun AutomationScreen(
 }
 
 @Composable
-private fun KeyMappingsTab(state: AutomationState, viewModel: AutomationViewModel) {
+private fun KeyMappingsTab(state: AutomationState, viewModel: AutomationViewModel, onNavigateToKeyMapList: () -> Unit = {}) {
     if (state.keyMappings.isEmpty()) {
         EmptyState(
             icon = Icons.Default.Keyboard,
             title = "No Key Mappings",
             subtitle = "Tap + to add a key mapping. Map volume buttons, power button, and more to custom actions.",
-            action = { Button(onClick = { viewModel.insertSampleMapping() }) { Text("Add Sample Mapping") } },
+            action = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Button(onClick = { viewModel.insertSampleMapping() }) { Text("Add Sample Mapping") }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = onNavigateToKeyMapList) { Icon(Icons.Default.List, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Open Key Map List") }
+                }
+            },
         )
     } else {
         LazyColumn(Modifier.fillMaxSize()) {

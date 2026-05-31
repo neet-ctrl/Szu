@@ -30,6 +30,8 @@ fun AppManagerScreen(
     onNavigateToComponents: () -> Unit,
     onNavigateToPermissions: () -> Unit,
     onNavigateToAppExplorer: () -> Unit = {},
+    onNavigateToInureHome: () -> Unit = {},
+    onNavigateToBlockerSearch: () -> Unit = {},
     viewModel: AppManagerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -78,6 +80,8 @@ fun AppManagerScreen(
                     item { AssistChip(onClick = onNavigateToFreeze, label = { Text("Freeze") }, leadingIcon = { Icon(Icons.Default.AcUnit, null, Modifier.size(16.dp)) }) }
                     item { AssistChip(onClick = onNavigateToComponents, label = { Text("Components") }, leadingIcon = { Icon(Icons.Default.Settings, null, Modifier.size(16.dp)) }) }
                     item { AssistChip(onClick = onNavigateToPermissions, label = { Text("Permissions") }, leadingIcon = { Icon(Icons.Default.AdminPanelSettings, null, Modifier.size(16.dp)) }) }
+                    item { AssistChip(onClick = onNavigateToInureHome, label = { Text("Inure") }, leadingIcon = { Icon(Icons.Default.Analytics, null, Modifier.size(16.dp)) }) }
+                    item { AssistChip(onClick = onNavigateToBlockerSearch, label = { Text("Block Search") }, leadingIcon = { Icon(Icons.Default.Block, null, Modifier.size(16.dp)) }) }
                 }
                 // Search
                 SearchBar(

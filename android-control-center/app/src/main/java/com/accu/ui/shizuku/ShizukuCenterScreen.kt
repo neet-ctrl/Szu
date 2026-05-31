@@ -39,7 +39,12 @@ import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShizukuCenterScreen(viewModel: ShizukuViewModel = hiltViewModel()) {
+fun ShizukuCenterScreen(
+    onBack: () -> Unit = {},
+    onNavigateToAdbPairing: () -> Unit = {},
+    onNavigateToShizukuApps: () -> Unit = {},
+    viewModel: ShizukuViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tabs = listOf("Status", "Apps", "Wireless", "mDNS", "Rish", "Settings", "Logs")
     val tabIcons = listOf(
@@ -53,7 +58,10 @@ fun ShizukuCenterScreen(viewModel: ShizukuViewModel = hiltViewModel()) {
         topBar = {
             TopAppBar(
                 title = { Text("Shizuku Center", fontWeight = FontWeight.Bold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Outlined.ArrowBack, "Back") } },
                 actions = {
+                    IconButton(onClick = onNavigateToAdbPairing) { Icon(Icons.Outlined.Usb, "ADB Pairing") }
+                    IconButton(onClick = onNavigateToShizukuApps) { Icon(Icons.Outlined.Apps, "Shizuku Apps") }
                     if (state.isAvailable && state.isGranted) {
                         IconButton(onClick = viewModel::runDiagnostics) {
                             if (state.diagnosticsRunning) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)

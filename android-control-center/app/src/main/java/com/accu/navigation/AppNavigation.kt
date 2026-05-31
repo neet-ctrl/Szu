@@ -119,10 +119,6 @@ fun AppNavigation() {
     val currentBackStack by navController.currentBackStackEntryAsState()
     val currentDestination = currentBackStack?.destination
 
-    val isTopLevel = TOP_LEVEL_DESTINATIONS.any {
-        currentDestination?.hierarchy?.any { d -> d.route == it.screen.route } == true
-    }
-
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             TOP_LEVEL_DESTINATIONS.forEach { dest ->
@@ -174,10 +170,17 @@ fun AppNavigation() {
                 DashboardScreen(navController = navController)
             }
             composable(Screen.ShizukuCenter.route) {
-                ShizukuCenterScreen(onBack = { navController.popBackStack() })
+                ShizukuCenterScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAdbPairing = { navController.navigate(Screen.AdbPairing.route) },
+                    onNavigateToShizukuApps = { navController.navigate(Screen.ShizukuApps.route) },
+                )
             }
             composable(Screen.Shell.route) {
-                ShellScreen(onNavigateToScripts = { navController.navigate(Screen.ScriptEditor.route) })
+                ShellScreen(
+                    onNavigateToScripts = { navController.navigate(Screen.ScriptEditor.route) },
+                    onNavigateToCommandExamples = { navController.navigate(Screen.CommandExamples.route) },
+                )
             }
             composable(Screen.AppManager.route) {
                 AppManagerScreen(
@@ -187,6 +190,8 @@ fun AppNavigation() {
                     onNavigateToComponents = { navController.navigate(Screen.ComponentManager.route) },
                     onNavigateToPermissions = { navController.navigate(Screen.PermissionManager.route) },
                     onNavigateToAppExplorer = { navController.navigate(Screen.AppExplorer.route) },
+                    onNavigateToInureHome = { navController.navigate(Screen.InureHome.route) },
+                    onNavigateToBlockerSearch = { navController.navigate(Screen.BlockerComponentSearch.route) },
                 )
             }
             composable(Screen.AppDetail.route) { back ->
@@ -215,6 +220,10 @@ fun AppNavigation() {
                 CustomizationScreen(
                     onNavigateToDarkMode = { navController.navigate(Screen.DarkMode.route) },
                     onNavigateToColorEditor = { navController.navigate(Screen.ColorEditor.route) },
+                    onNavigateToPerAppTheming = { navController.navigate(Screen.PerAppTheming.route) },
+                    onNavigateToSmartSpacerComplications = { navController.navigate(Screen.SmartSpacerComplications.route) },
+                    onNavigateToDarQAppPicker = { navController.navigate(Screen.DarQAppPicker.route) },
+                    onNavigateToColorBlendrStyles = { navController.navigate(Screen.ColorBlendrStyles.route) },
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -236,19 +245,36 @@ fun AppNavigation() {
                     onNavigateToCorpseFinder = { navController.navigate(Screen.CorpseFinder.route) },
                     onNavigateToFileManagerAdvanced = { navController.navigate(Screen.FileManagerAdvanced.route) },
                     onNavigateToLargeFileFinder = { navController.navigate(Screen.LargeFileFinder.route) },
+                    onNavigateToStorageAnalyzer = { navController.navigate(Screen.StorageAnalyzer.route) },
+                    onNavigateToSqueezer = { navController.navigate(Screen.Squeezer.route) },
                 )
             }
             composable(Screen.FileManager.route) {
-                FileManagerScreen(onBack = { navController.popBackStack() })
+                FileManagerScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToFtpServer = { navController.navigate(Screen.FtpServer.route) },
+                    onNavigateToFileProperties = { path -> navController.navigate(Screen.FileProperties.withPath(path)) },
+                    onNavigateToTextEditor = { path -> navController.navigate(Screen.TextEditor.withPath(path)) },
+                )
             }
             composable(Screen.Installer.route) {
                 InstallerScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Automation.route) {
-                AutomationScreen(onBack = { navController.popBackStack() })
+                AutomationScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToKeyMapList = { navController.navigate(Screen.KeyMapList.route) },
+                    onNavigateToKeyMapperSettings = { navController.navigate(Screen.KeyMapperSettings.route) },
+                    onNavigateToAdvanced = { navController.navigate(Screen.KeyMapperAdvanced.route) },
+                )
             }
             composable(Screen.KeyMapper.route) {
-                AutomationScreen(onBack = { navController.popBackStack() })
+                AutomationScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToKeyMapList = { navController.navigate(Screen.KeyMapList.route) },
+                    onNavigateToKeyMapperSettings = { navController.navigate(Screen.KeyMapperSettings.route) },
+                    onNavigateToAdvanced = { navController.navigate(Screen.KeyMapperAdvanced.route) },
+                )
             }
             composable(Screen.LanguageCenter.route) {
                 LanguageCenterScreen(onBack = { navController.popBackStack() })
@@ -257,7 +283,16 @@ fun AppNavigation() {
                 NetworkCenterScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.AudioCenter.route) {
-                AudioCenterScreen(onBack = { navController.popBackStack() })
+                AudioCenterScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToGraphicEQ = { navController.navigate(Screen.GraphicEQ.route) },
+                    onNavigateToConvolution = { navController.navigate(Screen.Convolution.route) },
+                    onNavigateToDSPControls = { navController.navigate(Screen.DSPControls.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.JamesDSPSettings.route) },
+                    onNavigateToLiveprogParams = { navController.navigate(Screen.LiveprogParams.route) },
+                    onNavigateToParametricEQ = { navController.navigate(Screen.ParametricEQ.route) },
+                    onNavigateToAutoEQ = { navController.navigate(Screen.AutoEQ.route) },
+                )
             }
             composable(Screen.CallRecorder.route) {
                 CallRecorderScreen(onBack = { navController.popBackStack() })
@@ -300,7 +335,7 @@ fun AppNavigation() {
                 VirusTotalScreen(onBack = { navController.popBackStack() })
             }
 
-            // ========= NEW ROUTES (all 17 repos) =========
+            // ========= ROUTES (all 17 repos) =========
 
             // Canta
             composable(Screen.CantaPresets.route) {
@@ -435,6 +470,213 @@ fun AppNavigation() {
             // Hail — Freeze Scheduler
             composable(Screen.FreezeScheduler.route) {
                 FreezeSchedulerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ========= BATCH 2: 32 New Screens =========
+
+            // Key Mapper — KeyMapList
+            composable(Screen.KeyMapList.route) {
+                KeyMapListScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToCreate = { navController.navigate(Screen.ConfigKeyMap.create()) },
+                    onNavigateToEdit = { id -> navController.navigate(Screen.ConfigKeyMap.edit(id)) },
+                    onNavigateToLog = { navController.navigate(Screen.KeyMapLog.route) },
+                    onNavigateToSettings = { navController.navigate(Screen.KeyMapperSettings.route) },
+                )
+            }
+
+            // Key Mapper — ConfigKeyMap
+            composable(Screen.ConfigKeyMap.route) { back ->
+                val mapId = back.arguments?.getString("mapId")?.takeIf { it != "new" }
+                ConfigKeyMapScreen(
+                    keyMapId = mapId,
+                    onBack = { navController.popBackStack() },
+                    onNavigateToChooseAction = { navController.navigate(Screen.ChooseAction.route) },
+                    onNavigateToChooseConstraint = { navController.navigate(Screen.ChooseConstraint.route) },
+                )
+            }
+
+            // Key Mapper — ChooseAction
+            composable(Screen.ChooseAction.route) {
+                ChooseActionScreen(
+                    onBack = { navController.popBackStack() },
+                    onActionSelected = { navController.popBackStack() },
+                )
+            }
+
+            // Key Mapper — ChooseConstraint
+            composable(Screen.ChooseConstraint.route) {
+                ChooseConstraintScreen(
+                    onBack = { navController.popBackStack() },
+                    onConstraintSelected = { navController.popBackStack() },
+                )
+            }
+
+            // Key Mapper — KeyMapLog
+            composable(Screen.KeyMapLog.route) {
+                KeyMapLogScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Key Mapper — Settings
+            composable(Screen.KeyMapperSettings.route) {
+                KeyMapperSettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Home
+            composable(Screen.InureHome.route) {
+                InureHomeScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToBatteryOpt = { navController.navigate(Screen.InureBatteryOpt.route) },
+                    onNavigateToBootManager = { navController.navigate(Screen.InureBootManager.route) },
+                    onNavigateToNotes = { navController.navigate(Screen.InureNotes.route) },
+                    onNavigateToMusic = { navController.navigate(Screen.InureMusic.route) },
+                    onNavigateToApks = { navController.navigate(Screen.InureApks.route) },
+                    onNavigateToTrackers = { navController.navigate(Screen.InureTrackers.route) },
+                    onNavigateToUsageStats = { navController.navigate(Screen.InureUsageStats.route) },
+                    onNavigateToDisabled = { navController.navigate(Screen.InureDisabledApps.route) },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
+            }
+
+            // Inure — Battery Optimization
+            composable(Screen.InureBatteryOpt.route) {
+                InureBatteryOptimizationScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Boot Manager
+            composable(Screen.InureBootManager.route) {
+                InureBootManagerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Notes
+            composable(Screen.InureNotes.route) {
+                InureNotesScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Music
+            composable(Screen.InureMusic.route) {
+                InureMusicScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — APK Scanner
+            composable(Screen.InureApks.route) {
+                InureApksScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Tracker Analytics
+            composable(Screen.InureTrackers.route) {
+                InureTrackersScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Usage Stats
+            composable(Screen.InureUsageStats.route) {
+                InureUsageStatsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Disabled Apps
+            composable(Screen.InureDisabledApps.route) {
+                InureDisabledAppsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Blocker — Component Search
+            composable(Screen.BlockerComponentSearch.route) {
+                BlockerComponentSearchScreen(onBack = { navController.popBackStack() })
+            }
+
+            // JamesDSP — Graphic EQ
+            composable(Screen.GraphicEQ.route) {
+                GraphicEQScreen(onBack = { navController.popBackStack() })
+            }
+
+            // JamesDSP — Convolution
+            composable(Screen.Convolution.route) {
+                ConvolutionScreen(onBack = { navController.popBackStack() })
+            }
+
+            // JamesDSP — DSP Controls
+            composable(Screen.DSPControls.route) {
+                DSPControlsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // JamesDSP — Settings
+            composable(Screen.JamesDSPSettings.route) {
+                JamesDSPSettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // JamesDSP — Liveprog Parameters
+            composable(Screen.LiveprogParams.route) {
+                LiveprogParamsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ColorBlendr — Per-App Theming
+            composable(Screen.PerAppTheming.route) {
+                PerAppThemingScreen(onBack = { navController.popBackStack() })
+            }
+
+            // DarQ — App Picker
+            composable(Screen.DarQAppPicker.route) {
+                DarQAppPickerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // SmartSpacer — Complications
+            composable(Screen.SmartSpacerComplications.route) {
+                SmartSpacerComplicationsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // SD Maid SE — Storage Analyzer
+            composable(Screen.StorageAnalyzer.route) {
+                StorageAnalyzerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // SD Maid SE — Squeezer
+            composable(Screen.Squeezer.route) {
+                SqueezerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Material Files — FTP Server
+            composable(Screen.FtpServer.route) {
+                FtpServerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Material Files — File Properties
+            composable(Screen.FileProperties.route) { back ->
+                val filePath = back.arguments?.getString("filePath")
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
+                FilePropertiesScreen(
+                    filePath = filePath,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            // Material Files — Text Editor
+            composable(Screen.TextEditor.route) { back ->
+                val filePath = back.arguments?.getString("filePath")
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
+                TextEditorScreen(
+                    filePath = filePath,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            // aShellYou — Command Examples
+            composable(Screen.CommandExamples.route) {
+                CommandExamplesScreen(
+                    onBack = { navController.popBackStack() },
+                    onCommandSelected = { cmd ->
+                        navController.previousBackStackEntry?.savedStateHandle?.set("selected_command", cmd)
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            // Shizuku — ADB Pairing
+            composable(Screen.AdbPairing.route) {
+                AdbPairingScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Shizuku — Apps using Shizuku
+            composable(Screen.ShizukuApps.route) {
+                ShizukuAppsScreen(onBack = { navController.popBackStack() })
             }
         }
     }

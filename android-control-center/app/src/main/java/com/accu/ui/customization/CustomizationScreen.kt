@@ -27,6 +27,10 @@ import com.accu.ui.theme.*
 fun CustomizationScreen(
     onNavigateToDarkMode: () -> Unit,
     onNavigateToColorEditor: () -> Unit,
+    onNavigateToPerAppTheming: () -> Unit = {},
+    onNavigateToSmartSpacerComplications: () -> Unit = {},
+    onNavigateToDarQAppPicker: () -> Unit = {},
+    onNavigateToColorBlendrStyles: () -> Unit = {},
     onBack: () -> Unit,
     viewModel: CustomizationViewModel = hiltViewModel(),
 ) {
@@ -343,11 +347,47 @@ fun CustomizationScreen(
                     }
                     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                         ListItem(
+                            headlineContent = { Text("DarQ App Picker", fontWeight = FontWeight.SemiBold) },
+                            supportingContent = { Text("Pick which apps get forced dark mode treatment via DarQ overlays.") },
+                            leadingContent = { Icon(Icons.Default.DarkMode, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(28.dp)) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                            modifier = Modifier.clickable(onClick = onNavigateToDarQAppPicker),
+                        )
+                    }
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        ListItem(
                             headlineContent = { Text("Custom Color Overlays (ColorBlendr)", fontWeight = FontWeight.SemiBold) },
                             supportingContent = { Text("Change seed color, Monet style, and apply fabricated overlays via WRITE_SECURE_SETTINGS.") },
                             leadingContent = { Icon(Icons.Default.ColorLens, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp)) },
                             trailingContent = { Icon(Icons.Default.ChevronRight, null) },
                             modifier = Modifier.clickable(onClick = onNavigateToColorEditor),
+                        )
+                    }
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        ListItem(
+                            headlineContent = { Text("ColorBlendr Styles", fontWeight = FontWeight.SemiBold) },
+                            supportingContent = { Text("Browse and apply Monet color styles from the ColorBlendr library.") },
+                            leadingContent = { Icon(Icons.Default.Style, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp)) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                            modifier = Modifier.clickable(onClick = onNavigateToColorBlendrStyles),
+                        )
+                    }
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        ListItem(
+                            headlineContent = { Text("Per-App Theming (ColorBlendr)", fontWeight = FontWeight.SemiBold) },
+                            supportingContent = { Text("Apply individual seed colors to specific apps for targeted Material You theming.") },
+                            leadingContent = { Icon(Icons.Default.Palette, null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(28.dp)) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                            modifier = Modifier.clickable(onClick = onNavigateToPerAppTheming),
+                        )
+                    }
+                    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                        ListItem(
+                            headlineContent = { Text("SmartSpacer Complications", fontWeight = FontWeight.SemiBold) },
+                            supportingContent = { Text("Configure SmartSpacer widgets and complications for your lock screen and at-a-glance.") },
+                            leadingContent = { Icon(Icons.Default.Widgets, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(28.dp)) },
+                            trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                            modifier = Modifier.clickable(onClick = onNavigateToSmartSpacerComplications),
                         )
                     }
                 }
