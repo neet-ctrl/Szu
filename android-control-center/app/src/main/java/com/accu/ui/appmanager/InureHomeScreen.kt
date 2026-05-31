@@ -137,7 +137,7 @@ fun InureHomeScreen(
                 Spacer(Modifier.height(12.dp))
                 SectionHeader("Most Used Today") { onNavigateToUsageStats() }
             }
-            items(mostUsed) { app ->
+            items(mostUsed, key = { "used_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text("${app.usageMins} min", fontSize = 12.sp) },
@@ -153,7 +153,7 @@ fun InureHomeScreen(
                 HorizontalDivider()
                 SectionHeader("Recently Installed") {}
             }
-            items(recentlyInstalled) { app ->
+            items(recentlyInstalled, key = { "installed_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text(app.size) },
@@ -167,7 +167,7 @@ fun InureHomeScreen(
                 HorizontalDivider()
                 SectionHeader("Recently Updated") {}
             }
-            items(recentlyUpdated) { app ->
+            items(recentlyUpdated, key = { "updated_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text(app.size) },
@@ -181,7 +181,7 @@ fun InureHomeScreen(
                 HorizontalDivider()
                 SectionHeader("FOSS Apps") {}
             }
-            items(fossList) { app ->
+            items(fossList, key = { "foss_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text("Open Source") },
@@ -195,7 +195,7 @@ fun InureHomeScreen(
                 HorizontalDivider()
                 SectionHeader("Disabled Apps") { onNavigateToDisabled() }
             }
-            items(disabledApps) { app ->
+            items(disabledApps, key = { "disabled_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text("Disabled") },

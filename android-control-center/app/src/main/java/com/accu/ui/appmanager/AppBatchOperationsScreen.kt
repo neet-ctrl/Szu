@@ -91,7 +91,7 @@ fun AppBatchOperationsScreen(
                 val safe = BATCH_OPERATIONS.filter { !it.danger }
 
                 item { Text("Operations", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
-                items(safe) { op ->
+                items(safe, key = { "safe_${it.id}" }) { op ->
                     BatchOpCard(op = op, isCompleted = completedOps.contains(op.id), isRunning = isRunning) {
                         scope.launch {
                             if (op.danger) return@launch
@@ -106,7 +106,7 @@ fun AppBatchOperationsScreen(
                     }
                 }
                 item { Text("Destructive Operations", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) }
-                items(dangerous) { op ->
+                items(dangerous, key = { "dangerous_${it.id}" }) { op ->
                     BatchOpCard(op = op, isCompleted = completedOps.contains(op.id), isRunning = isRunning) {
                         scope.launch {
                             activeOperation = op

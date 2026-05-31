@@ -278,7 +278,7 @@ fun CantaPresetsScreen(
 
             item { PresetSectionHeader("Default Presets (${DEFAULT_PRESETS.size})", Icons.Default.Shield) }
 
-            items(DEFAULT_PRESETS) { preset ->
+            items(DEFAULT_PRESETS, key = { "default_${it.id}" }) { preset ->
                 PresetCard(
                     preset = preset,
                     expanded = expandedId == preset.id,
@@ -301,7 +301,7 @@ fun CantaPresetsScreen(
 
             if (customPresets.isNotEmpty()) {
                 item { PresetSectionHeader("Custom Presets (${customPresets.size})", Icons.Default.Edit) }
-                items(customPresets) { preset ->
+                items(customPresets, key = { "custom_${it.id}" }) { preset ->
                     PresetCard(
                         preset = preset,
                         expanded = expandedId == preset.id,
