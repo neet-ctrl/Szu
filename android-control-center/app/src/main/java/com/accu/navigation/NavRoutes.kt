@@ -44,6 +44,67 @@ sealed class Screen(val route: String) {
     data object VirusScan           : Screen("virus_scan")
     data object AllFeatures         : Screen("all_features")
     data object Tutorial            : Screen("tutorial")
+
+    // === NEW SCREENS (all 17 repos) ===
+
+    // Canta
+    data object CantaPresets        : Screen("canta_presets")
+    data object CantaLogs           : Screen("canta_logs")
+
+    // Hail
+    data object HailWorkProfile     : Screen("hail_work_profile")
+
+    // DarQ
+    data object DarQFaq             : Screen("darq_faq")
+    data object DarQSunriseSunset   : Screen("darq_sunrise_sunset")
+
+    // ColorBlendr
+    data object ColorBlendrStyles   : Screen("colorblendr_styles")
+
+    // RootlessJamesDSP
+    data object LiveprogEditor      : Screen("liveprog_editor")
+    data object ParametricEQ        : Screen("parametric_eq")
+    data object AutoEQ              : Screen("auto_eq")
+    data object AppAudioBlocklist   : Screen("app_audio_blocklist")
+
+    // SDMaid SE
+    data object AppCleaner          : Screen("app_cleaner")
+    data object SystemCleaner       : Screen("system_cleaner")
+    data object Deduplicator        : Screen("deduplicator")
+    data object CorpseFinder        : Screen("corpse_finder")
+
+    // InstallWithOptions
+    data object InstallFlags        : Screen("install_flags")
+
+    // Blocker
+    data object OnlineRules         : Screen("online_rules")
+
+    // Inure
+    data object InureAnalytics      : Screen("inure_analytics")
+    data object AppBatchOps         : Screen("app_batch_ops/{packageName}") {
+        fun withPackage(pkg: String) = "app_batch_ops/$pkg"
+    }
+
+    // Key Mapper
+    data object KeyMapperAdvanced   : Screen("keymapper_advanced")
+
+    // MaterialFiles
+    data object FileManagerAdvanced : Screen("filemanager_advanced")
+
+    // SmartSpacer
+    data object SmartSpacerTargets  : Screen("smartspacer_targets")
+
+    // ShizuCallRecorder
+    data object ScrcpyIntegration   : Screen("scrcpy_integration")
+    data object CallRecordingSettings : Screen("call_recording_settings")
+
+    // BetterInternetTiles
+    data object TilesSettings       : Screen("tiles_settings")
+
+    // LanguageSelector
+    data object LanguageDetail      : Screen("language_detail/{packageName}/{appName}") {
+        fun withApp(pkg: String, appName: String) = "language_detail/$pkg/$appName"
+    }
 }
 
 data class TopLevelDestination(

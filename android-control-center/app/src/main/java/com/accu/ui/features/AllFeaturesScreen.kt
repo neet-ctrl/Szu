@@ -9,31 +9,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.accu.ui.components.InfoTooltipIcon
+import com.accu.navigation.Screen
 
 data class AppFeature(
     val name: String,
     val description: String,
     val howToUse: String,
-    val requirement: FeatureRequirement = FeatureRequirement.NONE
+    val requirement: FeatureRequirement = FeatureRequirement.NONE,
+    val route: String? = null,
 )
 
 enum class FeatureRequirement(val label: String, val color: @Composable () -> Color) {
     NONE("", { Color.Transparent }),
     SHIZUKU("Shizuku", { MaterialTheme.colorScheme.primaryContainer }),
     ROOT("Root", { MaterialTheme.colorScheme.errorContainer }),
-    OPTIONAL_ROOT("Root Optional", { MaterialTheme.colorScheme.tertiaryContainer })
+    OPTIONAL_ROOT("Root Optional", { MaterialTheme.colorScheme.tertiaryContainer }),
 }
 
 data class SourceApp(
@@ -42,550 +41,520 @@ data class SourceApp(
     val githubUrl: String,
     val icon: ImageVector,
     val accentColor: Color,
-    val features: List<AppFeature>
+    val features: List<AppFeature>,
+    val navigationRoute: String? = null,
+)
+
+val ALL_SOURCE_APPS = listOf(
+    SourceApp(
+        name = "Shizuku",
+        description = "Use system APIs directly with adb/root privileges through a middleware service — the foundation of all elevated features",
+        githubUrl = "https://github.com/RikkaApps/Shizuku",
+        icon = Icons.Default.Shield,
+        accentColor = Color(0xFF6200EE),
+        navigationRoute = Screen.ShizukuCenter.route,
+        features = listOf(
+            AppFeature("Shizuku Service Manager", "Start/stop/restart the Shizuku service", "Go to Shizuku Center and toggle the service", FeatureRequirement.SHIZUKU, Screen.ShizukuCenter.route),
+            AppFeature("Permission Grant", "Grant Shizuku access to ACC features", "First launch prompts permission; manage from Shizuku Center", FeatureRequirement.SHIZUKU),
+            AppFeature("UserService Bridge", "Elevated UserService for privileged operations", "Automatically started when Shizuku is running", FeatureRequirement.SHIZUKU),
+            AppFeature("Wireless ADB Setup", "Configure wireless ADB without a computer", "Shell → Wireless ADB tab", FeatureRequirement.SHIZUKU),
+            AppFeature("ADB mDNS Discovery", "Auto-discover ADB devices on local network", "Shell → Wireless ADB → Scan", FeatureRequirement.SHIZUKU),
+        )
+    ),
+    SourceApp(
+        name = "aShellYou",
+        description = "Material 3 ADB shell client — run shell commands locally with Shizuku or via wireless ADB",
+        githubUrl = "https://github.com/DP-Hridayan/aShellYou",
+        icon = Icons.Default.Terminal,
+        accentColor = Color(0xFF00897B),
+        navigationRoute = Screen.Shell.route,
+        features = listOf(
+            AppFeature("Interactive Shell", "Run ADB/shell commands in an interactive terminal", "Tap Shell in the bottom navigation", FeatureRequirement.SHIZUKU, Screen.Shell.route),
+            AppFeature("Command History", "Browse and replay previous commands", "Arrow up in the terminal or use the history button", FeatureRequirement.SHIZUKU),
+            AppFeature("Favorites & Bookmarks", "Save frequently used commands", "Long-press a command in the shell to save", FeatureRequirement.SHIZUKU),
+            AppFeature("Syntax Highlighting", "Color-coded shell command syntax", "Enabled by default in the shell", FeatureRequirement.SHIZUKU),
+            AppFeature("OTG / Wireless ADB", "Connect via USB OTG or wireless ADB", "Shell → Wireless ADB", FeatureRequirement.SHIZUKU),
+            AppFeature("mDNS Device Discovery", "Auto-discover ADB devices on Wi-Fi", "Shell → Wireless ADB → Scan", FeatureRequirement.SHIZUKU),
+        )
+    ),
+    SourceApp(
+        name = "Canta",
+        description = "Uninstall any app — even system apps — safely with curated removal guides and safety ratings",
+        githubUrl = "https://github.com/samolego/Canta",
+        icon = Icons.Default.AppBlocking,
+        accentColor = Color(0xFFE53935),
+        navigationRoute = Screen.Debloat.route,
+        features = listOf(
+            AppFeature("Safe Uninstall", "Remove any app with safety rating guidance", "App Manager → Debloat", FeatureRequirement.SHIZUKU, Screen.Debloat.route),
+            AppFeature("Restore Apps", "Re-install removed system apps", "App Manager → Debloat → Removed tab", FeatureRequirement.SHIZUKU),
+            AppFeature("Bloatware Presets", "Community-curated debloat presets per manufacturer", "Debloat → Presets", FeatureRequirement.SHIZUKU, Screen.CantaPresets.route),
+            AppFeature("Operation Logs", "Full log of all install/uninstall operations", "Debloat → Logs", FeatureRequirement.NONE, Screen.CantaLogs.route),
+            AppFeature("User / System App Split", "Separate view of user-installed vs system apps", "Filter chips in Debloat screen", FeatureRequirement.SHIZUKU),
+            AppFeature("No-Warranty Mode", "Bypass warnings for advanced removals", "Settings in Debloat screen", FeatureRequirement.ROOT),
+        )
+    ),
+    SourceApp(
+        name = "Hail",
+        description = "Freeze, hide, or suspend apps to stop them from running in the background without uninstalling",
+        githubUrl = "https://github.com/aistra0528/Hail",
+        icon = Icons.Default.AcUnit,
+        accentColor = Color(0xFF1565C0),
+        navigationRoute = Screen.FreezeApps.route,
+        features = listOf(
+            AppFeature("Freeze Apps", "Suspend apps to stop background activity", "App Manager → Freeze Apps", FeatureRequirement.SHIZUKU, Screen.FreezeApps.route),
+            AppFeature("Unfreeze", "Restore frozen apps to active state", "Freeze Apps → tap any frozen app", FeatureRequirement.SHIZUKU),
+            AppFeature("Auto-Freeze on Screen Off", "Automatically freeze selected apps when screen turns off", "Freeze → Work Profile → Auto-Freeze on Screen Off", FeatureRequirement.SHIZUKU, Screen.HailWorkProfile.route),
+            AppFeature("Work Profile Freeze", "Freeze apps using work profile + Island integration", "Freeze → Work Profile", FeatureRequirement.NONE, Screen.HailWorkProfile.route),
+            AppFeature("Freeze All Tile", "Quick Settings tile to freeze all apps at once", "Add 'Freeze All' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Device Admin Freeze", "Freeze via device admin (no root needed)", "Freeze → Work Profile → Freeze Method → Device Admin", FeatureRequirement.NONE, Screen.HailWorkProfile.route),
+            AppFeature("Scheduled Auto-Freeze", "Freeze apps on a daily schedule", "Freeze → Work Profile → Scheduled Auto-Freeze", FeatureRequirement.SHIZUKU, Screen.HailWorkProfile.route),
+            AppFeature("Freeze Tags", "Group apps for batch freeze/unfreeze", "Long-press apps in Freeze screen", FeatureRequirement.SHIZUKU),
+        )
+    ),
+    SourceApp(
+        name = "Inure",
+        description = "Powerful app manager with deep analytics, batch operations, component explorer, and permission management",
+        githubUrl = "https://github.com/Hamza417/Inure",
+        icon = Icons.Default.Analytics,
+        accentColor = Color(0xFF7B1FA2),
+        navigationRoute = Screen.AppManager.route,
+        features = listOf(
+            AppFeature("App Analytics Dashboard", "Usage statistics, install source breakdown, size analysis", "App Manager → Analytics", FeatureRequirement.NONE, Screen.InureAnalytics.route),
+            AppFeature("Batch Operations", "Apply actions (freeze, clear cache, extract APK) to multiple apps", "App Manager → select apps → Batch Ops", FeatureRequirement.SHIZUKU, Screen.AppBatchOps.withPackage("")),
+            AppFeature("Component Manager", "Enable/disable activities, services, receivers, providers", "App Manager → Component Manager", FeatureRequirement.SHIZUKU, Screen.ComponentManager.route),
+            AppFeature("Permission Manager", "Grant/revoke runtime permissions", "App Manager → Permission Manager", FeatureRequirement.SHIZUKU, Screen.PermissionManager.route),
+            AppFeature("Deep App Detail", "Full manifest, permissions, components in one view", "Tap any app → App Detail", FeatureRequirement.NONE, Screen.AppDetail.withPackage("com.example")),
+            AppFeature("APK Extraction", "Extract installed APK to storage", "App Detail → Extract APK", FeatureRequirement.NONE),
+            AppFeature("App Usage Tracking", "Screen time and launch count per app", "Analytics → Usage tab", FeatureRequirement.NONE, Screen.InureAnalytics.route),
+            AppFeature("Installer Source Analysis", "See what installed each app (Play, ADB, sideload)", "Analytics → Installers tab", FeatureRequirement.NONE, Screen.InureAnalytics.route),
+        )
+    ),
+    SourceApp(
+        name = "Blocker",
+        description = "Block components and trackers inside apps using online rule databases (IFW, PackageManager, Shizuku)",
+        githubUrl = "https://github.com/lihenggui/blocker",
+        icon = Icons.Default.Block,
+        accentColor = Color(0xFFD32F2F),
+        navigationRoute = Screen.Privacy.route,
+        features = listOf(
+            AppFeature("Component Blocker", "Disable specific app components (services, receivers)", "App Manager → Component Manager", FeatureRequirement.SHIZUKU, Screen.ComponentManager.route),
+            AppFeature("Tracker Blocking", "Block tracking SDKs using curated online rules", "Privacy → Tracker Rules", FeatureRequirement.SHIZUKU, Screen.OnlineRules.route),
+            AppFeature("Online Rule Library", "Database of 8,000+ tracker component signatures", "Privacy → Tracker Rules → Update rules", FeatureRequirement.NONE, Screen.OnlineRules.route),
+            AppFeature("IFW Rules", "Intent Firewall rules for advanced component blocking", "Privacy → Component Manager → IFW mode", FeatureRequirement.SHIZUKU),
+            AppFeature("Rule Export/Import", "Share block rules between devices", "Component Manager → Export", FeatureRequirement.NONE),
+            AppFeature("Per-App Component List", "View all components of any app", "App Detail → Components tab", FeatureRequirement.NONE),
+        )
+    ),
+    SourceApp(
+        name = "ColorBlendr",
+        description = "Apply custom Material You color schemes with fabricated overlay support — without root",
+        githubUrl = "https://github.com/Mahmud0808/ColorBlendr",
+        icon = Icons.Default.Palette,
+        accentColor = Color(0xFFFF6F00),
+        navigationRoute = Screen.Customization.route,
+        features = listOf(
+            AppFeature("Custom Monet Color", "Override Material You seed color system-wide", "Customization → Color Editor", FeatureRequirement.SHIZUKU, Screen.ColorEditor.route),
+            AppFeature("Style Presets", "Apply pre-made color style combinations", "Customization → Color Styles", FeatureRequirement.SHIZUKU, Screen.ColorBlendrStyles.route),
+            AppFeature("Fabricated Overlays", "Apply color changes via Android overlay system", "Customization → Color Editor → Apply", FeatureRequirement.SHIZUKU, Screen.ColorEditor.route),
+            AppFeature("Per-App Theming", "Different color scheme per app", "Color Editor → Per-App tab", FeatureRequirement.SHIZUKU),
+            AppFeature("Live Preview", "See color changes before applying", "Color Editor → Preview panel", FeatureRequirement.NONE),
+            AppFeature("Backup/Restore Themes", "Save and restore color configurations", "Customization → Backup", FeatureRequirement.NONE),
+        )
+    ),
+    SourceApp(
+        name = "DarQ",
+        description = "Per-app dark mode forcing — enable force-dark on any app individually, with scheduling and exclusions",
+        githubUrl = "https://github.com/KieronQuinn/DarQ",
+        icon = Icons.Default.DarkMode,
+        accentColor = Color(0xFF212121),
+        navigationRoute = Screen.DarkMode.route,
+        features = listOf(
+            AppFeature("Force Dark Mode", "Force dark mode on any app individually", "Customization → Dark Mode", FeatureRequirement.SHIZUKU, Screen.DarkMode.route),
+            AppFeature("Sunrise/Sunset Schedule", "Auto-switch dark mode based on local sunrise/sunset", "Dark Mode → Sunrise/Sunset", FeatureRequirement.NONE, Screen.DarQSunriseSunset.route),
+            AppFeature("Time-Based Schedule", "Custom daily schedule for dark mode activation", "Dark Mode → Schedule", FeatureRequirement.SHIZUKU),
+            AppFeature("Per-App Exclusions", "Keep specific apps in light mode", "Dark Mode → App exceptions", FeatureRequirement.SHIZUKU),
+            AppFeature("DarQ FAQ", "Detailed explanation of how force-dark works", "Dark Mode → FAQ", FeatureRequirement.NONE, Screen.DarQFaq.route),
+        )
+    ),
+    SourceApp(
+        name = "SmartSpacer",
+        description = "Customizable lock screen / At-a-Glance widget with targets, complications, requirements, and plugins",
+        githubUrl = "https://github.com/KieronQuinn/Smartspacer",
+        icon = Icons.Default.Widgets,
+        accentColor = Color(0xFF1976D2),
+        navigationRoute = Screen.Widgets.route,
+        features = listOf(
+            AppFeature("SmartSpacer Targets", "Add/remove/reorder information targets on lock screen", "Widgets → Targets", FeatureRequirement.NONE, Screen.SmartSpacerTargets.route),
+            AppFeature("Complications", "Add quick-info complications (battery, steps, weather)", "Widgets → Complications", FeatureRequirement.NONE, Screen.SmartSpacerTargets.route),
+            AppFeature("Requirements System", "Set conditions for when targets appear", "Widgets → Requirements", FeatureRequirement.NONE, Screen.SmartSpacerTargets.route),
+            AppFeature("Plugin Architecture", "Install third-party plugins for new targets", "Widgets → Plugins", FeatureRequirement.NONE, Screen.SmartSpacerTargets.route),
+            AppFeature("At-a-Glance Override", "Replace Google's At-a-Glance on Pixel devices", "Widgets → Targets → At-a-Glance", FeatureRequirement.NONE, Screen.SmartSpacerTargets.route),
+            AppFeature("Weather Integration", "Live weather on lock screen", "Widgets → Targets → Weather", FeatureRequirement.NONE),
+            AppFeature("Calendar Events", "Upcoming events on lock screen", "Widgets → Targets → Calendar", FeatureRequirement.NONE),
+        )
+    ),
+    SourceApp(
+        name = "SD Maid SE",
+        description = "System cleaning tool — app cache cleaner, deduplicator, corpse finder, system junk remover",
+        githubUrl = "https://github.com/d4rken-org/sdmaid-se",
+        icon = Icons.Default.CleaningServices,
+        accentColor = Color(0xFF388E3C),
+        navigationRoute = Screen.Storage.route,
+        features = listOf(
+            AppFeature("App Cleaner", "Clear cache for all apps with per-app breakdown", "Storage → App Cleaner", FeatureRequirement.SHIZUKU, Screen.AppCleaner.route),
+            AppFeature("System Cleaner", "Remove temp files, logs, crash dumps, obsolete data", "Storage → System Cleaner", FeatureRequirement.SHIZUKU, Screen.SystemCleaner.route),
+            AppFeature("Deduplicator", "Find and remove duplicate files by content hash", "Storage → Deduplicator", FeatureRequirement.NONE, Screen.Deduplicator.route),
+            AppFeature("Corpse Finder", "Find orphaned data from uninstalled apps", "Storage → Corpse Finder", FeatureRequirement.SHIZUKU, Screen.CorpseFinder.route),
+            AppFeature("Storage Analysis", "Visualize what's using storage space", "Storage → Overview card", FeatureRequirement.NONE),
+            AppFeature("Custom Junk Filters", "Define custom file patterns to clean", "System Cleaner → Custom category", FeatureRequirement.NONE),
+        )
+    ),
+    SourceApp(
+        name = "Material Files",
+        description = "Open-source Material Design file manager with root/FTP/SMB/SFTP access and archive support",
+        githubUrl = "https://github.com/zhanghai/MaterialFiles",
+        icon = Icons.Default.Folder,
+        accentColor = Color(0xFF0097A7),
+        navigationRoute = Screen.FileManager.route,
+        features = listOf(
+            AppFeature("File Manager", "Full Material Design file manager experience", "Storage → File Manager", FeatureRequirement.NONE, Screen.FileManager.route),
+            AppFeature("Remote Connections", "Connect to FTP, SFTP, SMB, WebDAV servers", "Storage → Advanced → Remote", FeatureRequirement.NONE, Screen.FileManagerAdvanced.route),
+            AppFeature("FTP Server", "Host files over FTP from your device", "Storage → Advanced → FTP Server", FeatureRequirement.NONE, Screen.FileManagerAdvanced.route),
+            AppFeature("Archive Support", "Open/create ZIP, 7Z, TAR.GZ, RAR archives", "Storage → Advanced → Archives", FeatureRequirement.NONE, Screen.FileManagerAdvanced.route),
+            AppFeature("Root Access", "Browse /system, /data, /proc as root", "File Manager → Root location", FeatureRequirement.ROOT),
+            AppFeature("Bookmarks", "Save frequently visited folders as bookmarks", "Storage → Advanced → Bookmarks", FeatureRequirement.NONE, Screen.FileManagerAdvanced.route),
+        )
+    ),
+    SourceApp(
+        name = "InstallWithOptions",
+        description = "Advanced APK installer with all PackageInstaller session flags, session params, and install options exposed",
+        githubUrl = "https://github.com/Donnnno/InstallWithOptions",
+        icon = Icons.Default.InstallMobile,
+        accentColor = Color(0xFFF57F17),
+        navigationRoute = Screen.Installer.route,
+        features = listOf(
+            AppFeature("Advanced APK Installer", "Install APKs with full flag control", "Installer screen", FeatureRequirement.NONE, Screen.Installer.route),
+            AppFeature("Install Flags", "Toggle all PackageInstaller flags (downgrade, grant perms, etc.)", "Installer → Install Flags", FeatureRequirement.SHIZUKU, Screen.InstallFlags.route),
+            AppFeature("Session Parameters", "Set installer package name, URI, size reservation", "Installer → Session Params tab", FeatureRequirement.NONE, Screen.InstallFlags.route),
+            AppFeature("Allow Downgrade", "Install older version than currently installed", "Install Flags → Allow Version Downgrade", FeatureRequirement.SHIZUKU, Screen.InstallFlags.route),
+            AppFeature("Grant All Permissions", "Auto-grant all runtime permissions on install", "Install Flags → Grant All Permissions", FeatureRequirement.SHIZUKU, Screen.InstallFlags.route),
+            AppFeature("Don't Kill on Update", "Keep app running during update install", "Install Flags → Don't Kill App", FeatureRequirement.SHIZUKU, Screen.InstallFlags.route),
+        )
+    ),
+    SourceApp(
+        name = "Key Mapper",
+        description = "Remap hardware buttons, volume keys, and gestures to any action — no root required via accessibility",
+        githubUrl = "https://github.com/keymapperorg/KeyMapper",
+        icon = Icons.Default.Keyboard,
+        accentColor = Color(0xFF0288D1),
+        navigationRoute = Screen.KeyMapper.route,
+        features = listOf(
+            AppFeature("Key Remapping", "Map any hardware key to any action", "Automation → Key Mapper", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Long Press Actions", "Different action for long-press vs short-press", "Key Mapper → New Mapping → Long Press", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Double Tap", "Double-tap key for separate action", "Key Mapper → New Mapping → Double Tap", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Multiple Actions", "Chain multiple actions per trigger", "Key Mapper → Add Action chain", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Shell Commands", "Execute shell commands via key press", "Key Mapper → Action → Shell Command", FeatureRequirement.SHIZUKU, Screen.KeyMapperAdvanced.route),
+            AppFeature("Profile System", "Different mappings per use-case profile", "Key Mapper → Profiles", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Volume Key Mapping", "Map volume up/down to anything", "Key Mapper → Trigger → Volume keys", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+            AppFeature("Floating Button Trigger", "Floating on-screen button as trigger", "Key Mapper → Trigger → Floating Button", FeatureRequirement.NONE, Screen.KeyMapperAdvanced.route),
+        )
+    ),
+    SourceApp(
+        name = "Language Selector",
+        description = "Set per-app language locale without relying on Android 13+ system settings — works back to Android 9",
+        githubUrl = "https://github.com/VegaBobo/Language-Selector",
+        icon = Icons.Default.Language,
+        accentColor = Color(0xFF00695C),
+        navigationRoute = Screen.LanguageCenter.route,
+        features = listOf(
+            AppFeature("Per-App Language", "Set a different language for each app individually", "Language Center", FeatureRequirement.SHIZUKU, Screen.LanguageCenter.route),
+            AppFeature("34 Language Support", "Search and select from 34+ locale options", "Language Center → search bar", FeatureRequirement.SHIZUKU),
+            AppFeature("Language Detail", "Change locale for a specific app with full locale list", "Language Center → tap any app", FeatureRequirement.SHIZUKU, Screen.LanguageDetail.withApp("com.example", "App")),
+            AppFeature("Language QS Tile", "Quick-cycle through favorite languages from Quick Settings", "Add 'Language' tile to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("System Locale Override", "Override entire system language", "Language Center → System Locale", FeatureRequirement.SHIZUKU),
+        )
+    ),
+    SourceApp(
+        name = "Better Internet Tiles",
+        description = "Independent Wi-Fi and Mobile Data Quick Settings tiles that don't interfere with each other",
+        githubUrl = "https://github.com/CasperVerswijvelt/Better-Internet-Tiles",
+        icon = Icons.Default.Wifi,
+        accentColor = Color(0xFF1565C0),
+        navigationRoute = Screen.NetworkCenter.route,
+        features = listOf(
+            AppFeature("Wi-Fi Tile", "Standalone Wi-Fi toggle that doesn't touch mobile data", "Add 'ACC Wi-Fi' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Mobile Data Tile", "Standalone mobile data toggle", "Add 'ACC Mobile Data' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Internet Tile", "Combined internet status tile", "Add 'ACC Internet' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Bluetooth Tile", "Quick Bluetooth toggle", "Add 'ACC Bluetooth' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("NFC Tile", "Quick NFC toggle", "Add 'ACC NFC' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Hotspot Tile", "Quick mobile hotspot toggle", "Add 'ACC Hotspot' to Quick Settings", FeatureRequirement.SHIZUKU),
+            AppFeature("Tile Settings", "Configure shell method, unlock requirement, SSID display", "Network → Tiles Settings", FeatureRequirement.NONE, Screen.TilesSettings.route),
+            AppFeature("Shell Method Selection", "Choose between Shizuku, Root, ADB, or Accessibility", "Tiles Settings → Shell Method", FeatureRequirement.NONE, Screen.TilesSettings.route),
+        )
+    ),
+    SourceApp(
+        name = "RootlessJamesDSP",
+        description = "Full-featured audio DSP without root — parametric EQ, convolver, bass boost, reverb via Android AudioEffect API",
+        githubUrl = "https://github.com/ThePBone/RootlessJamesDSP",
+        icon = Icons.Default.GraphicEq,
+        accentColor = Color(0xFF6A1B9A),
+        navigationRoute = Screen.AudioCenter.route,
+        features = listOf(
+            AppFeature("Parametric EQ", "Multi-band parametric equalizer with visual frequency display", "Audio → Parametric EQ", FeatureRequirement.NONE, Screen.ParametricEQ.route),
+            AppFeature("AutoEQ Integration", "Apply AutoEQ headphone correction profiles", "Audio → AutoEQ", FeatureRequirement.NONE, Screen.AutoEQ.route),
+            AppFeature("Liveprog Scripts", "Custom EEL/LiveProg DSP script editor and loader", "Audio → Liveprog Editor", FeatureRequirement.NONE, Screen.LiveprogEditor.route),
+            AppFeature("Bass Boost", "Dedicated bass enhancement filter", "Audio → Bass Boost", FeatureRequirement.NONE, Screen.AudioCenter.route),
+            AppFeature("Reverb / Room Effects", "Room reverb and spatial audio processing", "Audio → Reverb", FeatureRequirement.NONE, Screen.AudioCenter.route),
+            AppFeature("Stereo Widening", "Stereo field expansion effect", "Audio → Stereo Widening", FeatureRequirement.NONE, Screen.AudioCenter.route),
+            AppFeature("Dynamic Range Compressor", "Compression/limiting for consistent volume", "Audio → Compressor", FeatureRequirement.NONE, Screen.AudioCenter.route),
+            AppFeature("App Audio Blocklist", "Exclude specific apps from DSP processing", "Audio → App Blocklist", FeatureRequirement.NONE, Screen.AppAudioBlocklist.route),
+            AppFeature("Convolution Engine", "Load custom impulse response (IR) files for speaker simulation", "Audio → Convolver", FeatureRequirement.NONE, Screen.AudioCenter.route),
+            AppFeature("Preset Manager", "Save and load EQ/DSP configuration presets", "Audio → Presets", FeatureRequirement.NONE, Screen.AudioCenter.route),
+        )
+    ),
+    SourceApp(
+        name = "ShizuCallRecorder",
+        description = "Rootless call recorder using Shizuku + scrcpy audio capture — records both sides of calls",
+        githubUrl = "https://github.com/chenxiaolong/BCR",
+        icon = Icons.Default.RecordVoiceOver,
+        accentColor = Color(0xFFC62828),
+        navigationRoute = Screen.CallRecorder.route,
+        features = listOf(
+            AppFeature("Call Recording", "Record phone calls with both-direction audio", "Call Recorder", FeatureRequirement.SHIZUKU, Screen.CallRecorder.route),
+            AppFeature("scrcpy Integration", "Use scrcpy audio capture for system audio recording", "Call Recorder → scrcpy Setup", FeatureRequirement.SHIZUKU, Screen.ScrcpyIntegration.route),
+            AppFeature("Audio Codec Selection", "Choose Opus, AAC, FLAC, or PCM format", "Call Recorder → scrcpy → Audio Codec", FeatureRequirement.NONE, Screen.ScrcpyIntegration.route),
+            AppFeature("Filename Format", "Customize recording filenames with date, number, direction", "Call Recorder → Settings → Filename Format", FeatureRequirement.NONE, Screen.CallRecordingSettings.route),
+            AppFeature("Recording Direction", "Record incoming, outgoing, or both call directions", "Call Recorder → Settings → Direction", FeatureRequirement.NONE, Screen.CallRecordingSettings.route),
+            AppFeature("Contact Exclusions", "Exclude specific contacts from recording", "Call Recorder → Settings → Contact Filter", FeatureRequirement.NONE, Screen.CallRecordingSettings.route),
+            AppFeature("Auto-Delete", "Automatically delete recordings after N days", "Call Recorder → Settings → Auto Delete", FeatureRequirement.NONE, Screen.CallRecordingSettings.route),
+            AppFeature("Recording Quality", "Configure bitrate and sample rate", "scrcpy → Audio Quality sliders", FeatureRequirement.NONE, Screen.ScrcpyIntegration.route),
+        )
+    ),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllFeaturesScreen(onNavigateTo: (String) -> Unit = {}) {
-    val apps = remember { buildAppList() }
     var searchQuery by remember { mutableStateOf("") }
-    var filterRequirement by remember { mutableStateOf<FeatureRequirement?>(null) }
-    val filtered = apps.filter { app ->
-        searchQuery.isBlank() ||
+    var selectedRequirement by remember { mutableStateOf<FeatureRequirement?>(null) }
+    var expandedApp by remember { mutableStateOf<String?>(null) }
+    var viewMode by remember { mutableStateOf(ViewMode.BY_APP) }
+
+    val filteredApps = ALL_SOURCE_APPS.filter { app ->
+        (searchQuery.isBlank() ||
                 app.name.contains(searchQuery, ignoreCase = true) ||
-                app.features.any { it.name.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true) }
+                app.description.contains(searchQuery, ignoreCase = true) ||
+                app.features.any { f -> f.name.contains(searchQuery, ignoreCase = true) || f.description.contains(searchQuery, ignoreCase = true) }) &&
+                (selectedRequirement == null || app.features.any { f -> f.requirement == selectedRequirement })
     }
+
+    val allFeatures = ALL_SOURCE_APPS.flatMap { app ->
+        app.features.map { feature -> Triple(app, feature, feature.name) }
+    }.filter { (app, feature, _) ->
+        (searchQuery.isBlank() ||
+                feature.name.contains(searchQuery, ignoreCase = true) ||
+                feature.description.contains(searchQuery, ignoreCase = true) ||
+                app.name.contains(searchQuery, ignoreCase = true)) &&
+                (selectedRequirement == null || feature.requirement == selectedRequirement)
+    }.sortedBy { (_, feature, _) -> feature.name }
+
+    val totalFeatures = ALL_SOURCE_APPS.sumOf { it.features.size }
 
     Scaffold(
         topBar = {
-            Column {
-                TopAppBar(
-                    title = {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("All Features", fontWeight = FontWeight.Bold)
-                            InfoTooltipIcon(
-                                title = "All Features",
-                                description = "Comprehensive list of every feature from all 17 integrated open-source apps. Expand each app card to see the full feature list with descriptions and usage instructions.\n\nTap the ⓘ icon on any feature for detailed help."
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-                )
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                    placeholder = { Text("Search features…") },
-                    leadingIcon = { Icon(Icons.Outlined.Search, null, Modifier.size(18.dp)) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Outlined.Clear, null, Modifier.size(16.dp))
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp)
-                )
-                // Filter chips
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    item {
-                        FilterChip(
-                            selected = filterRequirement == null,
-                            onClick = { filterRequirement = null },
-                            label = { Text("All") }
-                        )
-                    }
-                    items(FeatureRequirement.values().filter { it != FeatureRequirement.NONE }) { req ->
-                        FilterChip(
-                            selected = filterRequirement == req,
-                            onClick = { filterRequirement = if (filterRequirement == req) null else req },
-                            label = { Text(req.label) }
-                        )
+            TopAppBar(
+                title = { Text("All Features") },
+                actions = {
+                    IconButton(onClick = { viewMode = if (viewMode == ViewMode.BY_APP) ViewMode.ALL_FEATURES else ViewMode.BY_APP }) {
+                        Icon(if (viewMode == ViewMode.BY_APP) Icons.Default.ViewList else Icons.Default.Apps, "Toggle view")
                     }
                 }
-            }
+            )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                // Stats banner
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        StatItem("17", "Apps merged", Icons.Outlined.Apps)
-                        StatItem("${apps.sumOf { it.features.size }}+", "Features", Icons.Outlined.Star)
-                        StatItem("1", "App to rule them", Icons.Outlined.Android)
-                    }
-                }
-            }
-            items(filtered, key = { it.name }) { app ->
-                SourceAppCard(app = app, onNavigateTo = onNavigateTo)
-            }
-            item { Spacer(Modifier.height(32.dp)) }
-        }
-    }
-}
-
-@Composable
-private fun StatItem(value: String, label: String, icon: ImageVector) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Icon(icon, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.7f))
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SourceAppCard(app: SourceApp, onNavigateTo: (String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column {
-            // Header
-            ListItem(
-                headlineContent = {
-                    Text(app.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                },
-                supportingContent = {
-                    Text(app.description, style = MaterialTheme.typography.bodySmall, maxLines = if (expanded) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-                },
-                leadingContent = {
-                    Box(
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(app.accentColor.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(app.icon, null, modifier = Modifier.size(28.dp), tint = app.accentColor)
-                    }
-                },
-                trailingContent = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                            Text("${app.features.size}", style = MaterialTheme.typography.labelSmall)
-                        }
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            if (expanded) "Collapse" else "Expand",
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                },
-                modifier = Modifier.clickable { expanded = !expanded }
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search ${totalFeatures} features across 17 repos…") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = { if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Clear, null) } },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true,
             )
 
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(8.dp))
-                    app.features.forEach { feature ->
-                        FeatureListItem(feature = feature)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeatureListItem(feature: AppFeature) {
-    var showDetail by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().clickable { showDetail = !showDetail }.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(Icons.Filled.Circle, null, modifier = Modifier.size(6.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(feature.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            if (feature.requirement != FeatureRequirement.NONE) {
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = feature.requirement.color(),
-                    modifier = Modifier.padding(start = 4.dp)
-                ) {
-                    Text(
-                        feature.requirement.label,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                item { FilterChip(selected = selectedRequirement == null, onClick = { selectedRequirement = null }, label = { Text("All") }) }
+                items(FeatureRequirement.entries.filter { it != FeatureRequirement.NONE }) { req ->
+                    FilterChip(
+                        selected = selectedRequirement == req,
+                        onClick = { selectedRequirement = if (selectedRequirement == req) null else req },
+                        label = { Text(req.label) },
                     )
                 }
             }
-            InfoTooltipIcon(
-                title = feature.name,
-                description = "${feature.description}\n\nHow to use: ${feature.howToUse}${if (feature.requirement != FeatureRequirement.NONE) "\n\nRequires: ${feature.requirement.label}" else ""}",
-                iconSize = 16
-            )
-        }
-        Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        AnimatedVisibility(visible = showDetail) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Column(modifier = Modifier.padding(10.dp)) {
-                    Text("How to use:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
-                    Text(feature.howToUse, style = MaterialTheme.typography.bodySmall)
+
+            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    when (viewMode) {
+                        ViewMode.BY_APP -> "${filteredApps.size} repos"
+                        ViewMode.ALL_FEATURES -> "${allFeatures.size} features"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                Text("$totalFeatures total features · 17 source repos", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            }
+
+            when (viewMode) {
+                ViewMode.BY_APP -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(filteredApps, key = { it.name }) { app ->
+                        SourceAppCard(
+                            app = app,
+                            isExpanded = expandedApp == app.name,
+                            onToggleExpand = { expandedApp = if (expandedApp == app.name) null else app.name },
+                            onNavigateTo = onNavigateTo,
+                            searchQuery = searchQuery,
+                        )
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
+                ViewMode.ALL_FEATURES -> LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(allFeatures, key = { (app, feat, _) -> "${app.name}-${feat.name}" }) { (app, feature, _) ->
+                        FlatFeatureCard(app = app, feature = feature, onNavigateTo = onNavigateTo)
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
     }
 }
 
-@Suppress("LongMethod")
-fun buildAppList(): List<SourceApp> = listOf(
-    SourceApp(
-        name = "Shizuku",
-        description = "A powerful API that lets apps use system-level APIs with user consent via ADB — no root required. The backbone of ACC's privileged operations.",
-        githubUrl = "https://github.com/RikkaApps/Shizuku",
-        icon = Icons.Outlined.Security,
-        accentColor = Color(0xFF6750A4),
-        features = listOf(
-            AppFeature("Shizuku Permission Request", "Request and manage Shizuku runtime permission", "Go to Shizuku Center → Grant Permission button", FeatureRequirement.SHIZUKU),
-            AppFeature("Shizuku Status Monitor", "Real-time monitoring of Shizuku service state", "Dashboard → Shizuku status card shows running/stopped state", FeatureRequirement.SHIZUKU),
-            AppFeature("ADB Setup Guide", "Step-by-step guide to start Shizuku over ADB", "Shizuku Center → 'How to Start' section", FeatureRequirement.NONE),
-            AppFeature("ShizukuProvider Integration", "Embed Shizuku provider for seamless API access", "Automatic — handled in app manifest and ACCApplication", FeatureRequirement.NONE),
-            AppFeature("User Service Binding", "Bind elevated UserService for privileged IPC calls", "Shizuku Center → Advanced → Bind User Service", FeatureRequirement.SHIZUKU),
-            AppFeature("Permission Grant via Shizuku", "Grant system-level permissions without root", "Use pm grant via Shell or Permission Manager", FeatureRequirement.SHIZUKU),
-            AppFeature("Wireless ADB Pairing Guide", "Guide for pairing Shizuku over Wi-Fi ADB", "Shizuku Center → Wi-Fi ADB section", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "aShellYou",
-        description = "Full-featured ADB shell client with Local, Wi-Fi, and OTG modes, command history, bookmarks, AI analysis, file browser, and 200+ pre-loaded examples.",
-        githubUrl = "https://github.com/MajesticWayne/aShellYou",
-        icon = Icons.Outlined.Terminal,
-        accentColor = Color(0xFF00897B),
-        features = listOf(
-            AppFeature("Local ADB Shell (Shizuku)", "Execute ADB commands locally without a PC using Shizuku", "Shell tab → Local mode → type command → Send", FeatureRequirement.SHIZUKU),
-            AppFeature("Wi-Fi ADB Shell", "Connect to any device on the network via wireless ADB", "Shell tab → Wi-Fi mode → Connect → enter IP:port", FeatureRequirement.NONE),
-            AppFeature("OTG ADB Shell", "Run ADB commands over USB OTG cable", "Shell tab → OTG mode → connect USB OTG cable", FeatureRequirement.NONE),
-            AppFeature("Command History (200 entries)", "Browse and reuse previously run commands", "Shell → History icon, or use ↑/↓ arrow keys in input", FeatureRequirement.NONE),
-            AppFeature("Command Bookmarks", "Save frequently used commands for quick access", "Long-press output line → Bookmark, or tap bookmark icon", FeatureRequirement.NONE),
-            AppFeature("Command Examples Library", "200+ pre-loaded ADB commands organized by category", "Shell → Book icon → browse by category or search", FeatureRequirement.NONE),
-            AppFeature("Tab Autocomplete", "Auto-complete partial commands from history/examples", "Type partial command → tap Tab button", FeatureRequirement.NONE),
-            AppFeature("Smart Suggestions", "Real-time command suggestions as you type", "Suggestions appear above keyboard as you type", FeatureRequirement.NONE),
-            AppFeature("Ctrl+C / Interrupt", "Send interrupt signal to kill running command", "Shell → ↑/↓/Ctrl+C utility buttons, or Stop FAB", FeatureRequirement.NONE),
-            AppFeature("Output Search", "Search through terminal output text", "Shell → Search icon → type query to highlight matches", FeatureRequirement.NONE),
-            AppFeature("Save Output to File", "Export terminal session to a text file", "Shell → Save icon → enter filename", FeatureRequirement.NONE),
-            AppFeature("Copy Output Line", "Copy individual output lines to clipboard", "Long-press any output line → Copy", FeatureRequirement.NONE),
-            AppFeature("AI Command Analysis", "AI-powered command explanation and danger detection", "Type command → tap AI sparkle icon → view analysis", FeatureRequirement.NONE),
-            AppFeature("AI Danger Level Detection", "Warns about dangerous commands before execution", "Automatically shown when AI analysis runs", FeatureRequirement.NONE),
-            AppFeature("AI Correction Suggestions", "Suggests command corrections for typos/errors", "AI analysis → Suggested corrections section", FeatureRequirement.NONE),
-            AppFeature("ADB File Browser", "Browse device filesystem via ADB shell", "Shell → file browser (ls/cd commands or dedicated view)", FeatureRequirement.NONE),
-            AppFeature("Wi-Fi Device QR Pairing", "Pair Wi-Fi ADB using QR code scan", "Shell → Wi-Fi mode → Pair via QR", FeatureRequirement.NONE),
-            AppFeature("Wi-Fi Device Code Pairing", "Pair Wi-Fi ADB using 6-digit code", "Shell → Wi-Fi mode → Pair via code", FeatureRequirement.NONE),
-            AppFeature("Saved Wi-Fi Devices", "Remember previously connected Wi-Fi ADB devices", "Shell → Wi-Fi mode → tap saved device to reconnect", FeatureRequirement.NONE),
-            AppFeature("Crash History", "View app crash log history", "Settings → Crash History", FeatureRequirement.NONE),
-            AppFeature("Look & Feel", "Customize shell font, palette style, UI scale", "Settings → Look & Feel", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "Canta",
-        description = "Safely debloat Android devices by uninstalling system, carrier, and OEM apps using community-curated removal lists and custom presets.",
-        githubUrl = "https://github.com/samolego/Canta",
-        icon = Icons.Outlined.CleaningServices,
-        accentColor = Color(0xFFE91E63),
-        features = listOf(
-            AppFeature("System App Uninstall", "Uninstall pre-installed system apps per-user (keeps OTA updates)", "App Manager → Debloat → select apps → Uninstall", FeatureRequirement.SHIZUKU),
-            AppFeature("Carrier/OEM Bloatware List", "Community-sourced list of known bloatware with safety ratings", "Debloat screen shows safe/recommended/advanced badges", FeatureRequirement.NONE),
-            AppFeature("Debloat Presets", "Pre-defined sets of apps to remove (e.g. Google, Samsung, MIUI)", "Debloat → Presets button → pick preset", FeatureRequirement.NONE),
-            AppFeature("Custom Preset Creation", "Create and save your own debloat presets", "Debloat → FAB → create preset → add apps", FeatureRequirement.NONE),
-            AppFeature("Preset Import/Export", "Share debloat presets as JSON files", "Debloat → More options → Export/Import preset", FeatureRequirement.NONE),
-            AppFeature("App Safety Badges", "Color-coded badges showing removal risk level", "Debloat list → colored chips (safe/recommended/expert/unsafe)", FeatureRequirement.NONE),
-            AppFeature("Uninstall Action Log", "Log of all debloat operations with timestamps", "App Manager → Debloat → Logs tab", FeatureRequirement.NONE),
-            AppFeature("Filter by Removal Safety", "Filter debloat list by safe/recommended/advanced/expert", "Debloat → Filter icon → select safety level", FeatureRequirement.NONE),
-            AppFeature("Reinstall System Apps", "Restore previously uninstalled system apps", "Debloat → show uninstalled → select → Reinstall", FeatureRequirement.SHIZUKU)
-        )
-    ),
-    SourceApp(
-        name = "Hail",
-        description = "Freeze (suspend) apps without uninstalling. Suspended apps can't run in background but remain installed and data is preserved.",
-        githubUrl = "https://github.com/aistra0528/Hail",
-        icon = Icons.Outlined.AcUnit,
-        accentColor = Color(0xFF42A5F5),
-        features = listOf(
-            AppFeature("Freeze Apps via Shizuku", "Suspend apps using pm disable-user without root", "App Manager → Freeze → select app → Freeze", FeatureRequirement.SHIZUKU),
-            AppFeature("Freeze via Root", "Suspend apps using root for deeper freezing", "App Manager → Freeze → works automatically if root available", FeatureRequirement.ROOT),
-            AppFeature("Freeze via Device Admin", "Freeze apps using device admin (no Shizuku/root needed)", "Settings → Activate Device Admin → use Freeze", FeatureRequirement.NONE),
-            AppFeature("Auto-Freeze on Screen Off", "Automatically freeze tagged apps when screen turns off", "Freeze list → app → enable Auto-freeze", FeatureRequirement.NONE),
-            AppFeature("Freeze Groups / Tags", "Organize apps into freeze groups for batch operations", "Freeze list → long-press → Add to group", FeatureRequirement.NONE),
-            AppFeature("Quick Settings Freeze Tile", "Freeze/unfreeze all tagged apps from Quick Settings", "Add 'Hail' tile from QS edit panel", FeatureRequirement.NONE),
-            AppFeature("Unfreeze to Launch", "Temporarily unfreeze an app to use it, re-freeze on exit", "Tap frozen app → Unfreeze to launch", FeatureRequirement.NONE),
-            AppFeature("Freeze App List", "Dedicated list showing all frozen apps", "App Manager → Freeze Apps tab", FeatureRequirement.NONE),
-            AppFeature("Hail API Integration", "Allow other apps to trigger freeze operations", "Handled via broadcast intents", FeatureRequirement.SHIZUKU)
-        )
-    ),
-    SourceApp(
-        name = "Inure",
-        description = "Advanced app manager with full APK analysis, component inspection, and detailed storage/permission breakdown for every installed app.",
-        githubUrl = "https://github.com/Hamza417/Inure",
-        icon = Icons.Outlined.Analytics,
-        accentColor = Color(0xFF7E57C2),
-        features = listOf(
-            AppFeature("Deep App Inspector", "View complete app details: version, paths, SDK, signatures", "App Manager → tap any app → App Detail", FeatureRequirement.NONE),
-            AppFeature("Activity List", "Browse and launch all app activities including hidden ones", "App Detail → Activities tab → tap to launch", FeatureRequirement.SHIZUKU),
-            AppFeature("Services List", "View and start/stop app services", "App Detail → Services tab", FeatureRequirement.SHIZUKU),
-            AppFeature("Receivers List", "Inspect broadcast receivers with their intent filters", "App Detail → Receivers tab", FeatureRequirement.NONE),
-            AppFeature("Content Providers List", "View all app content providers and their authorities", "App Detail → Providers tab", FeatureRequirement.NONE),
-            AppFeature("Permissions Detail", "Full list of declared and granted permissions with status", "App Detail → Permissions tab", FeatureRequirement.NONE),
-            AppFeature("App Storage Breakdown", "Detailed split of app size: APK, data, cache, OBB", "App Detail → Storage tab", FeatureRequirement.NONE),
-            AppFeature("APK Manifest Viewer", "View decoded AndroidManifest.xml of any installed app", "App Detail → Manifest tab", FeatureRequirement.NONE),
-            AppFeature("Certificate / Signature Info", "View APK signing certificate details", "App Detail → Signing tab", FeatureRequirement.NONE),
-            AppFeature("Shared Libraries", "List native .so libraries used by the app", "App Detail → Libraries tab", FeatureRequirement.NONE),
-            AppFeature("Operations Log", "History of all actions taken on each app", "App Detail → Operations tab", FeatureRequirement.NONE),
-            AppFeature("App Search with Filters", "Search apps by name, package, or metadata with advanced filters", "App Manager → search bar → filter icon", FeatureRequirement.NONE),
-            AppFeature("Batch Operations", "Apply operations to multiple apps at once", "App Manager → long-press → select multiple", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "Blocker",
-        description = "Block individual app components (activities, services, receivers) to prevent unwanted background activity without fully disabling apps.",
-        githubUrl = "https://github.com/lihenggui/blocker",
-        icon = Icons.Outlined.Block,
-        accentColor = Color(0xFFFF5722),
-        features = listOf(
-            AppFeature("Block Activities", "Prevent specific activities from launching", "App Detail → Components → Activities → toggle off", FeatureRequirement.SHIZUKU),
-            AppFeature("Block Services", "Prevent background services from starting", "App Detail → Components → Services → toggle off", FeatureRequirement.SHIZUKU),
-            AppFeature("Block Receivers", "Disable broadcast receivers to stop background triggers", "App Detail → Components → Receivers → toggle off", FeatureRequirement.SHIZUKU),
-            AppFeature("Block Providers", "Disable content providers from being queried", "App Detail → Components → Providers → toggle off", FeatureRequirement.SHIZUKU),
-            AppFeature("Component Rules Import", "Import component blocking rules from Blocker/IFW format", "Component Manager → Import rules", FeatureRequirement.NONE),
-            AppFeature("Component Rules Export", "Export blocking rules as JSON/IFW for sharing/backup", "Component Manager → Export rules", FeatureRequirement.NONE),
-            AppFeature("IFW (Intent Firewall) Mode", "Use Android's Intent Firewall for component blocking", "Component Manager → Mode → IFW", FeatureRequirement.ROOT),
-            AppFeature("Component Search", "Search components by name across all apps", "Component Manager → Search", FeatureRequirement.NONE),
-            AppFeature("Online Rules Database", "Download community component blocking rules", "Component Manager → Online rules", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "ColorBlendr",
-        description = "Deep Material You color customization — change seed color, Monet style, palette, and apply per-surface color overrides system-wide.",
-        githubUrl = "https://github.com/Mahmud0808/ColorBlendr",
-        icon = Icons.Outlined.Palette,
-        accentColor = Color(0xFFE91E63),
-        features = listOf(
-            AppFeature("Seed Color Picker", "Set a custom seed color for the entire Material You palette", "Customization → Color Scheme → pick seed color", FeatureRequirement.SHIZUKU),
-            AppFeature("Monet Style Selector", "Choose from TONAL_SPOT, VIBRANT, EXPRESSIVE, SPRITZ, RAINBOW, FRUIT_SALAD", "Customization → Color Scheme → Monet Style dropdown", FeatureRequirement.SHIZUKU),
-            AppFeature("Per-Surface Color Override", "Customize individual color roles (primary, secondary, tertiary…)", "Customization → Color Editor → tap any color role", FeatureRequirement.SHIZUKU),
-            AppFeature("Custom Style Creation", "Save a named color style to apply/restore later", "Color Editor → Save Style button", FeatureRequirement.NONE),
-            AppFeature("Dynamic Color Toggle", "Enable/disable Material You dynamic color system-wide", "Customization → Dynamic Color toggle", FeatureRequirement.SHIZUKU),
-            AppFeature("Color Palette Preview", "Live preview of all 24 Material You color slots", "Customization → Color Scheme → full palette grid", FeatureRequirement.NONE),
-            AppFeature("Wallpaper-based Color Extraction", "Auto-generate palette from current wallpaper", "Customization → Reset to wallpaper colors", FeatureRequirement.NONE),
-            AppFeature("Chroma/Tone Sliders", "Fine-tune chroma and tone independently per color role", "Color Editor → select role → chroma/tone sliders", FeatureRequirement.SHIZUKU),
-            AppFeature("Style Backup/Restore", "Backup current color style and restore later", "Customization → Backup styles", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "DarQ",
-        description = "Force dark mode on apps that don't support it natively. Schedule dark mode by time or sunrise/sunset, and control per-app overrides.",
-        githubUrl = "https://github.com/KieronQuinn/DarQ",
-        icon = Icons.Outlined.DarkMode,
-        accentColor = Color(0xFF1976D2),
-        features = listOf(
-            AppFeature("Force Dark Mode on Any App", "Apply force-dark rendering to unsupported apps", "Customization → Dark Mode → Per-App list → toggle on app", FeatureRequirement.SHIZUKU),
-            AppFeature("Scheduled Dark Mode", "Set specific start/end times for dark mode activation", "Dark Mode → Schedule → set start and end time", FeatureRequirement.SHIZUKU),
-            AppFeature("Sunrise/Sunset Auto Schedule", "Automatically switch dark mode at sunrise/sunset", "Dark Mode → Schedule → Sunrise/Sunset mode", FeatureRequirement.NONE),
-            AppFeature("Per-App Dark Mode List", "Choose which apps get force-dark applied", "Dark Mode → App Picker → select apps", FeatureRequirement.SHIZUKU),
-            AppFeature("System Dark Mode Toggle", "Toggle system-wide dark mode from the app", "Customization → Dark Mode → main toggle", FeatureRequirement.SHIZUKU),
-            AppFeature("Dark Mode Widget", "Quick-toggle dark mode from the homescreen", "Widgets section → Dark Mode tile widget", FeatureRequirement.NONE),
-            AppFeature("Backup/Restore Dark Settings", "Export and restore dark mode configuration", "Dark Mode → Settings → Backup/Restore", FeatureRequirement.NONE),
-            AppFeature("Developer Options (Window Flags)", "Advanced window flag control for dark mode", "Dark Mode → Developer options section", FeatureRequirement.SHIZUKU),
-            AppFeature("Blur Background Support", "Enable blur effects on supported devices (API 31+)", "Dark Mode → Advanced → Blur", FeatureRequirement.OPTIONAL_ROOT)
-        )
-    ),
-    SourceApp(
-        name = "SmartSpacer",
-        description = "Customize the at-a-glance / smartspace area on the lock screen and notification bar with modular widgets.",
-        githubUrl = "https://github.com/KieronQuinn/Smartspacer",
-        icon = Icons.Outlined.Widgets,
-        accentColor = Color(0xFF00BCD4),
-        features = listOf(
-            AppFeature("Lock Screen Widgets", "Add custom widgets to the lock screen smartspace area", "Widgets → Lock Screen tab → add widget", FeatureRequirement.NONE),
-            AppFeature("Notification Bar Widgets", "Add widgets to the notification bar at-a-glance area", "Widgets → Notification tab → add widget", FeatureRequirement.NONE),
-            AppFeature("Clock Widget", "Customizable clock widget for lock screen", "Widgets → Add → Clock type", FeatureRequirement.NONE),
-            AppFeature("Weather Widget", "Show current weather in smartspace", "Widgets → Add → Weather → configure location", FeatureRequirement.NONE),
-            AppFeature("Battery Widget", "Battery percentage widget in smartspace", "Widgets → Add → Battery type", FeatureRequirement.NONE),
-            AppFeature("Now Playing Widget", "Show currently playing media in smartspace", "Widgets → Add → Media/Now Playing", FeatureRequirement.NONE),
-            AppFeature("Calendar Widget", "Show next calendar event in smartspace", "Widgets → Add → Calendar → grant permission", FeatureRequirement.NONE),
-            AppFeature("Notification Count Widget", "Show unread notification count", "Widgets → Add → Notifications", FeatureRequirement.NONE),
-            AppFeature("Widget Ordering", "Drag-and-drop to reorder widgets", "Widgets → long-press and drag to reorder", FeatureRequirement.NONE),
-            AppFeature("Widget Visibility Conditions", "Set conditions for when widgets appear", "Widgets → widget settings → Conditions", FeatureRequirement.NONE),
-            AppFeature("Third-party Plugin Support", "Install SmartSpacer plugin apps for more widget types", "Widgets → Plugins section", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "SD Maid SE",
-        description = "Clean junk files, find duplicates and corpse files left by uninstalled apps, analyze storage usage per category and app.",
-        githubUrl = "https://github.com/d4rken-org/sdmaid-se",
-        icon = Icons.Outlined.CleaningServices,
-        accentColor = Color(0xFF4CAF50),
-        features = listOf(
-            AppFeature("Corpse Finder", "Find files left behind by uninstalled apps", "Storage → Corpse Finder → Scan → delete leftovers", FeatureRequirement.OPTIONAL_ROOT),
-            AppFeature("App Junk Cleaner", "Clean cache, temp files, and junk per app", "Storage → Clean Junk → scan and clean", FeatureRequirement.NONE),
-            AppFeature("System Cleaner", "Deep-clean system temp and log directories", "Storage → System Cleaner", FeatureRequirement.ROOT),
-            AppFeature("Duplicate File Finder", "Detect and remove exact duplicate files", "Storage → Duplicate Files → scan → review → delete", FeatureRequirement.NONE),
-            AppFeature("Large Files Browser", "Browse files by size to find space hogs", "Storage → Large Files → sorted list", FeatureRequirement.NONE),
-            AppFeature("App Size Analyzer", "Breakdown of each app's storage: APK + data + cache", "Storage → App Sizes → sorted list", FeatureRequirement.NONE),
-            AppFeature("Storage Usage Chart", "Visual pie/bar chart of storage usage by category", "Storage → Usage chart at top", FeatureRequirement.NONE),
-            AppFeature("Empty Folder Cleaner", "Find and remove empty directories", "Storage → Empty Folders → clean", FeatureRequirement.NONE),
-            AppFeature("Exclusion Rules", "Exclude paths from being scanned or deleted", "Storage → Settings → Exclusions → add path", FeatureRequirement.NONE),
-            AppFeature("Scheduled Cleanup", "Run cleanup automatically on a schedule", "Storage → Schedule cleanup → weekly via WorkManager", FeatureRequirement.NONE),
-            AppFeature("Volume Multi-Storage", "Scan internal + external SD card separately", "Storage → select volume", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "Material Files",
-        description = "Full-featured material design file manager with root access, archive support, SMB/SFTP, and file operations.",
-        githubUrl = "https://github.com/zhanghai/MaterialFiles",
-        icon = Icons.Outlined.Folder,
-        accentColor = Color(0xFF2196F3),
-        features = listOf(
-            AppFeature("Internal Storage Browse", "Browse device internal storage with material UI", "File Manager → Internal Storage", FeatureRequirement.NONE),
-            AppFeature("Root Filesystem Access", "Browse /system, /data, and root directories", "File Manager → Root Filesystem (requires root)", FeatureRequirement.ROOT),
-            AppFeature("Copy / Cut / Paste", "Multi-select file copy, cut, paste operations", "File Manager → select files → long-press → operation", FeatureRequirement.NONE),
-            AppFeature("Rename / Move", "Rename files and move them to new locations", "File Manager → long-press file → Rename", FeatureRequirement.NONE),
-            AppFeature("Delete with Confirm", "Delete files with confirmation dialog", "File Manager → long-press → Delete", FeatureRequirement.NONE),
-            AppFeature("Create Folder", "Create new directories", "File Manager → + button → New Folder", FeatureRequirement.NONE),
-            AppFeature("Archive Support (zip/tar/gz)", "Create and extract archives", "File Manager → long-press file → Compress/Extract", FeatureRequirement.NONE),
-            AppFeature("File Properties", "View size, permissions, owner, dates, MIME type", "File Manager → long-press → Properties", FeatureRequirement.NONE),
-            AppFeature("Share Files", "Share files to other apps via Android intent", "File Manager → select → Share", FeatureRequirement.NONE),
-            AppFeature("Show Hidden Files", "Toggle visibility of dot-prefixed hidden files", "File Manager → menu → Show Hidden", FeatureRequirement.NONE),
-            AppFeature("Sort by Name/Size/Date", "Sort file list by name, size, or modification date", "File Manager → Sort menu", FeatureRequirement.NONE),
-            AppFeature("Grid / List View Toggle", "Switch between grid and list file view", "File Manager → layout toggle button", FeatureRequirement.NONE),
-            AppFeature("SMB Network Browse", "Browse Windows file shares (SMB/CIFS)", "File Manager → Add Storage → SMB", FeatureRequirement.NONE),
-            AppFeature("FTP/SFTP Browse", "Browse remote FTP/SFTP servers", "File Manager → Add Storage → FTP/SFTP", FeatureRequirement.NONE),
-            AppFeature("Breadcrumb Navigation", "Tap any path segment to jump to that level", "File Manager → path bar at top", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "InstallWithOptions",
-        description = "Install APKs with advanced flags: allow downgrade, bypass low-target SDK restriction, grant all runtime permissions at install time.",
-        githubUrl = "https://github.com/zacharee/InstallWithOptions",
-        icon = Icons.Outlined.InstallMobile,
-        accentColor = Color(0xFF9C27B0),
-        features = listOf(
-            AppFeature("APK File Selection", "Pick any APK file from storage to install", "Installer → Select APK → pick from file picker", FeatureRequirement.NONE),
-            AppFeature("Allow Version Downgrade", "Install older version over newer (normally blocked)", "Installer → Options → Allow Downgrade → Install", FeatureRequirement.SHIZUKU),
-            AppFeature("Allow Test Packages", "Install APKs built with android:testOnly=true", "Installer → Options → Allow Test Packages", FeatureRequirement.SHIZUKU),
-            AppFeature("Grant All Runtime Permissions", "Automatically grant all requested permissions on install", "Installer → Options → Grant All Runtime Permissions", FeatureRequirement.SHIZUKU),
-            AppFeature("Bypass Low Target SDK Block", "Install apps targeting API < 23 on modern Android", "Installer → Options → Bypass Low Target SDK", FeatureRequirement.SHIZUKU),
-            AppFeature("Replace Existing App", "Force replace an existing installed app", "Installer → Options → Replace Existing", FeatureRequirement.SHIZUKU),
-            AppFeature("APK Info Preview", "Show package name, version, size before installing", "Installer → select APK → info shown before install", FeatureRequirement.NONE),
-            AppFeature("Split APK / APKS Support", "Install split APK bundles (.apks/.xapk files)", "Installer → select .apks file", FeatureRequirement.SHIZUKU),
-            AppFeature("Install via ROOT", "Use root shell for the most permissive installs", "Installer → uses root automatically if available", FeatureRequirement.ROOT),
-            AppFeature("Install via ADB", "Install through adb pm session API", "Installer → ADB mode via Shizuku", FeatureRequirement.SHIZUKU),
-            AppFeature("Content URI Support", "Install APKs from content:// URIs (e.g. from Downloads)", "Automatic when APK shared from another app", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "Key Mapper",
-        description = "Remap hardware buttons (volume, power, camera) to any action without root, using the Accessibility Service.",
-        githubUrl = "https://github.com/keymapperorg/KeyMapper",
-        icon = Icons.Outlined.Keyboard,
-        accentColor = Color(0xFFFF9800),
-        features = listOf(
-            AppFeature("Hardware Key Remapping", "Remap volume/power/other keys to any action", "Automation → Key Mapper → Add Mapping → set trigger key", FeatureRequirement.NONE),
-            AppFeature("Key Combination Triggers", "Trigger actions with multi-key combos (e.g. Vol+Vol-)", "Add Mapping → Trigger → hold both keys", FeatureRequirement.NONE),
-            AppFeature("Long Press Triggers", "Separate action for long-press vs short-press", "Add Mapping → Trigger → Long press toggle", FeatureRequirement.NONE),
-            AppFeature("Double Press Triggers", "Trigger on double-press of a key", "Add Mapping → Trigger → Double press", FeatureRequirement.NONE),
-            AppFeature("App Action: Open App", "Map key to launch a specific app", "Add Mapping → Action → Open App → select app", FeatureRequirement.NONE),
-            AppFeature("App Action: Open URL", "Map key to open a URL/deeplink", "Add Mapping → Action → Open URL", FeatureRequirement.NONE),
-            AppFeature("System Action: Toggle WiFi", "Map key to toggle Wi-Fi on/off", "Add Mapping → Action → System → Toggle WiFi", FeatureRequirement.SHIZUKU),
-            AppFeature("System Action: Screenshot", "Map key to take a screenshot", "Add Mapping → Action → System → Screenshot", FeatureRequirement.NONE),
-            AppFeature("System Action: Media Controls", "Play/pause/skip via hardware key remapping", "Add Mapping → Action → Media → Play/Pause", FeatureRequirement.NONE),
-            AppFeature("Constraint: App Is Open", "Only activate mapping when specific app is open", "Add Mapping → Constraint → App is open", FeatureRequirement.NONE),
-            AppFeature("Constraint: Screen On/Off", "Activate mapping based on screen state", "Add Mapping → Constraint → Screen is on/off", FeatureRequirement.NONE),
-            AppFeature("Enable/Disable Mappings", "Toggle individual key mappings on/off", "Automation → Key Mapper → toggle switch on mapping", FeatureRequirement.NONE),
-            AppFeature("Export/Import Mappings", "Backup and restore key mappings", "Automation → Key Mapper → Export/Import", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "Language Selector",
-        description = "Override the system language on a per-app basis, or change the global device language without navigating through system settings.",
-        githubUrl = "https://github.com/VegaBobo/Language-Selector",
-        icon = Icons.Outlined.Language,
-        accentColor = Color(0xFF00BCD4),
-        features = listOf(
-            AppFeature("Per-App Language Override", "Set a different language for each app independently", "Language Center → select app → pick language", FeatureRequirement.SHIZUKU),
-            AppFeature("System Language Change", "Change device language without entering Settings", "Language Center → System Language → pick new locale", FeatureRequirement.SHIZUKU),
-            AppFeature("Language Search", "Search 200+ supported locales/languages", "Language Center → search field → type language name", FeatureRequirement.NONE),
-            AppFeature("Language Reset to System", "Remove per-app override and use system language", "Language Center → app → Reset to system default", FeatureRequirement.SHIZUKU),
-            AppFeature("Language Quick Settings Tile", "Toggle to previously set language from Quick Settings", "Add Language Selector tile from QS edit", FeatureRequirement.NONE),
-            AppFeature("Language Persistence", "Remember per-app language selections across reboots", "Automatic — stored in Room database", FeatureRequirement.NONE),
-            AppFeature("Shizuku vs Root Mode", "Works with both Shizuku and root to apply locale changes", "Automatic detection in Language Center", FeatureRequirement.SHIZUKU)
-        )
-    ),
-    SourceApp(
-        name = "Better Internet Tiles",
-        description = "Quick Settings tiles that actually toggle Wi-Fi, Mobile Data, Hotspot, Bluetooth, NFC, and Airplane Mode — as the stock tiles should.",
-        githubUrl = "https://github.com/CasperVerswijvelt/Better-Internet-Tiles",
-        icon = Icons.Outlined.SettingsEthernet,
-        accentColor = Color(0xFF2196F3),
-        features = listOf(
-            AppFeature("Wi-Fi Toggle Tile", "QS tile that directly enables/disables Wi-Fi", "Add 'ACC Wi-Fi' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("Mobile Data Toggle Tile", "QS tile that directly enables/disables mobile data", "Add 'ACC Mobile Data' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("Hotspot Toggle Tile", "QS tile that directly enables/disables hotspot", "Add 'ACC Hotspot' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("Bluetooth Toggle Tile", "QS tile that directly enables/disables Bluetooth", "Add 'ACC Bluetooth' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("NFC Toggle Tile", "QS tile that directly enables/disables NFC", "Add 'ACC NFC' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("Airplane Mode Tile", "QS tile that directly toggles airplane mode", "Add 'ACC Airplane Mode' tile from QS edit panel", FeatureRequirement.SHIZUKU),
-            AppFeature("Require Unlock Option", "Optionally require device unlock before toggling", "Network Center → tile settings → Require Unlock", FeatureRequirement.NONE),
-            AppFeature("Wi-Fi SSID Display", "Show connected Wi-Fi network name on the tile", "Wi-Fi tile settings → Show SSID", FeatureRequirement.NONE),
-            AppFeature("Long-press for Settings", "Long-press tile to open full network settings", "Long-press any BIT tile in Quick Settings", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "RootlessJamesDSP",
-        description = "System-wide audio DSP: parametric/graphic EQ, bass boost, convolver (impulse response), reverb, stereo widener, and limiter — all without root.",
-        githubUrl = "https://github.com/ThePBone/RootlessJamesDSP",
-        icon = Icons.Outlined.GraphicEq,
-        accentColor = Color(0xFF3F51B5),
-        features = listOf(
-            AppFeature("DSP Enable/Disable Toggle", "Master on/off switch for all audio effects", "Audio Center → DSP master toggle", FeatureRequirement.NONE),
-            AppFeature("Parametric Equalizer", "5-band parametric EQ with frequency/gain/Q controls", "Audio Center → Equalizer → Parametric mode", FeatureRequirement.NONE),
-            AppFeature("Graphic Equalizer", "31-band graphic equalizer with visual frequency response", "Audio Center → Equalizer → Graphic mode", FeatureRequirement.NONE),
-            AppFeature("EQ Presets", "Flat, Rock, Pop, Classical, Vocal, Bass, Treble presets", "Audio Center → Equalizer → Presets dropdown", FeatureRequirement.NONE),
-            AppFeature("Bass Boost", "Dedicated bass boost with 0–1000 strength slider", "Audio Center → Bass Boost → strength slider", FeatureRequirement.NONE),
-            AppFeature("Stereo Widener / Virtualizer", "Stereo widening effect with strength control", "Audio Center → Virtualizer → strength slider", FeatureRequirement.NONE),
-            AppFeature("Reverb / Room Effect", "Simulate different acoustic environments", "Audio Center → Reverb → room preset selector", FeatureRequirement.NONE),
-            AppFeature("Convolver (IR files)", "Load impulse response files for speaker/headphone profiles", "Audio Center → Convolver → load IR file", FeatureRequirement.NONE),
-            AppFeature("Loudness Enhancer", "Boost perceived loudness without clipping", "Audio Center → Loudness → gain slider", FeatureRequirement.NONE),
-            AppFeature("Per-App DSP Blocklist", "Exclude specific apps from DSP processing", "Audio Center → DSP Blocklist → add apps to exclude", FeatureRequirement.NONE),
-            AppFeature("AutoEQ Profile Search", "Search and download AutoEQ headphone profiles", "Audio Center → AutoEQ → search headphone model", FeatureRequirement.NONE),
-            AppFeature("Liveprog Scripting", "Run custom Faust DSP scripts for advanced effects", "Audio Center → Liveprog → load/edit script", FeatureRequirement.NONE),
-            AppFeature("Foreground DSP Service", "Runs as persistent foreground service for system-wide effect", "Audio Center → enable DSP (auto-starts service)", FeatureRequirement.NONE)
-        )
-    ),
-    SourceApp(
-        name = "ShizuCallRecorder",
-        description = "Rootless call recording using scrcpy audio capture + Shizuku. Records calls using the MediaProjection API workaround without root.",
-        githubUrl = "https://github.com/kitsumed/ShizuCallRecorder",
-        icon = Icons.Outlined.PhoneCallback,
-        accentColor = Color(0xFF4CAF50),
-        features = listOf(
-            AppFeature("Auto Call Recording", "Automatically start recording when a call begins", "Call Recorder → Auto-record toggle → enable", FeatureRequirement.SHIZUKU),
-            AppFeature("Manual Call Recording", "Manually trigger call recording from notification or app", "Call Recorder → Record button, or tap notification", FeatureRequirement.SHIZUKU),
-            AppFeature("scrcpy Audio Capture", "Uses scrcpy audio source for rootless call audio capture", "Automatic — scrcpy server bundled in app", FeatureRequirement.SHIZUKU),
-            AppFeature("Recording Playback", "Play back recorded calls from the recordings list", "Call Recorder → Recordings → tap recording → Play", FeatureRequirement.NONE),
-            AppFeature("Recording Delete", "Delete individual or all recordings", "Call Recorder → Recordings → long-press → Delete", FeatureRequirement.NONE),
-            AppFeature("Audio Format Selection", "Choose recording format: AAC, OPUS, FLAC", "Call Recorder → Settings → Format", FeatureRequirement.NONE),
-            AppFeature("Audio Quality Setting", "Select recording bitrate/quality level", "Call Recorder → Settings → Quality", FeatureRequirement.NONE),
-            AppFeature("Custom Save Location", "Choose where recordings are saved via SAF", "Call Recorder → Settings → Save location → pick folder", FeatureRequirement.NONE),
-            AppFeature("File Name Format", "Customize recording filename with date/time/number templates", "Call Recorder → Settings → Filename format", FeatureRequirement.NONE),
-            AppFeature("Contact-based Filtering", "Record only specific contacts or exclude some", "Call Recorder → Settings → Contact filter", FeatureRequirement.NONE),
-            AppFeature("Call Direction Detection", "Tag recordings as incoming or outgoing", "Automatic — shown as badge on recording entry", FeatureRequirement.NONE),
-            AppFeature("Recording Foreground Notification", "Persistent notification while recording is active", "Shows automatically during active recording", FeatureRequirement.NONE),
-            AppFeature("Recording Metadata Storage", "Store contact name, number, duration, direction per recording", "Shown in recording detail view", FeatureRequirement.NONE)
-        )
-    )
-)
+enum class ViewMode { BY_APP, ALL_FEATURES }
+
+@Composable
+private fun SourceAppCard(
+    app: SourceApp,
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onNavigateTo: (String) -> Unit,
+    searchQuery: String,
+) {
+    val filteredFeatures = if (searchQuery.isBlank()) app.features
+    else app.features.filter { f -> f.name.contains(searchQuery, ignoreCase = true) || f.description.contains(searchQuery, ignoreCase = true) }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isExpanded) 4.dp else 1.dp),
+    ) {
+        Column(modifier = Modifier.clickable(onClick = onToggleExpand).padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(app.accentColor),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(app.icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(app.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                    Text("${filteredFeatures.size} feature${if (filteredFeatures.size != 1) "s" else ""}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                }
+                if (app.navigationRoute != null) {
+                    IconButton(onClick = { onNavigateTo(app.navigationRoute) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                Icon(if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null, tint = MaterialTheme.colorScheme.outline)
+            }
+            AnimatedVisibility(visible = !isExpanded) {
+                Text(
+                    app.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            AnimatedVisibility(visible = isExpanded) {
+                Column(modifier = Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(app.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    HorizontalDivider()
+                    filteredFeatures.forEach { feature ->
+                        FeatureRow(feature = feature, onNavigateTo = onNavigateTo)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeatureRow(feature: AppFeature, onNavigateTo: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().then(
+            if (feature.route != null) Modifier.clickable { onNavigateTo(feature.route) } else Modifier
+        ).padding(vertical = 4.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(Icons.Default.Circle, null, modifier = Modifier.size(6.dp).padding(top = 6.dp), tint = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(feature.name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                if (feature.requirement != FeatureRequirement.NONE) {
+                    Surface(
+                        color = feature.requirement.color().copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Text(feature.requirement.label, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (feature.route != null) {
+                    Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("How: ${feature.howToUse}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun FlatFeatureCard(app: SourceApp, feature: AppFeature, onNavigateTo: (String) -> Unit) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        modifier = Modifier.then(
+            if (feature.route != null) Modifier.clickable { onNavigateTo(feature.route) } else Modifier
+        ),
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(app.accentColor), contentAlignment = Alignment.Center) {
+                Icon(app.icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(feature.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(app.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(feature.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                if (feature.requirement != FeatureRequirement.NONE) {
+                    Surface(color = feature.requirement.color().copy(alpha = 0.5f), shape = RoundedCornerShape(4.dp)) {
+                        Text(feature.requirement.label, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (feature.route != null) {
+                    Icon(Icons.Default.ChevronRight, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}

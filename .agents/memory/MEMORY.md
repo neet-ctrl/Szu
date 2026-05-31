@@ -1,0 +1,1 @@
+- [ACCU Project Architecture](accu-arch.md) — 109 Kt files, 17 repos merged, all routes wired; key conventions for future sessions.

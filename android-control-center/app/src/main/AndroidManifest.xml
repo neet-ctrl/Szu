@@ -232,6 +232,76 @@
                 android:value="true" />
         </service>
 
+        <!-- Internet Tile (Better Internet Tiles) -->
+        <service
+            android:name=".services.InternetTileService"
+            android:exported="true"
+            android:label="ACC Internet"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+        </service>
+
+        <!-- Language Quick Tile (Language Selector) -->
+        <service
+            android:name=".services.LanguageQSTileService"
+            android:exported="true"
+            android:label="ACC Language"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Key Event Relay Service (Key Mapper) -->
+        <service
+            android:name=".services.KeyEventRelayService"
+            android:exported="false" />
+
+        <!-- Auto Freeze Service (Hail) -->
+        <service
+            android:name=".services.AutoFreezeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:foregroundServiceSpecialUse="deviceMonitor" />
+
+        <!-- Freeze All Tile Service (Hail) -->
+        <service
+            android:name=".services.FreezeAllTileService"
+            android:exported="true"
+            android:label="Freeze All Apps"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Device Admin Receiver (Hail / Device Owner) -->
+        <receiver
+            android:name=".receivers.ACCDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Screen Off Receiver (Hail Auto-Freeze) -->
+        <receiver
+            android:name=".receivers.ScreenOffReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_OFF" />
+            </intent-filter>
+        </receiver>
+
         <!-- Boot Receiver -->
         <receiver
             android:name=".receivers.BootReceiver"

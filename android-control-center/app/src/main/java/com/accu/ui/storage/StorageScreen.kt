@@ -124,6 +124,11 @@ class StorageViewModel @Inject constructor(
 @Composable
 fun StorageScreen(
     onNavigateToFileManager: () -> Unit,
+    onNavigateToAppCleaner: () -> Unit = {},
+    onNavigateToSystemCleaner: () -> Unit = {},
+    onNavigateToDeduplicator: () -> Unit = {},
+    onNavigateToCorpseFinder: () -> Unit = {},
+    onNavigateToFileManagerAdvanced: () -> Unit = {},
     viewModel: StorageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -187,7 +192,20 @@ fun StorageScreen(
                                 Button(onClick = viewModel::cleanCache, Modifier.weight(1f)) { Icon(Icons.Default.ClearAll, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Clean Cache") }
                                 OutlinedButton(onClick = viewModel::cleanJunkFiles, Modifier.weight(1f)) { Icon(Icons.Default.Delete, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Remove Junk") }
                             }
-                            OutlinedButton(onClick = onNavigateToFileManager, Modifier.fillMaxWidth()) { Icon(Icons.Default.Folder, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Open File Manager") }
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(onClick = onNavigateToAppCleaner, Modifier.weight(1f)) { Icon(Icons.Default.CleaningServices, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("App Cleaner") }
+                                    OutlinedButton(onClick = onNavigateToSystemCleaner, Modifier.weight(1f)) { Icon(Icons.Default.DeleteSweep, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("System Clean") }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(onClick = onNavigateToDeduplicator, Modifier.weight(1f)) { Icon(Icons.Default.FileCopy, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Deduplicator") }
+                                    OutlinedButton(onClick = onNavigateToCorpseFinder, Modifier.weight(1f)) { Icon(Icons.Default.DeleteForever, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Corpse Finder") }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(onClick = onNavigateToFileManager, Modifier.weight(1f)) { Icon(Icons.Default.Folder, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("File Manager") }
+                                    OutlinedButton(onClick = onNavigateToFileManagerAdvanced, Modifier.weight(1f)) { Icon(Icons.Default.CloudUpload, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("FTP / SMB") }
+                                }
+                            }
                         }
                         if (state.cleanedBytes > 0) {
                             Spacer(Modifier.height(8.dp))

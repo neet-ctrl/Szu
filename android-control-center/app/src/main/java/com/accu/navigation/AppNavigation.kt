@@ -17,27 +17,53 @@ import com.accu.ui.appmanager.ComponentManagerScreen
 import com.accu.ui.appmanager.PermissionManagerScreen
 import com.accu.ui.appmanager.DebloatScreen
 import com.accu.ui.appmanager.FreezeAppsScreen
+import com.accu.ui.appmanager.CantaPresetsScreen
+import com.accu.ui.appmanager.VirusTotalScreen
+import com.accu.ui.appmanager.CantaLogsScreen
+import com.accu.ui.appmanager.InureAnalyticsScreen
+import com.accu.ui.appmanager.AppBatchOperationsScreen
 import com.accu.ui.audio.AudioCenterScreen
+import com.accu.ui.audio.LiveprogEditorScreen
+import com.accu.ui.audio.ParametricEQScreen
+import com.accu.ui.audio.AutoEQScreen
+import com.accu.ui.audio.AppAudioBlocklistScreen
 import com.accu.ui.automation.AutomationScreen
+import com.accu.ui.automation.KeyMapperAdvancedScreen
 import com.accu.ui.callrecorder.CallRecorderScreen
+import com.accu.ui.callrecorder.ScrcpyIntegrationScreen
+import com.accu.ui.callrecorder.CallRecordingSettingsScreen
 import com.accu.ui.customization.ColorEditorScreen
 import com.accu.ui.customization.CustomizationScreen
 import com.accu.ui.customization.DarkModeScreen
+import com.accu.ui.customization.DarQFaqScreen
+import com.accu.ui.customization.DarQSunriseSunsetScreen
+import com.accu.ui.customization.ColorBlendrStylesScreen
 import com.accu.ui.dashboard.DashboardScreen
 import com.accu.ui.filemanager.FileManagerScreen
+import com.accu.ui.filemanager.FileManagerAdvancedFeaturesScreen
 import com.accu.ui.installer.InstallerScreen
+import com.accu.ui.installer.InstallFlagsScreen
 import com.accu.ui.language.LanguageCenterScreen
+import com.accu.ui.language.LanguageDetailScreen
 import com.accu.ui.network.NetworkCenterScreen
+import com.accu.ui.network.BetterInternetTilesSettingsScreen
 import com.accu.ui.features.AllFeaturesScreen
 import com.accu.ui.onboarding.OnboardingScreen
 import com.accu.ui.privacy.PrivacyScreen
+import com.accu.ui.privacy.OnlineRulesScreen
 import com.accu.ui.settings.SettingsScreen
 import com.accu.ui.shell.ShellScreen
 import com.accu.ui.shizuku.ShizukuCenterScreen
+import com.accu.ui.shizuku.HailWorkProfileScreen
 import com.accu.ui.storage.StorageScreen
+import com.accu.ui.storage.AppCleanerScreen
+import com.accu.ui.storage.SystemCleanerScreen
+import com.accu.ui.storage.DeduplicatorScreen
+import com.accu.ui.storage.CorpseFinderScreen
 import com.accu.ui.tutorial.LearningCenterScreen
 import com.accu.ui.tutorial.TutorialScreen
 import com.accu.ui.widgets.SmartSpacerScreen
+import com.accu.ui.widgets.SmartSpacerTargetsScreen
 
 @Composable
 fun AppNavigation() {
@@ -152,6 +178,11 @@ fun AppNavigation() {
             composable(Screen.Storage.route) {
                 StorageScreen(
                     onNavigateToFileManager = { navController.navigate(Screen.FileManager.route) },
+                    onNavigateToAppCleaner = { navController.navigate(Screen.AppCleaner.route) },
+                    onNavigateToSystemCleaner = { navController.navigate(Screen.SystemCleaner.route) },
+                    onNavigateToDeduplicator = { navController.navigate(Screen.Deduplicator.route) },
+                    onNavigateToCorpseFinder = { navController.navigate(Screen.CorpseFinder.route) },
+                    onNavigateToFileManagerAdvanced = { navController.navigate(Screen.FileManagerAdvanced.route) },
                 )
             }
             composable(Screen.FileManager.route) {
@@ -198,6 +229,138 @@ fun AppNavigation() {
                     onNavigateToPrivacy = { navController.navigate(Screen.Privacy.route) },
                     onNavigateToNetwork = { navController.navigate(Screen.NetworkCenter.route) },
                     onNavigateToLearning = { navController.navigate(Screen.LearningCenter.route) },
+                )
+            }
+
+            // SmartSpacer (alias route)
+            composable(Screen.SmartSpacer.route) {
+                SmartSpacerScreen(onBack = { navController.popBackStack() })
+            }
+
+            // VirusScan
+            composable(Screen.VirusScan.route) {
+                VirusTotalScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ========= NEW ROUTES (all 17 repos) =========
+
+            // Canta
+            composable(Screen.CantaPresets.route) {
+                CantaPresetsScreen(
+                    onBack = { navController.popBackStack() },
+                    onApplyPreset = { _ -> navController.popBackStack() }
+                )
+            }
+            composable(Screen.CantaLogs.route) {
+                CantaLogsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Hail
+            composable(Screen.HailWorkProfile.route) {
+                HailWorkProfileScreen(onBack = { navController.popBackStack() })
+            }
+
+            // DarQ
+            composable(Screen.DarQFaq.route) {
+                DarQFaqScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.DarQSunriseSunset.route) {
+                DarQSunriseSunsetScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ColorBlendr
+            composable(Screen.ColorBlendrStyles.route) {
+                ColorBlendrStylesScreen(onBack = { navController.popBackStack() })
+            }
+
+            // RootlessJamesDSP
+            composable(Screen.LiveprogEditor.route) {
+                LiveprogEditorScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.ParametricEQ.route) {
+                ParametricEQScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AutoEQ.route) {
+                AutoEQScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AppAudioBlocklist.route) {
+                AppAudioBlocklistScreen(onBack = { navController.popBackStack() })
+            }
+
+            // SDMaid SE
+            composable(Screen.AppCleaner.route) {
+                AppCleanerScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.SystemCleaner.route) {
+                SystemCleanerScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.Deduplicator.route) {
+                DeduplicatorScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.CorpseFinder.route) {
+                CorpseFinderScreen(onBack = { navController.popBackStack() })
+            }
+
+            // InstallWithOptions
+            composable(Screen.InstallFlags.route) {
+                InstallFlagsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Blocker
+            composable(Screen.OnlineRules.route) {
+                OnlineRulesScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure
+            composable(Screen.InureAnalytics.route) {
+                InureAnalyticsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AppBatchOps.route) { back ->
+                val pkg = back.arguments?.getString("packageName") ?: ""
+                AppBatchOperationsScreen(
+                    selectedPackages = listOf(pkg),
+                    onBack = { navController.popBackStack() }
+                )
+            }
+
+            // Key Mapper
+            composable(Screen.KeyMapperAdvanced.route) {
+                KeyMapperAdvancedScreen(onBack = { navController.popBackStack() })
+            }
+
+            // MaterialFiles
+            composable(Screen.FileManagerAdvanced.route) {
+                FileManagerAdvancedFeaturesScreen(onBack = { navController.popBackStack() })
+            }
+
+            // SmartSpacer
+            composable(Screen.SmartSpacerTargets.route) {
+                SmartSpacerTargetsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ShizuCallRecorder
+            composable(Screen.ScrcpyIntegration.route) {
+                ScrcpyIntegrationScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.CallRecordingSettings.route) {
+                CallRecordingSettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // BetterInternetTiles
+            composable(Screen.TilesSettings.route) {
+                BetterInternetTilesSettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // LanguageSelector
+            composable(Screen.LanguageDetail.route) { back ->
+                val pkg = back.arguments?.getString("packageName") ?: ""
+                val appName = back.arguments?.getString("appName") ?: pkg
+                LanguageDetailScreen(
+                    packageName = pkg,
+                    appName = appName,
+                    currentLocale = "system",
+                    onBack = { navController.popBackStack() },
+                    onLocaleSet = { navController.popBackStack() }
                 )
             }
         }
