@@ -53,9 +53,8 @@ jobs:
 
       - name: "📱 Setup Android SDK"
         uses: android-actions/setup-android@v3
-
-      - name: "📦 Install Android SDK platform 35"
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.1" 2>/dev/null || true
+        with:
+          packages: "platforms;android-35 build-tools;35.0.1"
 
       - name: "🔧 Download Gradle Wrapper JAR"
         working-directory: android-control-center
@@ -225,6 +224,8 @@ jobs:
           distribution: 'temurin'
           cache: gradle
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-35 build-tools;35.0.1"
       - name: "🔧 Download Gradle Wrapper JAR"
         working-directory: android-control-center
         run: |
