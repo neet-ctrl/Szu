@@ -102,7 +102,7 @@ fun HailWorkProfileScreen(onBack: () -> Unit) {
                         ListItem(
                             headlineContent = { Text("Island Installed") },
                             supportingContent = { Text("Oasis Feng's Island app for work profile management") },
-                            leadingContent = { Icon(Icons.Default.WorkspacesFilled, null) },
+                            leadingContent = { Icon(Icons.Default.Work, null) },
                             trailingContent = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     val ctx = LocalContext.current

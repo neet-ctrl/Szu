@@ -270,7 +270,7 @@ fun FreezeSchedulerScreen(
             // Working mode card
             item {
                 Card(
-                    Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(),
                     onClick = viewModel::openWorkingModeSheet,
                 ) {
                     Column(Modifier.padding(16.dp)) {
@@ -345,7 +345,7 @@ fun FreezeSchedulerScreen(
                 Spacer(Modifier.height(8.dp))
                 FreezeWorkingMode.entries.forEach { mode ->
                     Card(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         onClick = { viewModel.setWorkingMode(mode) },
                         colors = CardDefaults.cardColors(
                             containerColor = if (state.workingMode == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,

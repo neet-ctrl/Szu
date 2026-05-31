@@ -18,6 +18,7 @@ import com.accu.data.repositories.AppRepository
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.InfoTooltipIcon
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch

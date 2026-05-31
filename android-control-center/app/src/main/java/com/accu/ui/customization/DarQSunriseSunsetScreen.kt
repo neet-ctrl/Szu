@@ -1,6 +1,7 @@
 package com.accu.ui.customization
 
 import android.location.Location
+import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape

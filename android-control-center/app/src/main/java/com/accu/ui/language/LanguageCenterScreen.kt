@@ -109,7 +109,7 @@ class LanguageViewModel @Inject constructor(
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val lm = context.getSystemService(LocaleManager::class.java)
-                    lm.setApplicationLocales(packageName, LocaleList.forLanguageTags(localeTag))
+                    lm.setApplicationLocales(LocaleList.forLanguageTags(localeTag))
                 } else {
                     shizukuUtils.execShizuku("cmd locale set-app-locales $packageName --locales $localeTag")
                 }
@@ -128,7 +128,7 @@ class LanguageViewModel @Inject constructor(
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     val lm = context.getSystemService(LocaleManager::class.java)
-                    lm.setApplicationLocales(packageName, LocaleList.getEmptyLocaleList())
+                    lm.setApplicationLocales(LocaleList.getEmptyLocaleList())
                 } else {
                     shizukuUtils.execShizuku("cmd locale set-app-locales $packageName --locales")
                 }
@@ -656,4 +656,3 @@ private fun PinnedLocalesManagerDialog(
     )
 }
 
-private fun Modifier.clickable(onClick: () -> Unit) = this.then(androidx.compose.ui.Modifier.clickable(onClick = onClick))

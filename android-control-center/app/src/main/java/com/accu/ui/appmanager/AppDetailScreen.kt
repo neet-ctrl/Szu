@@ -162,6 +162,12 @@ fun AppDetailScreen(
 // ─── Tab 1: Info ───
 @Composable
 private fun InfoTab(state: AppDetailUiState, packageName: String, context: android.content.Context, dateFormatter: SimpleDateFormat, viewModel: AppDetailViewModel, padding: PaddingValues) {
+    val sharedLibs = remember(packageName) {
+        try {
+            val ai = context.packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES)
+            ai.sharedLibraryFiles?.toList() ?: emptyList()
+        } catch (_: Exception) { emptyList<String>() }
+    }
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 32.dp)) {
         // Header
         item {
@@ -220,12 +226,6 @@ private fun InfoTab(state: AppDetailUiState, packageName: String, context: andro
             }
         }
         // Shared libraries
-        val sharedLibs = remember(packageName) {
-            try {
-                val ai = context.packageManager.getApplicationInfo(packageName, PackageManager.GET_SHARED_LIBRARY_FILES)
-                ai.sharedLibraryFiles?.toList() ?: emptyList()
-            } catch (_: Exception) { emptyList() }
-        }
         if (sharedLibs.isNotEmpty()) {
             item {
                 DetailSection("Shared Libraries (${sharedLibs.size})") {

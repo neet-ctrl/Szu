@@ -119,7 +119,7 @@ private fun PermissionsTab(path: String) {
                     val mode = (if (oR) 4 else 0) + (if (oW) 2 else 0) + (if (oX) 1 else 0)
                     val modeStr = "$mode${mode}${mode}"
                     try {
-                        val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod $modeStr \"$filePath\""))
+                        val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod $modeStr \"$path\""))
                         val exitCode = proc.waitFor()
                         snackMsg = if (exitCode == 0) "Permissions applied: $modeStr" else "Root required to change permissions"
                     } catch (e: Exception) {

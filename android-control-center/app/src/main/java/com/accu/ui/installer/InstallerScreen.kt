@@ -289,4 +289,3 @@ fun InstallerScreen(
     }
 }
 
-private fun Modifier.clickable(onClick: () -> Unit) = this.then(androidx.compose.ui.Modifier.clickable(onClick = onClick))

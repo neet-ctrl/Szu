@@ -96,6 +96,7 @@ fun ConvolutionScreen(onBack: () -> Unit = {}) {
                         }
                         if (selectedFile != null) {
                             Spacer(Modifier.height(8.dp))
+                            val waveColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                             Canvas(
                                 Modifier
                                     .fillMaxWidth()
@@ -107,7 +108,7 @@ fun ConvolutionScreen(onBack: () -> Unit = {}) {
                                 for (x in 0 until w.toInt() step 2) {
                                     val decay = 1f - x / w
                                     val amplitude = random.nextFloat() * decay * h * 0.45f
-                                    drawLine(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), Offset(x.toFloat(), mid - amplitude), Offset(x.toFloat(), mid + amplitude))
+                                    drawLine(waveColor, Offset(x.toFloat(), mid - amplitude), Offset(x.toFloat(), mid + amplitude))
                                 }
                             }
                         }

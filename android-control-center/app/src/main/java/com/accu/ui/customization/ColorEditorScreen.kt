@@ -322,7 +322,7 @@ private fun StylesTab(state: CustomizationUiState, viewModel: CustomizationViewM
             val (name, desc) = pair
             val selected = state.monetStyle == key
             Card(
-                Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
                 onClick = { viewModel.setMonetStyle(key) },

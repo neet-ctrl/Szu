@@ -371,9 +371,6 @@ private fun InfoStep(step: Int, text: String) {
     }
 }
 
-private fun Modifier.clickable(onClick: () -> Unit): Modifier = this.then(
-    Modifier.then(androidx.compose.foundation.Modifier.clickable(onClick = onClick))
-)
 
 private operator fun PaddingValues.plus(other: PaddingValues): PaddingValues = PaddingValues(
     top = calculateTopPadding() + other.calculateTopPadding(),

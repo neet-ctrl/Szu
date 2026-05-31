@@ -86,6 +86,7 @@ interface BlockedComponentDao {
     @Delete suspend fun delete(c: BlockedComponentEntity)
     @Query("DELETE FROM blocked_components WHERE packageName = :pkg AND componentName = :comp")
     suspend fun deleteByComponent(pkg: String, comp: String)
+    @Query("DELETE FROM blocked_components") suspend fun deleteAll()
     @Query("SELECT COUNT(*) FROM blocked_components") suspend fun count(): Int
     @Query("SELECT COUNT(*) FROM blocked_components WHERE isTracker = 1") suspend fun trackerCount(): Int
 }
@@ -97,6 +98,7 @@ interface PrivacyRuleDao {
     @Delete suspend fun delete(rule: PrivacyRuleEntity)
     @Update suspend fun update(rule: PrivacyRuleEntity)
     @Query("SELECT * FROM privacy_rules WHERE packageName = :pkg") fun forPackage(pkg: String): Flow<List<PrivacyRuleEntity>>
+    @Query("DELETE FROM privacy_rules") suspend fun deleteAll()
 }
 
 // ── Audio ──────────────────────────────────────────────────────────────────────

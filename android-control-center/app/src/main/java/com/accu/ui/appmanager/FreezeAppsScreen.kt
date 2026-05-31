@@ -244,7 +244,7 @@ fun FreezeAppsScreen(
 
             // Method selector
             Card(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                 onClick = { showMethodPicker = true },
             ) {

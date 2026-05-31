@@ -244,8 +244,8 @@ private fun StatChip(label: String, value: String) {
 @Composable
 private fun ModuleGrid(cards: List<ModuleCard>, onCardClick: (ModuleCard) -> Unit) {
     val columns = when {
-        LocalConfiguration.current.screenWidthDp >= 840 -> 4
-        LocalConfiguration.current.screenWidthDp >= 600 -> 3
+        LocalConfiguration.screenWidthDp >= 840 -> 4
+        LocalConfiguration.screenWidthDp >= 600 -> 3
         else -> 2
     }
     LazyVerticalGrid(
@@ -460,7 +460,7 @@ private fun CommandPaletteOverlay(
                             if (recentScreens.isNotEmpty()) {
                                 item {
                                     Row(
-                                        Modifier.padding(horizontal = 20.dp, top = 8.dp, bottom = 4.dp),
+                                        Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Icon(
@@ -593,8 +593,8 @@ private fun CommandPaletteOverlay(
                             } + grouped.filterKeys { it !in categoryOrder }.entries.map { it.key to it.value }
 
                             orderedGroups.forEach { (category, items) ->
-                                val accent = categoryAccent[category] ?: MaterialTheme.colorScheme.primary
                                 stickyHeader(key = "header_$category") {
+                                val accent = categoryAccent[category] ?: MaterialTheme.colorScheme.primary
                                     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)) {
                                         Row(
                                             Modifier

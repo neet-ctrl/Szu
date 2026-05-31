@@ -3,6 +3,7 @@ package com.accu.ui.shell
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -255,6 +256,7 @@ private val PRELOADED_COMMANDS = listOf(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CommandExamplesScreen(
     onBack: () -> Unit = {},

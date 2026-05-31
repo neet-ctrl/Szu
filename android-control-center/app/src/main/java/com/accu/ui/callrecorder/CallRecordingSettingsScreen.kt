@@ -1,5 +1,6 @@
 package com.accu.ui.callrecorder
 
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -276,9 +277,8 @@ private fun SectionTitle(title: String) {
     Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 6.dp))
 }
 
-private fun Modifier.clickable(onClick: () -> Unit): Modifier = this.then(
-    Modifier.then(androidx.compose.foundation.Modifier.clickable(onClick = onClick))
-)
+private fun Modifier.clickableWrapper(onClick: () -> Unit): Modifier =
+    androidx.compose.foundation.clickable(this, onClick = onClick)
 
 private operator fun PaddingValues.plus(other: PaddingValues): PaddingValues = PaddingValues(
     top = calculateTopPadding() + other.calculateTopPadding(),

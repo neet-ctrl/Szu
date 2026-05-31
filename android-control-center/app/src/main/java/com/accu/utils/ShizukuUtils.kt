@@ -3,10 +3,8 @@ package com.accu.utils
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.IBinder
 import com.topjohnwu.superuser.Shell
 import rikka.shizuku.Shizuku
-import rikka.shizuku.ShizukuRemoteProcess
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -53,14 +51,14 @@ class ShizukuUtils @Inject constructor() {
 
     fun getShizukuUid(): Int = try { Shizuku.getUid() } catch (_: Exception) { -1 }
 
-    /** Execute a shell command via Shizuku (elevated) */
+    /** Execute a shell command via Shizuku/root (elevated) */
     suspend fun execShizuku(command: String): ShellResult {
         return try {
-            val process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
-            val stdout = process.inputStream.bufferedReader().readText()
-            val stderr = process.errorStream.bufferedReader().readText()
-            val exit = process.waitFor()
-            ShellResult(output = stdout, error = stderr, exitCode = exit)
+            if (isRootAvailable()) {
+                execRoot(command)
+            } else {
+                execAdb(command)
+            }
         } catch (e: Exception) {
             Timber.e(e, "Shizuku exec failed: $command")
             ShellResult(output = "", error = e.message ?: "Error", exitCode = -1)

@@ -300,7 +300,7 @@ fun CustomizationScreen(
             //  SECTION 8 — Navigation Bar Style
             // ══════════════════════════════════════════
             item {
-                SectionHeader(icon = Icons.Default.NavigationRounded, title = "Navigation Bar Style", subtitle = "Bottom navigation bar appearance")
+                SectionHeader(icon = Icons.Default.Navigation, title = "Navigation Bar Style", subtitle = "Bottom navigation bar appearance")
                 Spacer(Modifier.height(10.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     NavBarStyle.entries.forEach { style ->

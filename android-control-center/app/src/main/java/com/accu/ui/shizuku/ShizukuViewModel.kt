@@ -478,13 +478,13 @@ class ShizukuViewModel @Inject constructor(
         shizukuUtils.execAdb("getprop service.adb.tcp.port").output.trim().toIntOrNull() ?: 5555
     } catch (_: Exception) { 5555 }
 
-    private fun getServerPid(): Int = try {
+    private suspend fun getServerPid(): Int = try {
         val result = shizukuUtils.execShizuku("ps -A | grep shizuku.server")
         val line = result.output.lines().firstOrNull { it.contains("shizuku", ignoreCase = true) } ?: return -1
         line.trim().split("\\s+".toRegex()).getOrNull(1)?.toIntOrNull() ?: -1
     } catch (_: Exception) { -1 }
 
-    private fun loadAuthorizedApps(): List<AuthorizedApp> = try {
+    private suspend fun loadAuthorizedApps(): List<AuthorizedApp> = try {
         val result = shizukuUtils.execShizuku("pm list packages -3")
         val pm = context.packageManager
         result.output.lines()

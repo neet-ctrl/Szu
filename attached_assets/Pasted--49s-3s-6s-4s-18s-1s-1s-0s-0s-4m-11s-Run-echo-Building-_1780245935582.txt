@@ -1,0 +1,513 @@
+ 49s
+3s
+6s
+4s
+18s
+1s
+1s
+0s
+0s
+4m 11s
+Run echo "Building DEBUG APK"
+Building DEBUG APK
+Downloading https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+.............10%.............20%.............30%.............40%.............50%.............60%.............70%.............80%.............90%.............100%
+Welcome to Gradle 8.11.1!
+Here are the highlights of this release:
+ - Parallel load and store for Configuration Cache
+ - Java compilation errors at the end of the build output
+ - Consolidated report for warnings and deprecations
+For more details see https://docs.gradle.org/8.11.1/release-notes.html
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Configuration on demand is an incubating feature.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig
+> Task :app:compileDebugAidl
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:processDebugManifestForPackage
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeDebugJniLibFolders
+> Task :app:l8DexDesugarLibDebug
+> Task :app:processDebugResources
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugNativeLibs
+> Task :app:kspDebugKotlin
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libdatastore_shared_counter.so.
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:compileDebugKotlin
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/ACCAccessibilityService.kt:54:5 'performGlobalAction' in 'AccessibilityService' is final and cannot be overridden.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppDetailScreen.kt:223:26 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:26 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:26 Cannot access 'fun <T> PersistentCompositionLocalMap.contains(key: CompositionLocal<T>): Boolean': it is internal in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:78 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:78 Cannot access 'fun <T> PersistentCompositionLocalMap.contains(key: CompositionLocal<T>): Boolean': it is internal in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:270:54 Argument type mismatch: actual type is 'kotlin.collections.Map<K, V>', but 'kotlin.collections.Map<kotlin.String, kotlin.Pair<kotlin.String, kotlin.String>>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:270:98 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+> Task :app:compileDebugKotlin FAILED
+fun <C : CharSequence, R, R> C.ifBlank(defaultValue: () -> R): R
+    [R|Contract description]
+     <
+        CallsInPlace(defaultValue, AT_MOST_ONCE)
+    >
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:247:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:249:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:251:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:34 Unresolved reference 'collectAsStateWithLifecycle'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:81:26 Unresolved reference 'groups'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:81:33 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:81:40 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:81:45 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:81:71 Unresolved reference 'searchQuery'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:96:31 Unresolved reference 'searchQuery'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:108:19 Argument type mismatch: actual type is 'kotlinx.coroutines.flow.Flow<ERROR CLASS: Cannot infer argument for type parameter T>', but 'kotlin.Int' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:108:40 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:33 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:37 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:44 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:44 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:50 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:55 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:111:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:112:52 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:113:68 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:117:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:118:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:119:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:120:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:121:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:121:82 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:122:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:27 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:34 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:43 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:43 'fun <T> Flow<T>.forEach(action: suspend (@ParameterName(...) T) -> Unit): Unit' is deprecated. Flow analogue of 'forEach' is 'collect'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:43 Not enough information to infer type argument for 'T'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:53 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:132:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:133:60 Unresolved reference 'appName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:134:62 Unresolved reference 'packageName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:138:131 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:139:56 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:141:47 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:143:87 Unresolved reference 'packageName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:143:106 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:152:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/ConvolutionScreen.kt:110:60 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecordingSettingsScreen.kt:280:47 Unresolved reference 'Modifier'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/components/StatusBadge.kt:192:80 Unresolved reference 'LocalIndication'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:70:45 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:82:45 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:209:8 Unresolved reference 'ExperimentalFoundationApi'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:209:8 Annotation argument must be a compile-time constant.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:685:21 None of the following candidates is applicable:
+fun OutlinedTextField(state: TextFieldState, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., labelPosition: TextFieldLabelPosition = ..., label: @Composable() ComposableFunction1<TextFieldLabelScope, Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., inputTransformation: InputTransformation? = ..., outputTransformation: OutputTransformation? = ..., keyboardOptions: KeyboardOptions = ..., onKeyboardAction: KeyboardActionHandler? = ..., lineLimits: TextFieldLineLimits = ..., onTextLayout: (Density.(@ParameterName(...) Function0<TextLayoutResult?>) -> Unit)? = ..., scrollState: ScrollState = ..., shape: Shape = ..., c
+fun OutlinedTextField(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., label: @Composable() ComposableFunction0<Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., visualTransformation: VisualTransformation = ..., keyboardOptions: KeyboardOptions = ..., keyboardActions: KeyboardActions = ..., singleLine: Boolean = ..., maxLines: Int = ..., minLines: Int = ..., interactionSource: MutableInteractionSource? = ..., shape: Shape = ..., colors: TextFieldColors = ...): Unit
+fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., label: @Composable() ComposableFunction0<Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., visualTransformation: VisualTransformation = ..., keyboardOptions: KeyboardOptions = ..., keyboardActions: KeyboardActions = ..., singleLine: Boolean = ..., maxLines: Int = ..., minLines: Int = ..., interactionSource: MutableInteractionSource? = ..., shape: Shape = ..., colors: TextFieldColors = ...): Unit
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:686:69 Unresolved reference 'it'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:686:100 Unresolved reference 'it'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:687:35 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:690:29 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:690:164 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:76:58 Unresolved reference 'exportTheme'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:77:58 Unresolved reference 'importTheme'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:325:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:328:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:330:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/CustomizationScreen.kt:303:52 Unresolved reference 'NavigationRounded'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:13 Unresolved reference 'AnimatedVisibility'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:63 Unresolved reference 'expandVertically'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:90 Unresolved reference 'shrinkVertically'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:110:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:260:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:261:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:264:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:421:29 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:424:29 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:426:29 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:80:33 'fun item(key: Any? = ..., contentType: Any? = ..., content: @Composable() ComposableFunction1<LazyItemScope, Unit>): Unit' cannot be called in this context with an implicit receiver. Use an explicit receiver if necessary.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:81:37 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:96:37 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:247:28 Unresolved reference 'current'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:248:28 Unresolved reference 'current'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:463:50 None of the following candidates is applicable:
+fun Modifier.padding(paddingValues: PaddingValues): Modifier
+fun Modifier.padding(all: Dp): Modifier
+fun Modifier.padding(horizontal: Dp = ..., vertical: Dp = ...): Modifier
+fun Modifier.padding(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): Modifier
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:596:88 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:122:101 Unresolved reference 'filePath'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/installer/InstallerScreen.kt:292:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:112:46 Argument type mismatch: actual type is 'kotlin.String', but 'android.os.LocaleList' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:112:59 Too many arguments for 'fun setApplicationLocales(p0: LocaleList): Unit'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:131:46 Argument type mismatch: actual type is 'kotlin.String', but 'android.os.LocaleList' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:131:59 Too many arguments for 'fun setApplicationLocales(p0: LocaleList): Unit'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:659:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/BetterInternetTilesSettingsScreen.kt:375:47 Unresolved reference 'Modifier'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkCenterScreen.kt:207:38 Smart cast to 'kotlin.String' is impossible, because 'privateDnsHost' is a delegated property.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:79:48 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:89:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:98:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:114:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:123:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:132:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:133:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:140:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/notifications/NotificationCenterScreen.kt:418:14 Unresolved reference 'animateItem'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/notifications/NotificationCenterScreen.kt:423:9 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/onboarding/OnboardingScreen.kt:129:43 Unresolved reference 'launch'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/onboarding/OnboardingScreen.kt:129:63 Suspend function 'suspend fun animateScrollToPage(page: Int, pageOffsetFraction: Float = ..., animationSpec: AnimationSpec<Float> = ...): Unit' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/OnlineRulesScreen.kt:31:12 Redeclaration:
+data class TrackerCategory : Any
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyScreen.kt:231:37 Unresolved reference 'trackerCount'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyScreen.kt:232:34 Unresolved reference 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:32:12 Redeclaration:
+enum class TrackerCategory : Enum<TrackerCategory>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:82:17 Cannot access 'constructor(label: String, icon: ImageVector): TrackerCategory': it is private in 'com/accu/ui/privacy/TrackerCategory'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:82:17 Enum types cannot be instantiated.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:106:61 Unresolved reference 'deleteByPackageAndComponent'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:193:33 Unresolved reference 'deleteAll'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:194:28 Unresolved reference 'deleteAll'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/CommandExamplesScreen.kt:390:17 The API of this layout is experimental and is likely to change in the future.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:727:13 Unresolved reference 'SelectionContainer'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:728:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:730:43 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:273:21 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:274:21 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:276:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:348:25 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:349:25 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:354:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/HailWorkProfileScreen.kt:105:67 Unresolved reference 'WorkspacesFilled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/ShizukuViewModel.kt:482:35 Suspend function 'suspend fun execShizuku(command: String): ShellResult' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/ShizukuViewModel.kt:488:35 Suspend function 'suspend fun execShizuku(command: String): ShellResult' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:525:21 Unresolved reference 'SelectionContainer'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:63 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:108 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:185:38 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:240:47 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:298:40 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:299:40 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:300:41 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:301:67 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:317:9 Conflicting overloads:
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:189:25 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:190:25 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:193:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:337:221 Unresolved reference 'viewModel'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:338:40 Unresolved reference 'viewModel'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:378:21 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:381:21 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:383:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:57 Unresolved reference 'targets'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:65 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:65 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:71 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:76 Unresolved reference 'isEnabled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:56 Unresolved reference 'complications'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:70 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:70 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:76 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:81 Unresolved reference 'isEnabled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/utils/ShizukuUtils.kt:59:35 Cannot access 'static fun newProcess(p0: Array<(out) String!>, p1: Array<(out) String!>?, p2: String?): ShizukuRemoteProcess!': it is private in 'rikka/shizuku/Shizuku'.
+FAILURE: Build failed with an exception.
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:130)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:293)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:128)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:287)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:335)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:318)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:323)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:252)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:229)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:212)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:195)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:162)
+	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
+	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:61)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:26)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeAndStoreInCache(BuildCacheStep.java:145)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$4(BuildCacheStep.java:101)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$5(BuildCacheStep.java:101)
+	at org.gradle.internal.Try$Success.map(Try.java:175)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithCache(BuildCacheStep.java:85)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$0(BuildCacheStep.java:74)
+	at org.gradle.internal.Either$Left.fold(Either.java:115)
+	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:73)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:48)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:35)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:49)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.execution.plan.DefaultPlanExecutor.process(DefaultPlanExecutor.java:111)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.executeWithServices(DefaultTaskExecutionGraph.java:138)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph.execute(DefaultTaskExecutionGraph.java:123)
+	at org.gradle.execution.SelectedTaskExecutionAction.execute(SelectedTaskExecutionAction.java:35)
+	at org.gradle.execution.DryRunBuildExecutionAction.execute(DryRunBuildExecutionAction.java:51)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:54)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor$ExecuteTasks.call(BuildOperationFiringBuildWorkerExecutor.java:43)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.execution.BuildOperationFiringBuildWorkerExecutor.execute(BuildOperationFiringBuildWorkerExecutor.java:40)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.lambda$executeTasks$10(DefaultBuildLifecycleController.java:313)
+	at org.gradle.internal.model.StateTransitionController.doTransition(StateTransitionController.java:266)
+	at org.gradle.internal.model.StateTransitionController.lambda$tryTransition$8(StateTransitionController.java:177)
+	at org.gradle.internal.work.DefaultSynchronizer.withLock(DefaultSynchronizer.java:46)
+	at org.gradle.internal.model.StateTransitionController.tryTransition(StateTransitionController.java:177)
+	at org.gradle.internal.build.DefaultBuildLifecycleController.executeTasks(DefaultBuildLifecycleController.java:304)
+	at org.gradle.internal.build.DefaultBuildWorkGraphController$DefaultBuildWorkGraph.runWork(DefaultBuildWorkGraphController.java:220)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.composite.internal.DefaultBuildController.doRun(DefaultBuildController.java:181)
+	at org.gradle.composite.internal.DefaultBuildController.access$000(DefaultBuildController.java:50)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.lambda$run$0(DefaultBuildController.java:198)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.composite.internal.DefaultBuildController$BuildOpRunnable.run(DefaultBuildController.java:198)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
+	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
+	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
+	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
+	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
+	... 2 more
+BUILD FAILED in 4m 10s
+32 actionable tasks: 32 executed
+Error: Process completed with exit code 1.

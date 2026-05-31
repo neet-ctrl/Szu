@@ -394,6 +394,7 @@ private fun QuickActionsRow(
 // ─────────────────────────────────────────────────────────────────
 //  Channel card
 // ─────────────────────────────────────────────────────────────────
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ChannelCard(
     ch: ChannelUiState,

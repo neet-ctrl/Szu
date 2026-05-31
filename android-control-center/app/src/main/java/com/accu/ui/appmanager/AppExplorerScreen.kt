@@ -258,8 +258,8 @@ class AppExplorerViewModel @Inject constructor(
     fun togglePermission(pkg: String, permName: String, grant: Boolean) = viewModelScope.launch {
         val action = if (grant) "grant" else "revoke"
         val result = shizuku.execShizuku("pm $action $pkg $permName")
-        val ok = !result.contains("Exception", ignoreCase = true) && !result.contains("Error", ignoreCase = true)
-        _state.update { it.copy(snackbarMessage = if (ok) "${if (grant) "Granted" else "Revoked"}: ${permName.substringAfterLast('.')}" else "Failed: $result") }
+        val ok = !result.output.contains("Exception", ignoreCase = true) && !result.output.contains("Error", ignoreCase = true)
+        _state.update { it.copy(snackbarMessage = if (ok) "${if (grant) "Granted" else "Revoked"}: ${permName.substringAfterLast('.')}" else "Failed: ${result.output}") }
         loadApps()
     }
 
@@ -267,7 +267,7 @@ class AppExplorerViewModel @Inject constructor(
         val key = "$pkg||$cmdLabel"
         _state.update { s -> s.copy(commandOutputs = s.commandOutputs + (key to Pair("running", ""))) }
         val out = shizuku.execShizuku(rawCmd)
-        _state.update { s -> s.copy(commandOutputs = s.commandOutputs + (key to Pair("done", out.ifBlank { "(no output)" }))) }
+        _state.update { s -> s.copy(commandOutputs = s.commandOutputs + (key to Pair("done", out.output.ifBlank { "(no output)" }))) }
     }
 
     fun clearSnackbar() = _state.update { it.copy(snackbarMessage = null) }

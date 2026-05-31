@@ -77,24 +77,22 @@ fun PerAppThemingScreen(onBack: () -> Unit = {}) {
                                 Color(0xFFFF9800), Color(0xFF9C27B0), Color(0xFF00BCD4), Color(0xFF4CAF50),
                                 Color(0xFFE91E63), Color(0xFF2196F3), Color(0xFF4A154B), Color(0xFFFF5722),
                             ).chunked(4)) { row ->
-                                item {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        row.forEach { color ->
-                                            Box(
-                                                Modifier
-                                                    .size(36.dp)
-                                                    .clip(CircleShape)
-                                                    .background(color)
-                                                    .clickable { selectedColor = color }
-                                                    .then(if (selectedColor == color) Modifier.background(Color.White.copy(alpha = 0.3f), CircleShape) else Modifier),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                if (selectedColor == color) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                            }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    row.forEach { color ->
+                                        Box(
+                                            Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(color)
+                                                .clickable { selectedColor = color }
+                                                .then(if (selectedColor == color) Modifier.background(Color.White.copy(alpha = 0.3f), CircleShape) else Modifier),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (selectedColor == color) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(18.dp))
                                         }
                                     }
-                                    Spacer(Modifier.height(8.dp))
                                 }
+                                Spacer(Modifier.height(8.dp))
                             }
                         }
                     }

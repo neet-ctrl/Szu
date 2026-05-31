@@ -257,7 +257,7 @@ fun DarkModeScreen(
             // ── Xposed / Advanced settings ────────────────────────────────────
             var showXposedSection by remember { mutableStateOf(false) }
             Card(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 onClick = { showXposedSection = !showXposedSection },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             ) {
@@ -418,7 +418,7 @@ fun DarkModeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     DarkScheduleMode.entries.forEach { mode ->
                         Card(
-                            Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = CardDefaults.cardColors(containerColor = if (state.scheduleMode == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
                             onClick = { viewModel.setScheduleMode(mode) },

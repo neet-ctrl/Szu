@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
 import com.accu.ui.theme.*
+import kotlinx.coroutines.launch
 
 data class OnboardingPage(
     val title: String,

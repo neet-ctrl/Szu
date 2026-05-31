@@ -2,6 +2,7 @@ package com.accu.ui.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.*
 import androidx.compose.foundation.layout.*

@@ -186,7 +186,7 @@ fun SystemCleanerScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(4.dp))
                 CleanSchedule.entries.forEach { sched ->
                     Card(
-                        Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth(),
                         onClick = { cleanSchedule = sched; showScheduleSheet = false },
                         colors = CardDefaults.cardColors(containerColor = if (cleanSchedule == sched) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer),
                     ) {

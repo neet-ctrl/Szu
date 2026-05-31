@@ -204,7 +204,7 @@ fun NetworkCenterScreen(
                         if (uiState.privateDnsHost != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                 Text("DNS Host", style = MaterialTheme.typography.bodyMedium)
-                                Text(uiState.privateDnsHost, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(uiState.privateDnsHost ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         FilledTonalButton(

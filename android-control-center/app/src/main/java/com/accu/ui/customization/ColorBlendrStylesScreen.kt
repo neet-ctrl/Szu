@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -685,7 +686,7 @@ private fun CreateEditStyleDialog(
                     OutlinedTextField(
                         value = seedColorHex, onValueChange = { if (it.length <= 6) seedColorHex = it.uppercase() },
                         label = { Text("Hex (without #)") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, fontFamily = FontFamily.Monospace,
+                        singleLine = true, textStyle = TextStyle(fontFamily = FontFamily.Monospace),
                         leadingIcon = {
                             Box(Modifier.size(24.dp).clip(CircleShape).background(runCatching { Color(("FF$seedColorHex").toLong(16)) }.getOrDefault(MaterialTheme.colorScheme.primary)))
                         }
@@ -799,7 +800,6 @@ private fun ExclusionsManagerDialog(
     )
 }
 
-private fun Modifier.clickable(onClick: () -> Unit) = this.then(Modifier.clickable(onClick = onClick))
 private fun BorderStroke(width: androidx.compose.ui.unit.Dp, color: Color) = androidx.compose.foundation.BorderStroke(width, color)
 private operator fun PaddingValues.plus(other: PaddingValues): PaddingValues = PaddingValues(
     top = calculateTopPadding() + other.calculateTopPadding(),

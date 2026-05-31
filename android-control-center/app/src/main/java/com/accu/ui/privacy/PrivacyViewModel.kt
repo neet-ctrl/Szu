@@ -22,14 +22,14 @@ data class PrivacyUiState(
     val privacyRules: List<PrivacyRuleEntity> = emptyList(),
     val trackerCount: Int = 0,
     val blockedCount: Int = 0,
-    val trackerCategories: List<TrackerCategory> = emptyList(),
+    val trackerCategories: List<PrivacyTrackerCategory> = emptyList(),
     val isLoading: Boolean = true,
     val searchQuery: String = "",
     val selectedTab: PrivacyTab = PrivacyTab.DASHBOARD,
     val snackbarMessage: String? = null,
 )
 
-data class TrackerCategory(
+data class PrivacyTrackerCategory(
     val name: String,
     val trackerCount: Int,
     val description: String,
@@ -79,7 +79,7 @@ class PrivacyViewModel @Inject constructor(
     private fun buildTrackerCategories() {
         viewModelScope.launch(Dispatchers.IO) {
             val categories = builtInTrackers.map { (cat, trackerPkgs) ->
-                TrackerCategory(name = cat, trackerCount = trackerPkgs.size, description = "Block $cat trackers", packages = trackerPkgs)
+                PrivacyTrackerCategory(name = cat, trackerCount = trackerPkgs.size, description = "Block $cat trackers", packages = trackerPkgs)
             }
             _state.update { it.copy(trackerCategories = categories) }
         }
@@ -103,7 +103,7 @@ class PrivacyViewModel @Inject constructor(
         viewModelScope.launch {
             val ok = appRepository.enableComponent(packageName, componentName)
             if (ok) {
-                viewModelScope.launch { blockedComponentDao.deleteByPackageAndComponent(packageName, componentName) }
+                viewModelScope.launch { blockedComponentDao.deleteByComponent(packageName, componentName) }
             }
             _state.update { it.copy(snackbarMessage = if (ok) "Component enabled" else "Failed — Shizuku/root required") }
         }

@@ -164,7 +164,7 @@ fun SmartSpacerScreen(
         when (selectedTab) {
             SmartSpacerTab.TARGETS       -> TargetsTab(state, viewModel, padding)
             SmartSpacerTab.COMPLICATIONS -> ComplicationsTab(padding)
-            SmartSpacerTab.REPOSITORY    -> RepositoryTab(padding)
+            SmartSpacerTab.REPOSITORY    -> RepositoryTab(viewModel, padding)
             SmartSpacerTab.SETTINGS      -> SmartSpacerSettingsTab(state, viewModel, padding)
         }
     }
@@ -324,7 +324,7 @@ private val REPO_PLUGINS = listOf(
 )
 
 @Composable
-private fun RepositoryTab(padding: PaddingValues) {
+private fun RepositoryTab(viewModel: SmartSpacerViewModel, padding: PaddingValues) {
     var installed by remember { mutableStateOf(setOf<String>()) }
     var repoUrl by remember { mutableStateOf("https://github.com/KieronQuinn/SmartSpacerPlugins") }
 
@@ -375,7 +375,7 @@ private fun SmartSpacerSettingsTab(state: SmartSpacerState, viewModel: SmartSpac
             Spacer(Modifier.height(8.dp))
             SmartSpacerMode.entries.forEach { mode ->
                 Card(
-                    Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = CardDefaults.cardColors(containerColor = if (state.mode == mode) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
                     onClick = { viewModel.setMode(mode) },
@@ -445,8 +445,8 @@ private fun SmartSpacerSettingsTab(state: SmartSpacerState, viewModel: SmartSpac
                     appendLine("Notification Widget: ${state.showNotificationWidget}")
                     appendLine("Expanded Mode: ${state.expandedMode}")
                     appendLine("Hide Sensitive: ${state.hideSensitiveContent}")
-                    appendLine("Active targets: ${state.targets.count { it.isEnabled }}")
-                    appendLine("Complications: ${state.complications.count { it.isEnabled }}")
+                    appendLine("Active targets: ${state.plugins.count { it.isEnabled }}")
+                    appendLine("Complications: ${state.plugins.count { it.isEnabled }}")
                 }
                 context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, dump) }, "Share Debug Dump"))
             }, Modifier.fillMaxWidth()) { Icon(Icons.Default.BugReport, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Dump SmartSpacer State") }

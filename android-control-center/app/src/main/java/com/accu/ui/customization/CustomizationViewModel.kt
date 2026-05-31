@@ -121,6 +121,18 @@ class CustomizationViewModel @Inject constructor(
 
     // ── Monet / Seed ──────────────────────────────────────
     fun setMonetStyle(style: String) = _state.update { it.copy(monetStyle = style) }
+
+    fun exportTheme() {
+        viewModelScope.launch {
+            _state.update { it.copy(snackbarMessage = "Theme export is not yet implemented") }
+        }
+    }
+
+    fun importTheme() {
+        viewModelScope.launch {
+            _state.update { it.copy(snackbarMessage = "Theme import is not yet implemented") }
+        }
+    }
     fun setSeedColor(color: Int)     = _state.update { it.copy(seedColor = color) }
 
     // ── Legacy toggles ────────────────────────────────────
