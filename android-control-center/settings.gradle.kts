@@ -19,9 +19,15 @@ dependencyResolutionManagement {
         mavenCentral()
         maven {
             url = uri("https://jitpack.io")
-            credentials {
-                // GitHub token passed via JITPACK_TOKEN env var in CI (prevents JitPack 401 on shared runners)
-                username = System.getenv("JITPACK_TOKEN") ?: ""
+            val jitpackToken = System.getenv("JITPACK_TOKEN") ?: ""
+            if (jitpackToken.isNotEmpty()) {
+                credentials(HttpHeaderCredentials::class) {
+                    name = "Authorization"
+                    value = "Token $jitpackToken"
+                }
+                authentication {
+                    create<HttpHeaderAuthentication>("header")
+                }
             }
         }
         maven { url = uri("https://api.xposed.info/") }

@@ -85,6 +85,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-accu-
 
+      - name: "🧹 Clear stale JitPack resolution cache"
+        run: |
+          rm -rf ~/.gradle/caches/modules-*/files-*/com.github.ThePBone* 2>/dev/null || true
+          rm -rf ~/.gradle/caches/modules-*/metadata-*/descriptors/com.github.ThePBone* 2>/dev/null || true
+
       - name: "🔨 Build DEBUG APK"
         working-directory: android-control-center
         run: |
