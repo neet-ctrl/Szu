@@ -112,6 +112,7 @@ dependencies {
     androidTestImplementation(libs.compose.ui.test.junit4)
 
     // Material 3 Expressive
+    implementation(libs.google.material)
     implementation(libs.material3)
     implementation(libs.material3.adaptive)
     implementation(libs.material3.adaptive.layout)

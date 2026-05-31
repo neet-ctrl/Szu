@@ -22,6 +22,7 @@ libsu = "5.3.0"
 apache-commons = "3.17.0"
 desugar = "2.1.4"
 material3 = "1.4.0-alpha08"
+google-material = "1.12.0"
 adaptive = "1.1.0"
 splashscreen = "1.0.1"
 shortcutBadger = "1.1.22"
@@ -53,6 +54,7 @@ compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
 compose-runtime-livedata = { group = "androidx.compose.runtime", name = "runtime-livedata" }
 
 # Material 3
+google-material = { group = "com.google.android.material", name = "material", version.ref = "google-material" }
 material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 material3-adaptive = { group = "androidx.compose.material3.adaptive", name = "adaptive", version.ref = "adaptive" }
 material3-adaptive-layout = { group = "androidx.compose.material3.adaptive", name = "adaptive-layout", version.ref = "adaptive" }
