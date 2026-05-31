@@ -290,9 +290,16 @@ class ShizukuViewModel @Inject constructor(
                     addLog("No adb binary — PC pair command: $pairCmd", LogLevel.WARNING)
                 }
                 is AccuConnectionManager.PairingResult.WrongCode -> {
-                    val status = "Pairing failed — wrong code or expired. Try again."
+                    val detail = if (result.rawOutput.isNotBlank()) "\n\nRaw output: ${result.rawOutput}" else ""
+                    val status = "Pairing failed — wrong code, or the code expired.\nOpen 'Pair device with pairing code' again to get a fresh code, then retry.$detail"
                     _state.update { it.copy(isPairing = false, pairingStatus = status) }
-                    addLog(status, LogLevel.ERROR)
+                    addLog("Pairing failed — ${result.rawOutput.take(80)}", LogLevel.ERROR)
+                }
+                is AccuConnectionManager.PairingResult.ConnectionFailed -> {
+                    val portInfo = if (result.sessionPort > 0) " (port ${result.sessionPort})" else ""
+                    val status = "Pairing succeeded ✓ but connection to ${result.host}$portInfo failed.\n${result.rawOutput}"
+                    _state.update { it.copy(isPairing = false, pairingStatus = status) }
+                    addLog("Connection failed — ${result.rawOutput.take(80)}", LogLevel.ERROR)
                 }
                 is AccuConnectionManager.PairingResult.NoPairingService -> {
                     val status = "No pairing service found yet.\nGo to: Developer Options → Wireless debugging → Pair device with pairing code"

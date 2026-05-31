@@ -194,7 +194,11 @@ fun AdbPairingScreen(
                     if (state.pairingStatus.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         val isPcCommand = state.pairingStatus.contains("adb pair")
+                        // Only truly successful if the paired-AND-connected message — not ConnectionFailed
+                        // which also contains "✓" ("Pairing succeeded ✓ but...")
                         val isSuccess   = state.pairingStatus.contains("✓")
+                                       && !state.pairingStatus.contains("but", ignoreCase = true)
+                                       && !state.pairingStatus.contains("failed", ignoreCase = true)
                         val statusColor = when {
                             isSuccess   -> MaterialTheme.colorScheme.primary
                             isPcCommand -> MaterialTheme.colorScheme.tertiary

@@ -105,8 +105,10 @@ class AccuConnectionManager @Inject constructor(
          * construct the exact `adb pair host:port <code>` command for copy-paste.
          */
         data class NoAdbBinary(val host: String, val port: Int) : PairingResult()
-        /** adb binary is present but `adb pair` did not print "Successfully paired" — likely wrong code. */
-        object WrongCode : PairingResult()
+        /** adb binary is present but `adb pair` did not print "Successfully paired" — likely wrong code or expired. */
+        data class WrongCode(val rawOutput: String = "") : PairingResult()
+        /** Pairing succeeded but the follow-up `adb connect` or echo verification failed. [sessionPort] shows what was tried. */
+        data class ConnectionFailed(val host: String, val sessionPort: Int, val rawOutput: String = "") : PairingResult()
         /** mDNS discovery has not resolved a pairing port yet. */
         object NoPairingService : PairingResult()
     }
@@ -281,13 +283,32 @@ class AccuConnectionManager @Inject constructor(
     /**
      * Execute via plain shell (Runtime.exec) as app UID.
      * Good for read-only commands; privileged writes require root.
+     *
+     * [stdinInput] is written to the process stdin before closing — used for
+     * interactive `adb pair` builds that prompt for the code via stdin.
+     *
+     * Reads stdout and stderr on separate threads to prevent pipe-buffer deadlock.
      */
-    fun execPlainShell(command: String): ShellResult = try {
+    fun execPlainShell(command: String, stdinInput: String? = null): ShellResult = try {
         val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-        val stdout  = process.inputStream.bufferedReader().readText()
-        val stderr  = process.errorStream.bufferedReader().readText()
-        val exit    = process.waitFor()
-        ShellResult(stdout, stderr, exit)
+        // Write stdin then close — essential for interactive adb pair builds
+        try {
+            if (stdinInput != null) {
+                process.outputStream.bufferedWriter().use { w -> w.write(stdinInput + "\n"); w.flush() }
+            } else {
+                process.outputStream.close()
+            }
+        } catch (_: Exception) {}
+
+        // Read stdout + stderr concurrently to prevent pipe-buffer deadlock
+        val stdoutRef = java.util.concurrent.atomic.AtomicReference("")
+        val stderrRef = java.util.concurrent.atomic.AtomicReference("")
+        val t1 = Thread { stdoutRef.set(process.inputStream.bufferedReader().readText()) }
+        val t2 = Thread { stderrRef.set(process.errorStream.bufferedReader().readText()) }
+        t1.start(); t2.start()
+        val exit = process.waitFor()
+        t1.join(10_000); t2.join(10_000)
+        ShellResult(stdoutRef.get(), stderrRef.get(), exit)
     } catch (e: Exception) {
         ShellResult("", e.message ?: "error", -1)
     }
@@ -438,7 +459,10 @@ class AccuConnectionManager @Inject constructor(
                         Timber.w("$TAG mDNS pairing resolve failed: $code")
                     }
                     override fun onServiceResolved(resolved: NsdServiceInfo) {
-                        val host = resolved.host?.hostAddress ?: getDeviceIp()
+                        // Force IPv4 — IPv6 link-local addresses (fe80::...) cause adb pair to fail
+                        val host = resolved.host?.let { addr ->
+                            if (addr is java.net.Inet4Address) addr.hostAddress else null
+                        } ?: getDeviceIp()
                         val port = resolved.port
                         Timber.i("$TAG pairing service resolved: $host:$port")
                         pairingHost = host
@@ -450,10 +474,9 @@ class AccuConnectionManager @Inject constructor(
                 })
             }
             override fun onServiceLost(info: NsdServiceInfo) {
-                Timber.d("$TAG mDNS pairing service lost")
-                if (_state.value == ConnectionState.AWAITING_CODE) {
-                    _state.value = ConnectionState.DISCOVERING
-                }
+                // Keep AWAITING_CODE — the user may still have time to enter the code they
+                // already saw on screen. Returning to DISCOVERING would be confusing mid-entry.
+                Timber.d("$TAG mDNS pairing service lost (keeping state=${_state.value})")
             }
         }
         try {
@@ -473,10 +496,16 @@ class AccuConnectionManager @Inject constructor(
             override fun onDiscoveryStopped(type: String) {}
             override fun onServiceFound(info: NsdServiceInfo) {
                 nm.resolveService(info, object : NsdManager.ResolveListener {
-                    override fun onResolveFailed(s: NsdServiceInfo, code: Int) {}
+                    override fun onResolveFailed(s: NsdServiceInfo, code: Int) {
+                        Timber.w("$TAG mDNS session resolve failed: $code")
+                    }
                     override fun onServiceResolved(resolved: NsdServiceInfo) {
+                        // Force IPv4 — same reason as pairing listener
+                        val ip = resolved.host?.let { addr ->
+                            if (addr is java.net.Inet4Address) addr.hostAddress else null
+                        } ?: pairingHost.ifBlank { getDeviceIp() }
                         sessionPort = resolved.port
-                        val ip = pairingHost.ifBlank { getDeviceIp() }
+                        Timber.i("$TAG session service resolved: $ip:$sessionPort")
                         if (ip.isNotBlank()) {
                             prefs.edit().putString(KEY_LAST_IP, ip).putInt(KEY_LAST_PORT, sessionPort).apply()
                         }
@@ -535,32 +564,55 @@ class AccuConnectionManager @Inject constructor(
         Timber.i("$TAG completePairing: running $adb pair $host:$port ***")
         _state.value = ConnectionState.CONNECTING
 
-        val pairResult = execPlainShell("$adb pair $host:$port $code")
+        // Pass code BOTH as CLI arg AND via stdin — some ROM adb builds only read from stdin
+        val pairResult = execPlainShell("$adb pair $host:$port $code", stdinInput = code)
+        Timber.d("$TAG adb pair stdout='${pairResult.output.take(120)}' stderr='${pairResult.error.take(80)}'")
         // Only trust explicit "Successfully paired" — exitCode alone is unreliable across ROM adb builds
         val pairOk = pairResult.output.contains("Successfully paired", ignoreCase = true)
+                  || pairResult.error.contains("Successfully paired", ignoreCase = true)
 
-        if (pairOk) {
-            val connectPort = if (sessionPort > 0) sessionPort else 5555
-            execPlainShell("$adb connect $host:$connectPort")
-            // Verify the connection is ACTUALLY live — never trust "adb connect" output alone
-            // (it can say "already connected" from stale cache when device is offline)
-            val verify = execPlainShell("$adb -s $host:$connectPort shell echo ACCU_OK 2>&1")
-            val verified = verify.output.trim() == "ACCU_OK"
-            if (verified) {
-                _state.value = ConnectionState.CONNECTED_WIRELESS
-                prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, connectPort).apply()
-                showConnectedNotification(host, connectPort)
-                stopPairingDiscovery()
-                Timber.i("$TAG completePairing: verified live connection to $host:$connectPort")
-                return@withContext PairingResult.Success
-            } else {
-                Timber.w("$TAG completePairing: paired but echo verification failed — ${verify.combinedOutput.take(80)}")
-            }
+        if (!pairOk) {
+            Timber.w("$TAG pairing failed — ${pairResult.combinedOutput.take(160)}")
+            _state.value = ConnectionState.AWAITING_CODE
+            return@withContext PairingResult.WrongCode(pairResult.combinedOutput.take(200))
         }
 
-        Timber.w("$TAG pairing failed — ${pairResult.combinedOutput}")
+        // Pairing succeeded — now connect via the TLS session port (NOT 5555; wireless ADB TLS uses
+        // a random port discovered via _adb-tls-connect._tcp mDNS).
+        // Wait up to 8 s for the session port to be resolved (it's discovered in parallel).
+        val deadline = System.currentTimeMillis() + 8_000L
+        while (sessionPort <= 0 && System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(300)
+        }
+        val connectPort = sessionPort.takeIf { it > 0 }
+            ?: run {
+                Timber.w("$TAG sessionPort still 0 after waiting — session mDNS did not resolve")
+                return@withContext PairingResult.ConnectionFailed(
+                    host, 0,
+                    "Pairing succeeded but session port was not discovered via mDNS. " +
+                    "Run from your PC: adb connect $host"
+                )
+            }
+
+        val connectResult = execPlainShell("$adb connect $host:$connectPort")
+        Timber.d("$TAG adb connect → '${connectResult.combinedOutput.take(80)}'")
+
+        // Verify the connection is ACTUALLY live — never trust "adb connect" output alone
+        // (it can say "already connected" from stale cache when device is offline)
+        val verify = execPlainShell("$adb -s $host:$connectPort shell echo ACCU_OK 2>&1")
+        val verified = verify.output.trim() == "ACCU_OK"
+        if (verified) {
+            _state.value = ConnectionState.CONNECTED_WIRELESS
+            prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, connectPort).apply()
+            showConnectedNotification(host, connectPort)
+            stopPairingDiscovery()
+            Timber.i("$TAG completePairing: verified live connection to $host:$connectPort")
+            return@withContext PairingResult.Success
+        }
+
+        Timber.w("$TAG completePairing: paired but echo verification failed — ${verify.combinedOutput.take(80)}")
         _state.value = ConnectionState.AWAITING_CODE
-        PairingResult.WrongCode
+        PairingResult.ConnectionFailed(host, connectPort, connectResult.combinedOutput.take(200))
     }
 
     // ─── Notification helpers ──────────────────────────────────────────────────
