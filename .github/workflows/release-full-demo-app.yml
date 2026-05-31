@@ -41,6 +41,16 @@ jobs:
       - name: "📱 Setup Android SDK"
         uses: android-actions/setup-android@v3
 
+      - name: "🔍 List installed SDK packages"
+        run: |
+          echo "=== ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT ==="
+          echo "=== Installed SDK packages ==="
+          sdkmanager --list_installed 2>/dev/null || true
+          echo "=== Platforms on disk ==="
+          ls "$ANDROID_SDK_ROOT/platforms/" 2>/dev/null || echo "No platforms directory found"
+          echo "=== Build-tools on disk ==="
+          ls "$ANDROID_SDK_ROOT/build-tools/" 2>/dev/null || echo "No build-tools directory found"
+
       - name: "🔧 Download Gradle Wrapper JAR"
         run: |
           WRAPPER_JAR="${{ env.DEMO_DIR }}/gradle/wrapper/gradle-wrapper.jar"
