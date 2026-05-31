@@ -108,6 +108,15 @@ sealed class Screen(val route: String) {
 
     // App Explorer (new flagship feature)
     data object AppExplorer         : Screen("app_explorer")
+
+    // SD Maid SE — missing feature
+    data object LargeFileFinder     : Screen("large_file_finder")
+
+    // aShellYou — missing feature
+    data object ScriptEditor        : Screen("script_editor")
+
+    // Hail — missing feature
+    data object FreezeScheduler     : Screen("freeze_scheduler")
 }
 
 data class TopLevelDestination(

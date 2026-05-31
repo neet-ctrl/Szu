@@ -42,7 +42,10 @@ enum class ShellMode(val label: String, val icon: androidx.compose.ui.graphics.v
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ShellScreen(viewModel: ShellViewModel = hiltViewModel()) {
+fun ShellScreen(
+    onNavigateToScripts: () -> Unit = {},
+    viewModel: ShellViewModel = hiltViewModel(),
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val output by viewModel.output.collectAsStateWithLifecycle()
     val history by viewModel.commandHistory.collectAsStateWithLifecycle()
@@ -97,6 +100,9 @@ fun ShellScreen(viewModel: ShellViewModel = hiltViewModel()) {
                         }
                         IconButton(onClick = { showSaveDialog = true }) {
                             Icon(Icons.Outlined.Save, "Save output")
+                        }
+                        IconButton(onClick = onNavigateToScripts) {
+                            Icon(Icons.Outlined.Code, "Script Manager")
                         }
                     }
                 )

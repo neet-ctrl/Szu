@@ -38,6 +38,7 @@ enum class FreezeMethodType(val label: String, val description: String, val comm
 @Composable
 fun FreezeAppsScreen(
     onBack: () -> Unit,
+    onNavigateToScheduler: () -> Unit = {},
     viewModel: AppManagerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -91,6 +92,7 @@ fun FreezeAppsScreen(
                             }
                         }
                     }
+                    IconButton(onClick = onNavigateToScheduler) { Icon(Icons.Default.Schedule, "Freeze Scheduler") }
                     IconButton(onClick = { showMethodInfo = true }) { Icon(Icons.Default.Info, "Method Info") }
                 },
             )

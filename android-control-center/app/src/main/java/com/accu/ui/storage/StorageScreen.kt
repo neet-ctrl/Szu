@@ -129,6 +129,7 @@ fun StorageScreen(
     onNavigateToDeduplicator: () -> Unit = {},
     onNavigateToCorpseFinder: () -> Unit = {},
     onNavigateToFileManagerAdvanced: () -> Unit = {},
+    onNavigateToLargeFileFinder: () -> Unit = {},
     viewModel: StorageViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -204,6 +205,9 @@ fun StorageScreen(
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     OutlinedButton(onClick = onNavigateToFileManager, Modifier.weight(1f)) { Icon(Icons.Default.Folder, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("File Manager") }
                                     OutlinedButton(onClick = onNavigateToFileManagerAdvanced, Modifier.weight(1f)) { Icon(Icons.Default.CloudUpload, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("FTP / SMB") }
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    OutlinedButton(onClick = onNavigateToLargeFileFinder, Modifier.weight(1f)) { Icon(Icons.Default.FindInPage, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Large Files") }
                                 }
                             }
                         }

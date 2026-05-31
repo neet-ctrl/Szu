@@ -17,6 +17,9 @@ import com.accu.ui.appmanager.ComponentManagerScreen
 import com.accu.ui.appmanager.PermissionManagerScreen
 import com.accu.ui.appmanager.DebloatScreen
 import com.accu.ui.appmanager.FreezeAppsScreen
+import com.accu.ui.shizuku.FreezeSchedulerScreen
+import com.accu.ui.shell.ScriptEditorScreen
+import com.accu.ui.storage.LargeFileFinderScreen
 import com.accu.ui.appmanager.CantaPresetsScreen
 import com.accu.ui.appmanager.VirusTotalScreen
 import com.accu.ui.appmanager.AppExplorerScreen
@@ -130,7 +133,7 @@ fun AppNavigation() {
                 ShizukuCenterScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Shell.route) {
-                ShellScreen()
+                ShellScreen(onNavigateToScripts = { navController.navigate(Screen.ScriptEditor.route) })
             }
             composable(Screen.AppManager.route) {
                 AppManagerScreen(
@@ -150,7 +153,10 @@ fun AppNavigation() {
                 DebloatScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.FreezeApps.route) {
-                FreezeAppsScreen(onBack = { navController.popBackStack() })
+                FreezeAppsScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToScheduler = { navController.navigate(Screen.FreezeScheduler.route) },
+                )
             }
             composable(Screen.ComponentManager.route) {
                 ComponentManagerScreen(onBack = { navController.popBackStack() })
@@ -185,6 +191,7 @@ fun AppNavigation() {
                     onNavigateToDeduplicator = { navController.navigate(Screen.Deduplicator.route) },
                     onNavigateToCorpseFinder = { navController.navigate(Screen.CorpseFinder.route) },
                     onNavigateToFileManagerAdvanced = { navController.navigate(Screen.FileManagerAdvanced.route) },
+                    onNavigateToLargeFileFinder = { navController.navigate(Screen.LargeFileFinder.route) },
                 )
             }
             composable(Screen.FileManager.route) {
@@ -369,6 +376,21 @@ fun AppNavigation() {
                     onBack = { navController.popBackStack() },
                     onLocaleSet = { navController.popBackStack() }
                 )
+            }
+
+            // SD Maid SE — Large File Finder
+            composable(Screen.LargeFileFinder.route) {
+                LargeFileFinderScreen(onBack = { navController.popBackStack() })
+            }
+
+            // aShellYou — Script Editor / Manager
+            composable(Screen.ScriptEditor.route) {
+                ScriptEditorScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Hail — Freeze Scheduler
+            composable(Screen.FreezeScheduler.route) {
+                FreezeSchedulerScreen(onBack = { navController.popBackStack() })
             }
         }
     }
