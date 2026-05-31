@@ -17,7 +17,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }
+        maven {
+            url = uri("https://jitpack.io")
+            credentials {
+                // GitHub token passed via JITPACK_TOKEN env var in CI (prevents JitPack 401 on shared runners)
+                username = System.getenv("JITPACK_TOKEN") ?: ""
+            }
+        }
         maven { url = uri("https://api.xposed.info/") }
     }
 }
