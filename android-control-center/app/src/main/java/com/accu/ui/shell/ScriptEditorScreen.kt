@@ -80,9 +80,9 @@ PKGS=(
   "com.amazon.mShop.android.shopping"
   "com.netflix.partner.activation"
 )
-for pkg in "${PKGS[@]}"; do
-  result=$(pm uninstall --user 0 $pkg 2>&1)
-  echo "[$pkg] $result"
+for pkg in "${'$'}{PKGS[@]}"; do
+  result=$(pm uninstall --user 0 ${'$'}pkg 2>&1)
+  echo "[${'$'}pkg] ${'$'}result"
 done
 echo "Done."
 """,
@@ -140,9 +140,9 @@ KEEP=(
 )
 pm list packages -3 | sed 's/package://' | while read pkg; do
   skip=false
-  for k in "${KEEP[@]}"; do [ "$pkg" = "$k" ] && skip=true; done
-  if [ "$skip" = false ]; then
-    pm suspend --user 0 "$pkg" 2>/dev/null && echo "Froze: $pkg"
+  for k in "${'$'}{KEEP[@]}"; do [ "${'$'}pkg" = "${'$'}k" ] && skip=true; done
+  if [ "${'$'}skip" = false ]; then
+    pm suspend --user 0 "${'$'}pkg" 2>/dev/null && echo "Froze: ${'$'}pkg"
   fi
 done
 echo "Done."
@@ -200,10 +200,10 @@ echo "To apply changes, uncomment the desired line and re-run."
 # Grant all dangerous permissions to an app (Shizuku-powered)
 PKG="com.example.app"   # <-- change this to your package name
 
-echo "Granting all dangerous permissions to: $PKG"
+echo "Granting all dangerous permissions to: ${'$'}PKG"
 pm list permissions -d -g | grep "permission:" | sed 's/  permission://' | while read perm; do
-  result=$(pm grant "$PKG" "$perm" 2>&1)
-  echo "[$perm]: $result"
+  result=$(pm grant "${'$'}PKG" "${'$'}perm" 2>&1)
+  echo "[${'$'}perm]: ${'$'}result"
 done
 echo "Done."
 """,
@@ -218,18 +218,18 @@ echo "Done."
 PKG="com.example.app"    # <-- change this
 
 # Disable a specific component:
-# pm disable-user --user 0 "$PKG/.SomeTrackerService"
-# pm disable-user --user 0 "$PKG/.AnalyticsReceiver"
+# pm disable-user --user 0 "${'$'}PKG/.SomeTrackerService"
+# pm disable-user --user 0 "${'$'}PKG/.AnalyticsReceiver"
 
 # List all components:
 echo "=== Activities ==="
-pm dump "$PKG" | grep "Activity{" | head -20
+pm dump "${'$'}PKG" | grep "Activity{" | head -20
 echo ""
 echo "=== Services ==="
-pm dump "$PKG" | grep "ServiceRecord{" | head -20
+pm dump "${'$'}PKG" | grep "ServiceRecord{" | head -20
 echo ""
 echo "=== Receivers ==="
-pm dump "$PKG" | grep "ReceiverRecord{" | head -20
+pm dump "${'$'}PKG" | grep "ReceiverRecord{" | head -20
 """,
         tags = listOf("blocker", "privacy", "components"),
     ),
