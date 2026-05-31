@@ -21,6 +21,7 @@ import androidx.lifecycle.viewModelScope
 import com.accu.data.db.dao.InstallSessionDao
 import com.accu.data.db.entities.InstallSessionEntity
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -146,7 +147,18 @@ fun InstallerScreen(
     LaunchedEffect(state.snackbarMessage) { state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() } }
 
     Scaffold(
-        topBar = { ACCTopBar(title = "Installer Center", onBack = onBack) },
+        topBar = {
+            ACCTopBar(
+                title = "Installer Center",
+                onBack = onBack,
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Installer Center — InstallWithOptions",
+                        description = "Advanced APK installer based on InstallWithOptions.\n\nSupports all pm install flags:\n• Replace existing app\n• Allow version downgrade (install older build)\n• Grant all permissions automatically\n• Allow test-only builds\n• Do not kill app during update\n• Bypass low target SDK block\n• Request update ownership\n\nSupports single APKs and split APK sets (.apks). All installation is done via Shizuku (no root, no USB)."
+                    )
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (state.selectedApks.isNotEmpty() && !state.isInstalling) {

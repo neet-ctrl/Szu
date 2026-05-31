@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.components.LoadingScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +68,10 @@ fun DebloatScreen(
                 title = "Debloat",
                 onBack = onBack,
                 actions = {
+                    InfoTooltipIcon(
+                        title = "Debloat — Canta",
+                        description = "Safe system app removal based on Canta.\n\nRemoves system apps without root via Shizuku (pm uninstall --user 0 — apps are removed for the current user only, not deleted from system).\n\n• Apps marked Safe: confirmed removable without breaking Android\n• Apps marked Caution: may affect other apps\n• Apps marked Expert: advanced users only\n\nTo restore: Settings → Apps → [app] → Reinstall for all users."
+                    )
                     IconButton(onClick = { showSafetyInfo = true }) { Icon(Icons.Default.Info, "Safety Info") }
                     if (state.selectedApps.isNotEmpty()) {
                         IconButton(onClick = { viewModel.batchUninstall() }) { Icon(Icons.Default.Delete, "Remove Selected") }

@@ -19,6 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.EmptyState
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.components.LoadingScreen
 import com.accu.ui.theme.*
 
@@ -36,7 +37,18 @@ fun PrivacyScreen(
     }
 
     Scaffold(
-        topBar = { ACCTopBar(title = "Privacy Center", onBack = onBack) },
+        topBar = {
+            ACCTopBar(
+                title = "Privacy Center",
+                onBack = onBack,
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Privacy Center — Blocker",
+                        description = "Fine-grained component blocker inspired by Blocker app.\n\n• Disable trackers: Firebase, AdMob, AppsFlyer, Crashlytics, Branch.io, etc.\n• Disable individual receivers, services, activities, providers\n• Privacy audit: shows what every app is collecting\n• Online rules: import community block lists\n\nAll changes apply via Shizuku (no root needed). Components can be re-enabled at any time."
+                    )
+                }
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {

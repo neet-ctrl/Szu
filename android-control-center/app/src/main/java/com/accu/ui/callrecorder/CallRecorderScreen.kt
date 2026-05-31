@@ -19,8 +19,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.accu.data.db.entities.CallRecordingEntity
 import com.accu.ui.components.*
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +45,10 @@ fun CallRecorderScreen(
                 title = "Call Recorder",
                 onBack = onBack,
                 actions = {
+                    InfoTooltipIcon(
+                        title = "Call Recorder — ShizuCallRecorder",
+                        description = "Rootless call recording powered by Shizuku.\n\n• Automatically records all incoming/outgoing calls\n• Uses scrcpy audio capture for Android 10+ (no root required)\n• Formats: AAC, MP3, PCM, OGG\n• Audio source: MIC, VOICE_CALL, VOICE_COMMUNICATION\n\nRequires: Shizuku running + RECORD_AUDIO permission.\n\nAll recordings are stored locally and never uploaded."
+                    )
                     IconButton(onClick = { viewModel.toggleSearch() }) { Icon(Icons.Default.Search, "Search") }
                     IconButton(onClick = { viewModel.toggleSettingsPanel() }) { Icon(Icons.Default.Settings, "Settings") }
                 },

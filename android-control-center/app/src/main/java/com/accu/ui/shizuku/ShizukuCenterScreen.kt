@@ -262,10 +262,17 @@ private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel) {
 
 @Composable
 private fun InfoRow(label: String, value: String, icon: ImageVector, tint: Color = Color.Unspecified) {
+    val clipboard = LocalClipboardManager.current
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Icon(icon, null, Modifier.size(16.dp), tint = if (tint == Color.Unspecified) MaterialTheme.colorScheme.primary else tint)
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(110.dp))
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(100.dp))
         Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = { clipboard.setText(AnnotatedString(value)) },
+            modifier = Modifier.size(24.dp),
+        ) {
+            Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.4f))
+        }
     }
 }
 

@@ -22,6 +22,7 @@ import coil.request.ImageRequest
 import com.accu.data.db.entities.FrozenAppEntity
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.EmptyState
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.theme.AccentCyan
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
@@ -80,6 +81,10 @@ fun FreezeAppsScreen(
                 title = "Freeze Apps",
                 onBack = onBack,
                 actions = {
+                    InfoTooltipIcon(
+                        title = "Freeze Apps — Hail",
+                        description = "Freeze, suspend, or hide apps without uninstalling them.\n\nBased on Hail — three freeze methods available:\n\n• Disable (pm disable): app hidden from launcher, data kept — best for permanent disabling\n• Suspend (pm suspend): greyed-out icon visible but can't be opened — fastest to toggle\n• Hide (pm hide): fully invisible, like a soft-uninstall but all data preserved\n\nAll methods use Shizuku (no root). Reversible at any time. Schedule freezes via the scheduler icon."
+                    )
                     Box {
                         IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Sort") }
                         DropdownMenu(showSortMenu, { showSortMenu = false }) {

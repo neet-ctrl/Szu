@@ -19,6 +19,7 @@ import com.accu.data.db.entities.AutomationProfileEntity
 import com.accu.data.db.entities.KeyMappingEntity
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.EmptyState
+import com.accu.ui.components.InfoTooltipIcon
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -91,9 +92,18 @@ fun AutomationScreen(
                 onBack = onBack,
                 actions = {
                     if (state.selectedTab == AutomationTab.KEY_MAPPINGS) {
+                        InfoTooltipIcon(
+                            title = "Key Mapper",
+                            description = "Remap any physical key or button to any action.\n\nBased on Key Mapper:\n• Remap volume buttons, power button, headphone buttons\n• Triggers: single press, long press, double press\n• Actions: launch app, toggle setting, run shell command, simulate key, etc.\n• Constraints: only active while screen on/off, specific app in foreground, etc.\n\nRequires Accessibility Service to be enabled."
+                        )
                         IconButton(onClick = onNavigateToKeyMapList) { Icon(Icons.Default.List, "Key Map List") }
                         IconButton(onClick = onNavigateToKeyMapperSettings) { Icon(Icons.Default.Settings, "Settings") }
                         IconButton(onClick = onNavigateToAdvanced) { Icon(Icons.Default.Tune, "Advanced") }
+                    } else {
+                        InfoTooltipIcon(
+                            title = "Automation",
+                            description = "Create automation profiles that run actions based on triggers and constraints.\n\n• Triggers: time, location, charging state, screen state, app launch\n• Actions: run shell command, toggle setting, freeze/unfreeze app, send notification\n• Constraints: battery level, Wi-Fi connected, time range\n\nAll automation runs locally on-device, no cloud connection."
+                        )
                     }
                 }
             )

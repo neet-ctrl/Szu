@@ -26,6 +26,7 @@ import com.accu.data.db.entities.AppLanguageEntity
 import androidx.compose.material3.LocalContentColor
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.EmptyState
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -165,6 +166,10 @@ fun LanguageCenterScreen(
                 title = "Language Center",
                 onBack = onBack,
                 actions = {
+                    InfoTooltipIcon(
+                        title = "Language Center — Language Selector",
+                        description = "Per-app language overrides without root.\n\nBased on Language Selector — set any language for any app independently of system locale.\n\n• Set locale per-app (e.g. Twitter in English, WhatsApp in Spanish)\n• Supports all BCP 47 language tags\n• Changes apply immediately — no restart needed\n• System apps and user apps supported\n\nUses Shizuku to call ActivityManager setApplicationLocales API."
+                    )
                     IconButton(onClick = viewModel::toggleShowSystemApps) {
                         Icon(
                             if (state.showSystemApps) Icons.Default.PhoneAndroid else Icons.Default.Apps,

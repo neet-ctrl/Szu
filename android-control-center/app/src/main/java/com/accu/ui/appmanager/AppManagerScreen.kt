@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.accu.ui.components.*
+import com.accu.ui.components.InfoTooltipIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +46,15 @@ fun AppManagerScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("App Manager", fontWeight = FontWeight.Bold) },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("App Manager", fontWeight = FontWeight.Bold)
+                            InfoTooltipIcon(
+                                title = "App Manager",
+                                description = "Unified app manager combining features from:\n\n• Inure — deep app inspection (permissions, components, certificates, trackers)\n• Canta — safe system app removal\n• Hail — freeze/hide/suspend apps\n• Blocker — disable trackers, receivers and services\n\nTap any app to open its full detail view. Long-press to enter multi-select mode for batch operations."
+                            )
+                        }
+                    },
                     actions = {
                         if (state.isMultiSelect) {
                             IconButton(onClick = viewModel::batchFreeze) { Icon(Icons.Default.AcUnit, "Batch Freeze") }

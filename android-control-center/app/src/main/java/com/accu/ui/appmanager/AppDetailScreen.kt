@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.platform.*
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -469,11 +470,24 @@ private fun AppOpsTab(packageName: String, padding: PaddingValues) {
 
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 16.dp)) {
         item {
+            val opsClipboard = LocalClipboardManager.current
+            val opsCmd = "appops set $packageName <OP> allow|deny|ignore"
             Card(Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Info, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("App Ops are fine-grained permission controls. Changes require Shizuku/root: appops set $packageName <OP> allow|deny|ignore", style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Info, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("App Ops — fine-grained permission controls via Shizuku.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.onSecondaryContainer.copy(0.08f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(opsCmd, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f), fontSize = 10.sp)
+                        IconButton(onClick = { opsClipboard.setText(AnnotatedString(opsCmd)) }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Outlined.ContentCopy, "Copy command", Modifier.size(13.dp))
+                        }
+                    }
                 }
             }
         }
@@ -606,6 +620,7 @@ private fun SummaryChip(value: String, label: String, modifier: Modifier, color:
 @Composable
 private fun PermissionItem(perm: PermissionUiModel, onRevoke: () -> Unit, onGrant: () -> Unit) {
     val isGranted = perm.isGranted
+    val clipboardManager = LocalClipboardManager.current
     ListItem(
         headlineContent = { Text(perm.name.substringAfterLast('.'), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(perm.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
@@ -617,12 +632,20 @@ private fun PermissionItem(perm: PermissionUiModel, onRevoke: () -> Unit, onGran
             )
         },
         trailingContent = {
-            if (!perm.isProtected) {
-                TextButton(onClick = if (isGranted) onRevoke else onGrant, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
-                    Text(if (isGranted) "Revoke" else "Grant", style = MaterialTheme.typography.labelSmall, color = if (isGranted) MaterialTheme.colorScheme.error else AccentGreen)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { clipboardManager.setText(AnnotatedString(perm.name)) },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(Icons.Outlined.ContentCopy, "Copy permission name", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f))
                 }
-            } else {
-                Surface(shape = RoundedCornerShape(4.dp), color = AccentOrange.copy(0.1f)) { Text("Protected", style = MaterialTheme.typography.labelSmall, color = AccentOrange, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) }
+                if (!perm.isProtected) {
+                    TextButton(onClick = if (isGranted) onRevoke else onGrant, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)) {
+                        Text(if (isGranted) "Revoke" else "Grant", style = MaterialTheme.typography.labelSmall, color = if (isGranted) MaterialTheme.colorScheme.error else AccentGreen)
+                    }
+                } else {
+                    Surface(shape = RoundedCornerShape(4.dp), color = AccentOrange.copy(0.1f)) { Text("Protected", style = MaterialTheme.typography.labelSmall, color = AccentOrange, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) }
+                }
             }
         },
     )
@@ -631,6 +654,7 @@ private fun PermissionItem(perm: PermissionUiModel, onRevoke: () -> Unit, onGran
 @Composable
 private fun ComponentItem(name: String, type: String, isEnabled: Boolean, onToggle: () -> Unit, onLaunch: (() -> Unit)?) {
     val color = when(type) { "activity" -> MaterialTheme.colorScheme.primary; "service" -> AccentOrange; "receiver" -> AccentGreen; "provider" -> MaterialTheme.colorScheme.secondary; else -> MaterialTheme.colorScheme.onSurface }
+    val clipboardManager = LocalClipboardManager.current
     ListItem(
         headlineContent = { Text(name.substringAfterLast('.'), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = { Text(name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
@@ -641,6 +665,12 @@ private fun ComponentItem(name: String, type: String, isEnabled: Boolean, onTogg
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { clipboardManager.setText(AnnotatedString(name)) },
+                    modifier = Modifier.size(28.dp),
+                ) {
+                    Icon(Icons.Outlined.ContentCopy, "Copy class name", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.5f))
+                }
                 if (onLaunch != null) IconButton(onClick = onLaunch, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.PlayArrow, null, Modifier.size(16.dp), tint = AccentGreen) }
                 Switch(checked = isEnabled, onCheckedChange = { onToggle() }, modifier = Modifier.size(36.dp, 18.dp).then(Modifier.padding(0.dp)))
             }

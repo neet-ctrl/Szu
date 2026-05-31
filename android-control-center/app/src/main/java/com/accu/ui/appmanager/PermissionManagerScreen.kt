@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.data.repositories.AppRepository
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -80,7 +81,16 @@ fun PermissionManagerScreen(
 
     Scaffold(topBar = {
         Column {
-            ACCTopBar(title = "Permission Manager", onBack = onBack)
+            ACCTopBar(
+                title = "Permission Manager",
+                onBack = onBack,
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Permission Manager",
+                        description = "View and revoke runtime permissions across all apps.\n\nSearch any permission (CAMERA, LOCATION, MICROPHONE, etc.) to see which apps have it granted.\n\n• Revoke: removes a granted permission from an app\n• Grant: re-grants a previously revoked permission\n• Protected permissions (signature-level) cannot be changed\n\nChanges apply instantly via Shizuku (pm revoke / pm grant)."
+                    )
+                }
+            )
             SearchBar(
                 query = state.searchQuery,
                 onQueryChange = viewModel::onSearch,

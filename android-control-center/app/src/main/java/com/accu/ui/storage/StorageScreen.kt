@@ -30,6 +30,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.components.LoadingScreen
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -147,7 +148,21 @@ fun StorageScreen(
 
     val scanAnim by animateFloatAsState(targetValue = if (state.isScanning) 1f else 0f, animationSpec = infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "scan")
 
-    Scaffold(topBar = { ACCTopBar(title = "Storage Center", actions = { IconButton(onClick = viewModel::loadStorage) { Icon(Icons.Default.Refresh, "Refresh") } }) }, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+    Scaffold(
+        topBar = {
+            ACCTopBar(
+                title = "Storage Center",
+                actions = {
+                    InfoTooltipIcon(
+                        title = "Storage Center — SD Maid SE",
+                        description = "Storage analysis and cleanup powered by SD Maid SE.\n\n• Storage ring chart: see what's consuming your storage\n• System Cleaner: remove cached/junk files\n• Large File Finder: find files over a threshold\n• Deduplicator: find and remove duplicate files\n• App Cleaner: per-app cache management\n\nRequires Shizuku for protected directories. Regular cache cleanup doesn't require it."
+                    )
+                    IconButton(onClick = viewModel::loadStorage) { Icon(Icons.Default.Refresh, "Refresh") }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
         if (state.isLoading) { LoadingScreen("Analyzing storage…") }
         else LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Circular storage ring chart

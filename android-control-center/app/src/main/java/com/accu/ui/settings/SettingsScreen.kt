@@ -17,6 +17,7 @@ import com.accu.BuildConfig
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.FeatureRow
 import com.accu.ui.components.FeatureSwitch
+import com.accu.ui.components.InfoTooltipIcon
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +40,19 @@ fun SettingsScreen(
     var showRootWarnings by remember { mutableStateOf(true) }
     var confirmDestructiveActions by remember { mutableStateOf(true) }
 
-    Scaffold(topBar = { ACCTopBar(title = "Settings") }) { padding ->
+    Scaffold(
+        topBar = {
+            ACCTopBar(
+                title = "Settings",
+                actions = {
+                    InfoTooltipIcon(
+                        title = "ACC Settings",
+                        description = "Global settings for Android Control Center.\n\n• Shizuku: configure connection mode and permissions\n• Theme: Material You dynamic color, dark/light mode, pure black\n• Privacy: control what data ACC stores locally\n• Backup & Restore: export/import all ACC settings and data\n• About: version info, open-source licenses, contributors"
+                    )
+                }
+            )
+        }
+    ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = 32.dp),

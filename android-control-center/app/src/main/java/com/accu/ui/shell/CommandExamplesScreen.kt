@@ -17,7 +17,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.components.InfoTooltipIcon
 
 data class CommandExample(
     val id: String,
@@ -509,6 +512,7 @@ private fun CommandExampleCard(
     onLabelClick: (String) -> Unit,
 ) {
     var showCardMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
     ElevatedCard(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).clickable { onSelect() }
     ) {
@@ -522,6 +526,13 @@ private fun CommandExampleCard(
                     if (cmd.description.isNotBlank()) {
                         Text(cmd.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                }
+                // Copy command to clipboard
+                IconButton(
+                    onClick = { clipboardManager.setText(AnnotatedString(cmd.command)) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, "Copy command", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = onFavoriteToggle, modifier = Modifier.size(32.dp)) {
                     Icon(
@@ -543,13 +554,19 @@ private fun CommandExampleCard(
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Text(
-                cmd.command,
-                fontFamily = FontFamily.Monospace, fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 3, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
-            )
+            // Command text block — tap card to paste into shell, copy icon to clipboard
+            Row(
+                Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    cmd.command,
+                    fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
             if (cmd.labels.isNotEmpty()) {
                 Spacer(Modifier.height(5.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
