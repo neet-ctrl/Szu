@@ -117,6 +117,8 @@ import com.accu.ui.shell.AdbConnectionMode
 import com.accu.ui.shizuku.AdbPairingScreen
 import com.accu.ui.shizuku.ShizukuAppsScreen
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import com.accu.ui.dashboard.NavHistoryViewModel
 // ACCU System Service (IPC privilege hub)
 import com.accu.ui.apiservice.AccuServiceScreen
@@ -145,6 +147,8 @@ fun AppNavigation() {
         onDispose { navController.removeOnDestinationChangedListener(listener) }
     }
 
+    val haptic = LocalHapticFeedback.current
+
     NavigationSuiteScaffold(
         navigationSuiteItems = {
             TOP_LEVEL_DESTINATIONS.forEach { dest ->
@@ -154,15 +158,16 @@ fun AppNavigation() {
                     label = { Text(dest.label) },
                     selected = selected,
                     onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         navController.navigate(dest.screen.route) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }
+                    },
                 )
             }
-        }
+        },
     ) {
         NavHost(
             navController = navController,
