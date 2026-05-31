@@ -69,6 +69,50 @@ import com.accu.ui.tutorial.TutorialScreen
 import com.accu.ui.widgets.SmartSpacerScreen
 import com.accu.ui.widgets.SmartSpacerTargetsScreen
 
+// ========= BATCH 2 IMPORTS (32 new screens) =========
+// Key Mapper
+import com.accu.ui.automation.KeyMapListScreen
+import com.accu.ui.automation.ConfigKeyMapScreen
+import com.accu.ui.automation.ChooseActionScreen
+import com.accu.ui.automation.ChooseConstraintScreen
+import com.accu.ui.automation.KeyMapLogScreen
+import com.accu.ui.automation.KeyMapperSettingsScreen
+// Inure
+import com.accu.ui.appmanager.InureHomeScreen
+import com.accu.ui.appmanager.InureBatteryOptimizationScreen
+import com.accu.ui.appmanager.InureBootManagerScreen
+import com.accu.ui.appmanager.InureNotesScreen
+import com.accu.ui.appmanager.InureMusicScreen
+import com.accu.ui.appmanager.InureApksScreen
+import com.accu.ui.appmanager.InureTrackersScreen
+import com.accu.ui.appmanager.InureUsageStatsScreen
+import com.accu.ui.appmanager.InureDisabledAppsScreen
+import com.accu.ui.appmanager.BlockerComponentSearchScreen
+// JamesDSP additional
+import com.accu.ui.audio.GraphicEQScreen
+import com.accu.ui.audio.ConvolutionScreen
+import com.accu.ui.audio.DSPControlsScreen
+import com.accu.ui.audio.JamesDSPSettingsScreen
+import com.accu.ui.audio.LiveprogParamsScreen
+// ColorBlendr
+import com.accu.ui.customization.PerAppThemingScreen
+// DarQ
+import com.accu.ui.customization.DarQAppPickerScreen
+// SmartSpacer
+import com.accu.ui.customization.SmartSpacerComplicationsScreen
+// SD Maid SE
+import com.accu.ui.storage.SqueezerScreen
+import com.accu.ui.storage.StorageAnalyzerScreen
+// Material Files
+import com.accu.ui.filemanager.FtpServerScreen
+import com.accu.ui.filemanager.FilePropertiesScreen
+import com.accu.ui.filemanager.TextEditorScreen
+// aShellYou
+import com.accu.ui.shell.CommandExamplesScreen
+// Shizuku
+import com.accu.ui.shizuku.AdbPairingScreen
+import com.accu.ui.shizuku.ShizukuAppsScreen
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()

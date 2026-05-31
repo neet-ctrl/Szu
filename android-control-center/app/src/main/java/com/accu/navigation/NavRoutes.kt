@@ -117,6 +117,69 @@ sealed class Screen(val route: String) {
 
     // Hail — missing feature
     data object FreezeScheduler     : Screen("freeze_scheduler")
+
+    // ========= BATCH 2: 32 New Screens =========
+
+    // Key Mapper
+    data object KeyMapList          : Screen("key_map_list")
+    data object ConfigKeyMap        : Screen("config_key_map/{mapId}") {
+        fun create() = "config_key_map/new"
+        fun edit(id: String) = "config_key_map/$id"
+    }
+    data object ChooseAction        : Screen("choose_action")
+    data object ChooseConstraint    : Screen("choose_constraint")
+    data object KeyMapLog           : Screen("key_map_log")
+    data object KeyMapperSettings   : Screen("keymapper_settings")
+
+    // Inure
+    data object InureHome           : Screen("inure_home")
+    data object InureBatteryOpt     : Screen("inure_battery_opt")
+    data object InureBootManager    : Screen("inure_boot_manager")
+    data object InureNotes          : Screen("inure_notes")
+    data object InureMusic          : Screen("inure_music")
+    data object InureApks           : Screen("inure_apks")
+    data object InureTrackers       : Screen("inure_trackers")
+    data object InureUsageStats     : Screen("inure_usage_stats")
+    data object InureDisabledApps   : Screen("inure_disabled_apps")
+
+    // RootlessJamesDSP (additional)
+    data object GraphicEQ           : Screen("graphic_eq")
+    data object Convolution         : Screen("convolution")
+    data object DSPControls         : Screen("dsp_controls")
+    data object JamesDSPSettings    : Screen("jamesdsp_settings")
+    data object LiveprogParams      : Screen("liveprog_params")
+
+    // ColorBlendr
+    data object PerAppTheming       : Screen("per_app_theming")
+
+    // SD Maid SE
+    data object Squeezer            : Screen("squeezer")
+    data object StorageAnalyzer     : Screen("storage_analyzer")
+
+    // Material Files
+    data object FtpServer           : Screen("ftp_server")
+    data object FileProperties      : Screen("file_properties/{filePath}") {
+        fun withPath(path: String) = "file_properties/${java.net.URLEncoder.encode(path, "UTF-8")}"
+    }
+    data object TextEditor          : Screen("text_editor/{filePath}") {
+        fun withPath(path: String) = "text_editor/${java.net.URLEncoder.encode(path, "UTF-8")}"
+    }
+
+    // aShellYou
+    data object CommandExamples     : Screen("command_examples")
+
+    // SmartSpacer
+    data object SmartSpacerComplications : Screen("smartspacer_complications")
+
+    // Shizuku
+    data object AdbPairing         : Screen("adb_pairing")
+    data object ShizukuApps        : Screen("shizuku_apps")
+
+    // DarQ
+    data object DarQAppPicker      : Screen("darq_app_picker")
+
+    // Blocker
+    data object BlockerComponentSearch : Screen("blocker_component_search")
 }
 
 data class TopLevelDestination(
