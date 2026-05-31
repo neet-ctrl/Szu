@@ -65,7 +65,7 @@ private fun PropRow(label: String, value: String) {
 
 @Composable
 private fun BasicTab(name: String, path: String, ext: String) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item { PropRow("Name", name) }
         item { PropRow("Extension", ext) }
         item { PropRow("Size", "8.43 MB (8,843,264 bytes)") }
@@ -86,7 +86,7 @@ private fun BasicTab(name: String, path: String, ext: String) {
 
 @Composable
 private fun PermissionsTab(path: String) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item { PropRow("Owner", "media_rw (1023)") }
         item { PropRow("Group", "sdcard_rw (1015)") }
         item { PropRow("Permissions", "rw-rw-r-- (664)") }
@@ -137,7 +137,7 @@ private fun ChecksumsTab(name: String) {
     var computing by remember { mutableStateOf(false) }
     var computed by remember { mutableStateOf(false) }
 
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item {
             if (!computed) {
                 Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
@@ -161,7 +161,7 @@ private fun ChecksumsTab(name: String) {
 
 @Composable
 private fun ApkInfoTab() {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item { PropRow("Package name", "com.example.application") }
         item { PropRow("Version name", "3.2.1") }
         item { PropRow("Version code", "321001") }
@@ -181,7 +181,7 @@ private fun ApkInfoTab() {
 
 @Composable
 private fun MediaInfoTab(ext: String) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(vertical = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         when (ext) {
             "JPG", "JPEG", "PNG", "WEBP" -> {
                 item { PropRow("Resolution", "4032 × 3024 pixels") }
