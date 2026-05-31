@@ -1,0 +1,38 @@
+*.iml
+.gradle
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Keystore files (never commit these)
+*.jks
+*.keystore
+keystore/
+!keystore/.gitkeep
+
+# Generated files
+app/build/
+build/
+
+# Gradle wrapper jar (downloaded automatically)
+gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio
+.idea/
+*.iml
+.navigation/
+
+# NDK
+obj/
+*.so.meta_data
+
+# Misc
+*.swp
+*~
+.DS_Store
+Thumbs.db

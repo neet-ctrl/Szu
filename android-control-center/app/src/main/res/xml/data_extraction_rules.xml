@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="." />
+        <include domain="database" path="acc_database.db" />
+        <exclude domain="cache" path="." />
+        <exclude domain="sharedpref" path="shizuku.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="." />
+        <include domain="database" path="acc_database.db" />
+        <include domain="file" path="call_recordings/" />
+        <exclude domain="cache" path="." />
+    </device-transfer>
+</data-extraction-rules>
