@@ -242,13 +242,13 @@ class DashboardViewModel @Inject constructor(
                 .filter { pkg -> pkg.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0 }
                 .sortedByDescending { it.lastUpdateTime }
                 .take(8)
-                .map { pkg ->
+                .mapIndexed { index, pkg ->
                     val name = try { pm.getApplicationLabel(pkg.applicationInfo!!).toString() } catch (_: Exception) { pkg.packageName }
-                    RecentAction(title = name, subtitle = "Updated ${formatRelativeTime(pkg.lastUpdateTime)}", iconRes = "install_mobile", route = "app_detail/${pkg.packageName}")
+                    RecentAction(id = pkg.lastUpdateTime.takeIf { it > 0 } ?: index.toLong(), title = name, subtitle = "Updated ${formatRelativeTime(pkg.lastUpdateTime)}", iconRes = "install_mobile", route = "app_detail/${pkg.packageName}")
                 }
-                .ifEmpty { listOf(RecentAction(title = "Welcome to ACC", subtitle = "No recently updated apps", iconRes = "home", route = null)) }
+                .ifEmpty { listOf(RecentAction(id = -1L, title = "Welcome to ACC", subtitle = "No recently updated apps", iconRes = "home", route = null)) }
         } catch (_: Exception) {
-            listOf(RecentAction(title = "Welcome to ACC", subtitle = "Android Control Center", iconRes = "home", route = null))
+            listOf(RecentAction(id = -2L, title = "Welcome to ACC", subtitle = "Android Control Center", iconRes = "home", route = null))
         }
     }
 
