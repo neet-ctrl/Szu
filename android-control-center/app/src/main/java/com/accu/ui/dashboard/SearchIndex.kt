@@ -115,6 +115,10 @@ object SearchIndex {
         SearchResult("Learning Center",      "Guides, tutorials & documentation",                       "learning_center",          "school",              "System",        listOf("guide","tutorial","help","docs","learn","howto")),
         SearchResult("All Features",         "Browse all 500+ features across 17 apps",                 "all_features",             "apps",                "System",        listOf("features","all","list","browse","discover","catalogue")),
         SearchResult("Tutorial",             "Onboarding walkthrough & quick start",                    "tutorial",                 "school",              "System",        listOf("tutorial","onboarding","start","walkthrough","new user","intro")),
+
+        // ── Crash Center ──────────────────────────────────────────────────────
+        SearchResult("Crash Center",         "Crash dashboard — stats, safe mode & export",             "crash_center",             "bug_report",          "System",        listOf("crash","error","exception","bug","stacktrace","anr","fatal","diagnostic","log","report","history")),
+        SearchResult("Crash History",        "All crash records — search, filter, sort, export",        "crash_history",            "history",             "System",        listOf("crash","log","history","exception","stack","trace","filter","search","export","bug")),
     )
 
     val quickLaunch: List<SearchResult> = entries.filter { it.route in setOf(

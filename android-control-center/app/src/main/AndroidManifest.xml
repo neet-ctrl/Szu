@@ -389,5 +389,37 @@
                 tools:node="remove" />
         </provider>
 
+        <!-- ── Crash Center ─────────────────────────────────────────────────── -->
+
+        <!--
+            Full-screen crash report Activity.
+            Runs in an isolated :crash process so it survives even JVM-level crashes.
+            Does NOT use Hilt — reads crash JSON directly from filesDir/crashes/pending/.
+        -->
+        <activity
+            android:name="com.accu.ui.crash.CrashReportActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:excludeFromRecents="false"
+            android:exported="false"
+            android:process=":crash"
+            android:showOnLockScreen="true"
+            android:taskAffinity="${applicationId}.crash"
+            android:theme="@style/Theme.ACCU" />
+
+        <!--
+            Handles high-priority notification action buttons:
+            Copy Log · Restart ACCU · Dismiss
+            Must be explicit (android:exported="false") to avoid security issues.
+        -->
+        <receiver
+            android:name="com.accu.crash.CrashBroadcastReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.accu.crash.ACTION_COPY" />
+                <action android:name="com.accu.crash.ACTION_RESTART" />
+                <action android:name="com.accu.crash.ACTION_DISMISS" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

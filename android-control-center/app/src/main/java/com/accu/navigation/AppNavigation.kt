@@ -131,6 +131,10 @@ import com.accu.ui.shell.AdbFastbootScreen
 import com.accu.ui.shell.AdbScreenCaptureScreen
 import com.accu.ui.shell.AdbTutorialScreen
 import com.accu.ui.shell.ShellQsTileDashboardScreen
+// Crash Center
+import com.accu.ui.crash.CrashCenterScreen
+import com.accu.ui.crash.CrashHistoryScreen
+import com.accu.ui.crash.CrashDetailScreen
 
 @Composable
 fun AppNavigation() {
@@ -364,6 +368,7 @@ fun AppNavigation() {
                     onNavigateToPrivacy = { navController.navigate(Screen.Privacy.route) },
                     onNavigateToNetwork = { navController.navigate(Screen.NetworkCenter.route) },
                     onNavigateToLearning = { navController.navigate(Screen.LearningCenter.route) },
+                    onNavigateToCrashCenter = { navController.navigate(Screen.CrashCenter.route) },
                 )
             }
 
@@ -789,6 +794,27 @@ fun AppNavigation() {
             // Notification Center
             composable(Screen.NotificationCenter.route) {
                 NotificationCenterScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── Crash Center ─────────────────────────────────────────────────────
+            composable(Screen.CrashCenter.route) {
+                CrashCenterScreen(
+                    onNavigateToHistory = { navController.navigate(Screen.CrashHistory.route) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable(Screen.CrashHistory.route) {
+                CrashHistoryScreen(
+                    onBack = { navController.popBackStack() },
+                    onCrashDetail = { id -> navController.navigate(Screen.CrashDetail.withId(id)) },
+                )
+            }
+            composable(Screen.CrashDetail.route) { back ->
+                val crashId = back.arguments?.getString("crashId") ?: return@composable
+                CrashDetailScreen(
+                    crashId = crashId,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
     }

@@ -22,8 +22,9 @@ import com.accu.data.db.entities.*
         CustomThemeEntity::class,
         DebloatPresetEntity::class,
         InstallSessionEntity::class,
+        CrashEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(DbConverters::class)
@@ -44,4 +45,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customThemeDao(): CustomThemeDao
     abstract fun debloatPresetDao(): DebloatPresetDao
     abstract fun installSessionDao(): InstallSessionDao
+    abstract fun crashDao(): CrashDao
 }

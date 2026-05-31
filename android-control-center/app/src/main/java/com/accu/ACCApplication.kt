@@ -6,7 +6,14 @@ import android.app.NotificationManager
 import android.os.Build
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.accu.crash.CrashEngine
+import com.accu.crash.CrashNotificationManager
+import com.accu.crash.CrashRepository
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -14,6 +21,9 @@ import javax.inject.Inject
 class ACCApplication : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var crashRepository: CrashRepository
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -25,6 +35,14 @@ class ACCApplication : Application(), Configuration.Provider {
         super.onCreate()
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
         createNotificationChannels()
+
+        // Install crash engine FIRST — before anything else can fail
+        CrashEngine.install(this)
+
+        // Migrate any crash files written by CrashEngine (runs before Hilt was up)
+        appScope.launch {
+            crashRepository.migratePendingCrashes()
+        }
     }
 
     private fun createNotificationChannels() {
@@ -76,6 +94,13 @@ class ACCApplication : Application(), Configuration.Provider {
             },
             NotificationChannel("general", "General", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "General ACC alerts and status messages"
+            },
+            // ── Crash Reports ──────────────────────────────────────────────────────
+            NotificationChannel(CrashNotificationManager.CHANNEL_ID, CrashNotificationManager.CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Instant crash alerts with copy, share, and restart actions"
+                setShowBadge(true)
+                enableLights(true)
+                enableVibration(true)
             },
         )
         nm.createNotificationChannels(channels)

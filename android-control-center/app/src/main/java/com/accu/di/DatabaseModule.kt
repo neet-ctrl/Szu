@@ -38,4 +38,5 @@ object DatabaseModule {
     @Provides fun provideCustomThemeDao(db: AppDatabase): CustomThemeDao = db.customThemeDao()
     @Provides fun provideDebloatPresetDao(db: AppDatabase): DebloatPresetDao = db.debloatPresetDao()
     @Provides fun provideInstallSessionDao(db: AppDatabase): InstallSessionDao = db.installSessionDao()
+    @Provides fun provideCrashDao(db: AppDatabase): CrashDao = db.crashDao()
 }

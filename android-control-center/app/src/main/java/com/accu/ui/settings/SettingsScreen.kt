@@ -32,6 +32,7 @@ fun SettingsScreen(
     onNavigateToTutorial: () -> Unit = { navController.navigate("tutorial") },
     onNavigateToPermissions: () -> Unit = { navController.navigate("permission_center") },
     onNavigateToNotifications: () -> Unit = { navController.navigate("notification_center") },
+    onNavigateToCrashCenter: () -> Unit = { navController.navigate("crash_center") },
 ) {
     var dynamicColor by remember { mutableStateOf(true) }
     var developerMode by remember { mutableStateOf(false) }
@@ -149,6 +150,20 @@ fun SettingsScreen(
             item {
                 Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
                     FeatureSwitch("Analytics Opt-Out", "Do not send anonymous usage data", checked = analyticsOptOut, onCheckedChange = { analyticsOptOut = it }, leadingIcon = { Icon(Icons.Default.TrackChanges, null) })
+                }
+            }
+
+            // Crash Center
+            item { SettingsSectionHeader("Crash Center") }
+            item {
+                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    FeatureRow(
+                        "Crash Center",
+                        "Crash history, diagnostics, safe mode & export",
+                        leadingIcon = { Icon(Icons.Default.BugReport, null) },
+                        trailingContent = { Icon(Icons.Default.ChevronRight, null) },
+                        onClick = onNavigateToCrashCenter,
+                    )
                 }
             }
 

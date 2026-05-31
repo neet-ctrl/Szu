@@ -30,6 +30,7 @@ object AccuChannels {
     const val NETWORK_CHANGES   = "network_changes"
     const val SHELL_COMPLETE    = "shell_complete"
     const val GENERAL           = "general"
+    const val CRASH_REPORTS     = "accu_crash"
 
     // Notification IDs
     const val ID_CALL_REC_ACTIVE    = 1001
@@ -47,6 +48,7 @@ object AccuChannels {
     const val ID_APP_BATCH_DONE     = 8002
     const val ID_NETWORK_VPN_DROP   = 9001
     const val ID_SHELL_DONE         = 10001
+    const val ID_CRASH_REPORT       = 9900
 }
 
 // ─────────────────────────────────────────────────────────────────
