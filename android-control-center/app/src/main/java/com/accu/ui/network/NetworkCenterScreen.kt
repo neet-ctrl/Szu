@@ -1,170 +1,295 @@
 package com.accu.ui.network
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.accu.ui.components.*
-import com.accu.ui.theme.*
+import com.accu.ui.components.InfoTooltipIcon
+import com.accu.ui.components.SectionHeaderWithInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NetworkCenterScreen(
-    onBack: () -> Unit,
-    viewModel: NetworkViewModel = hiltViewModel(),
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(state.snackbarMessage) {
-        state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() }
-    }
+fun NetworkCenterScreen(viewModel: NetworkViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { ACCTopBar(title = "Network Center", onBack = onBack) },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Network Center", fontWeight = FontWeight.Bold)
+                        InfoTooltipIcon(
+                            title = "Network Center",
+                            description = "Control all network connections and add Quick Settings tiles.\n\nBetter Internet Tiles features:\n• Wi-Fi, Mobile Data, Hotspot tiles\n• Bluetooth and NFC tiles\n• Airplane Mode tile\n\nAll tiles use Shizuku to actually toggle (unlike stock Android tiles that open settings).\n\nHow to add tiles: Pull down notification shade → tap pencil icon → drag ACC tiles to active area."
+                        )
+                    }
+                }
+            )
+        }
     ) { padding ->
         LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Quick toggle tiles (from BetterInternetTiles)
+            // Network status card
             item {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Quick Toggles", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("Rootless toggles via Shizuku — no root required", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NetworkTile("Wi-Fi", Icons.Default.Wifi, state.wifiEnabled, AccentCyan, { viewModel.toggleWifi() }, Modifier.weight(1f))
-                            NetworkTile("Mobile Data", Icons.Default.CellTower, state.mobileDataEnabled, AccentGreen, { viewModel.toggleMobileData() }, Modifier.weight(1f))
-                            NetworkTile("Hotspot", Icons.Default.Wifi, state.hotspotEnabled, AccentOrange, { viewModel.toggleHotspot() }, Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            NetworkTile("Bluetooth", Icons.Default.Bluetooth, state.bluetoothEnabled, AccentPurple, { viewModel.toggleBluetooth() }, Modifier.weight(1f))
-                            NetworkTile("NFC", Icons.Default.Nfc, state.nfcEnabled, AccentYellow, { viewModel.toggleNfc() }, Modifier.weight(1f))
-                            NetworkTile("Airplane", Icons.Default.AirplanemodeActive, state.airplaneModeEnabled, AccentRed, { viewModel.toggleAirplaneMode() }, Modifier.weight(1f))
-                        }
-                    }
-                }
+                NetworkStatusCard(uiState = uiState)
             }
 
-            // Wi-Fi info
+            // Quick toggles
             item {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Wi-Fi Details", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        DetailRow2("SSID", state.wifiSsid.ifBlank { "Not connected" })
-                        DetailRow2("IP Address", state.wifiIp.ifBlank { "—" })
-                        DetailRow2("MAC Address", state.wifiMac.ifBlank { "—" })
-                        DetailRow2("Signal Strength", if (state.wifiSignal > 0) "${state.wifiSignal} dBm" else "—")
-                        DetailRow2("Link Speed", if (state.wifiLinkSpeed > 0) "${state.wifiLinkSpeed} Mbps" else "—")
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { viewModel.forgetWifi() }) { Text("Forget") }
-                            OutlinedButton(onClick = { viewModel.scanNetworks() }) { Text("Scan Networks") }
-                        }
-                    }
-                }
-            }
-
-            // Quick Shell Commands (from aShellYou)
-            item {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Network Commands", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(8.dp))
-                        val cmds = listOf(
-                            "Check connectivity" to "ping -c 4 8.8.8.8",
-                            "DNS lookup" to "nslookup google.com",
-                            "Show network interfaces" to "ip addr show",
-                            "Show routing table" to "ip route show",
-                            "Wi-Fi scan" to "cmd wifi start-scan",
-                            "ADB TCP mode" to "setprop service.adb.tcp.port 5555",
-                            "Disable ADB TCP" to "setprop service.adb.tcp.port -1",
-                            "Show data usage" to "dumpsys netstats",
+                SectionHeaderWithInfo(
+                    title = "Quick Toggles",
+                    infoTitle = "Quick Toggles",
+                    infoDescription = "Direct network toggles powered by Shizuku. These actually enable/disable radios — no dialog boxes.\n\nRequires Shizuku to be running.",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NetworkToggleCard(
+                            label = "Wi-Fi",
+                            icon = Icons.Outlined.Wifi,
+                            isEnabled = uiState.isWifiEnabled,
+                            subtitle = uiState.wifiSsid ?: "Off",
+                            onToggle = { viewModel.toggleWifi() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Directly enables/disables Wi-Fi via Shizuku. No Settings dialog."
                         )
-                        cmds.forEach { (label, cmd) ->
-                            OutlinedButton(
-                                onClick = { viewModel.executeCmd(cmd) },
-                                Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            ) {
-                                Icon(Icons.Default.Terminal, null, Modifier.size(14.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                            }
-                        }
+                        NetworkToggleCard(
+                            label = "Mobile Data",
+                            icon = Icons.Outlined.SignalCellularAlt,
+                            isEnabled = uiState.isMobileDataEnabled,
+                            subtitle = uiState.carrierName ?: "Off",
+                            onToggle = { viewModel.toggleMobileData() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Directly enables/disables mobile data via Shizuku."
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NetworkToggleCard(
+                            label = "Hotspot",
+                            icon = Icons.Outlined.Wifi,
+                            isEnabled = uiState.isHotspotEnabled,
+                            subtitle = if (uiState.isHotspotEnabled) "Active" else "Off",
+                            onToggle = { viewModel.toggleHotspot() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Enables/disables Wi-Fi hotspot sharing via Shizuku."
+                        )
+                        NetworkToggleCard(
+                            label = "Bluetooth",
+                            icon = Icons.Outlined.Bluetooth,
+                            isEnabled = uiState.isBluetoothEnabled,
+                            subtitle = if (uiState.isBluetoothEnabled) "On" else "Off",
+                            onToggle = { viewModel.toggleBluetooth() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Directly enables/disables Bluetooth."
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NetworkToggleCard(
+                            label = "NFC",
+                            icon = Icons.Outlined.Nfc,
+                            isEnabled = uiState.isNfcEnabled,
+                            subtitle = if (uiState.isNfcEnabled) "On" else "Off",
+                            onToggle = { viewModel.toggleNfc() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Directly enables/disables NFC via Shizuku."
+                        )
+                        NetworkToggleCard(
+                            label = "Airplane",
+                            icon = Icons.Outlined.AirplanemodeActive,
+                            isEnabled = uiState.isAirplaneModeEnabled,
+                            subtitle = if (uiState.isAirplaneModeEnabled) "On" else "Off",
+                            onToggle = { viewModel.toggleAirplaneMode() },
+                            modifier = Modifier.weight(1f),
+                            infoText = "Toggles airplane mode directly via Shizuku (settings + broadcast)."
+                        )
                     }
                 }
             }
 
-            // QS Tile Setup (from BetterInternetTiles)
+            // Quick Settings Tiles guide
             item {
-                Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("Quick Settings Tiles", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("Add ACC network tiles to your Quick Settings panel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        listOf("Wi-Fi Toggle Tile", "Mobile Data Tile", "Hotspot Tile").forEach { tile ->
-                            FeatureRow(
-                                title = tile,
-                                subtitle = "Tap to add to Quick Settings",
-                                leadingIcon = { Icon(Icons.Default.AddCircle, null) },
-                                onClick = { viewModel.addQsTile(tile) },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Command output
-            if (state.cmdOutput.isNotBlank()) {
-                item {
-                    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp))) {
-                        Column(Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Output", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                IconButton(onClick = { viewModel.clearOutput() }) { Icon(Icons.Default.Close, "Close", Modifier.size(16.dp)) }
+                SectionHeaderWithInfo(
+                    title = "Quick Settings Tiles",
+                    infoTitle = "Quick Settings Tiles",
+                    infoDescription = "ACC provides 6 Quick Settings tiles that actually toggle radios instead of just opening Settings.\n\nTo add them:\n1. Swipe down twice to open full QS panel\n2. Tap pencil icon to edit\n3. Scroll down to find ACC tiles\n4. Drag them to your active tiles area",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        listOf(
+                            Triple(Icons.Outlined.Wifi, "ACC Wi-Fi Tile", "Directly toggles Wi-Fi on/off"),
+                            Triple(Icons.Outlined.SignalCellularAlt, "ACC Mobile Data Tile", "Directly enables/disables mobile data"),
+                            Triple(Icons.Outlined.Wifi, "ACC Hotspot Tile", "Starts/stops Wi-Fi hotspot"),
+                            Triple(Icons.Outlined.Bluetooth, "ACC Bluetooth Tile", "Directly toggles Bluetooth"),
+                            Triple(Icons.Outlined.Nfc, "ACC NFC Tile", "Directly toggles NFC"),
+                            Triple(Icons.Outlined.AirplanemodeActive, "ACC Airplane Mode Tile", "Toggles airplane mode")
+                        ).forEach { (icon, name, desc) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
+                                Column(Modifier.weight(1f)) {
+                                    Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                    Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                            Text(state.cmdOutput, style = MaterialTheme.typography.bodySmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                         }
                     }
                 }
+            }
+
+            // Network info
+            item {
+                SectionHeaderWithInfo(
+                    title = "Network Information",
+                    infoTitle = "Network Info",
+                    infoDescription = "Detailed network statistics from the Android connectivity APIs. Updates automatically every 30 seconds.",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        NetworkInfoRow("IP Address", uiState.ipAddress ?: "N/A", Icons.Outlined.Language)
+                        NetworkInfoRow("Wi-Fi Network", uiState.wifiSsid ?: "Not connected", Icons.Outlined.Wifi)
+                        NetworkInfoRow("Signal Strength", "${uiState.wifiSignalStrength ?: "--"} dBm", Icons.Outlined.SignalWifi4Bar)
+                        NetworkInfoRow("Mobile Carrier", uiState.carrierName ?: "No SIM", Icons.Outlined.SimCard)
+                        NetworkInfoRow("Network Type", uiState.networkType ?: "Unknown", Icons.Outlined.NetworkCheck)
+                        NetworkInfoRow("DNS Server", uiState.dnsServer ?: "Default", Icons.Outlined.Dns)
+                        NetworkInfoRow("VPN Active", if (uiState.isVpnActive) "Yes" else "No", Icons.Outlined.VpnKey)
+                    }
+                }
+            }
+
+            // Private DNS
+            item {
+                SectionHeaderWithInfo(
+                    title = "Private DNS",
+                    infoTitle = "Private DNS / DNS over TLS",
+                    infoDescription = "DNS over TLS (Private DNS) encrypts DNS queries, preventing ISPs and network eavesdroppers from seeing which domains you visit.\n\nPopular options:\n• cloudflare-dns.com (1.1.1.1)\n• dns.google\n• dns.adguard.com (blocks ads)",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                            Text("Private DNS Mode", style = MaterialTheme.typography.bodyMedium)
+                            Text(uiState.privateDnsMode ?: "Off", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (uiState.privateDnsHost != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                Text("DNS Host", style = MaterialTheme.typography.bodyMedium)
+                                Text(uiState.privateDnsHost, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        FilledTonalButton(
+                            onClick = { viewModel.openPrivateDnsSettings() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Outlined.Dns, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Configure Private DNS")
+                        }
+                    }
+                }
+            }
+
+            item { Spacer(Modifier.height(32.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun NetworkStatusCard(uiState: NetworkUiState) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (uiState.isWifiEnabled || uiState.isMobileDataEnabled)
+                MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Icon(
+                if (uiState.isWifiEnabled) Icons.Outlined.Wifi else Icons.Outlined.WifiOff,
+                null,
+                Modifier.size(40.dp)
+            )
+            Column {
+                Text(
+                    if (uiState.isWifiEnabled) "Connected: ${uiState.wifiSsid ?: "Wi-Fi"}"
+                    else if (uiState.isMobileDataEnabled) "Mobile Data Active"
+                    else "No Internet Connection",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    uiState.ipAddress ?: "No IP",
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NetworkTile(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit, modifier: Modifier) {
+private fun NetworkToggleCard(
+    label: String,
+    icon: ImageVector,
+    isEnabled: Boolean,
+    subtitle: String,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    infoText: String
+) {
     Card(
-        modifier = modifier.height(80.dp),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = if (enabled) color.copy(0.2f) else MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        onClick = onToggle
     ) {
-        Column(Modifier.fillMaxSize().padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(icon, null, tint = if (enabled) color else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-            Spacer(Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.labelSmall)
+        Column(
+            modifier = Modifier.padding(14.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                Icon(icon, null, Modifier.size(22.dp), tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                InfoTooltipIcon(title = label, description = infoText, iconSize = 14)
+            }
+            Text(label, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
 
 @Composable
-private fun DetailRow2(label: String, value: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(100.dp))
-        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+private fun NetworkInfoRow(label: String, value: String, icon: ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(icon, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

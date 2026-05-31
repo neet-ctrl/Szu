@@ -28,12 +28,15 @@ import com.accu.ui.filemanager.FileManagerScreen
 import com.accu.ui.installer.InstallerScreen
 import com.accu.ui.language.LanguageCenterScreen
 import com.accu.ui.network.NetworkCenterScreen
+import com.accu.ui.features.AllFeaturesScreen
 import com.accu.ui.onboarding.OnboardingScreen
 import com.accu.ui.privacy.PrivacyScreen
 import com.accu.ui.settings.SettingsScreen
 import com.accu.ui.shell.ShellScreen
 import com.accu.ui.shizuku.ShizukuCenterScreen
 import com.accu.ui.storage.StorageScreen
+import com.accu.ui.tutorial.LearningCenterScreen
+import com.accu.ui.tutorial.TutorialScreen
 import com.accu.ui.widgets.SmartSpacerScreen
 
 @Composable
@@ -176,7 +179,16 @@ fun AppNavigation() {
                 CallRecorderScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.LearningCenter.route) {
-                com.accu.ui.onboarding.LearningCenterScreen(onBack = { navController.popBackStack() })
+                LearningCenterScreen(onNavigateTo = { route -> navController.navigate(route) })
+            }
+            composable(Screen.AllFeatures.route) {
+                AllFeaturesScreen(onNavigateTo = { route -> navController.navigate(route) })
+            }
+            composable(Screen.Tutorial.route) {
+                TutorialScreen(
+                    onNavigateTo = { route -> navController.navigate(route) },
+                    onFinish = { navController.popBackStack() }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(

@@ -25,6 +25,8 @@ fun SettingsScreen(
     onNavigateToPrivacy: () -> Unit,
     onNavigateToNetwork: () -> Unit,
     onNavigateToLearning: () -> Unit,
+    onNavigateToAllFeatures: () -> Unit = { navController.navigate("all_features") },
+    onNavigateToTutorial: () -> Unit = { navController.navigate("tutorial") },
 ) {
     var dynamicColor by remember { mutableStateOf(true) }
     var developerMode by remember { mutableStateOf(false) }
@@ -88,7 +90,11 @@ fun SettingsScreen(
                     HorizontalDivider()
                     FeatureRow("ADB Shell", "Open integrated terminal", leadingIcon = { Icon(Icons.Default.Terminal, null) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) }, onClick = { navController.navigate("shell") })
                     HorizontalDivider()
-                    FeatureRow("Learning Center", "Guides & tutorials", leadingIcon = { Icon(Icons.Default.School, null) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) }, onClick = onNavigateToLearning)
+                    FeatureRow("All Features", "Complete guide to all 17 apps' features", leadingIcon = { Icon(Icons.Default.List, null) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) }, onClick = onNavigateToAllFeatures)
+                    HorizontalDivider()
+                    FeatureRow("Setup Tutorial", "9-step guide to get started with ACC", leadingIcon = { Icon(Icons.Default.PlayCircle, null) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) }, onClick = onNavigateToTutorial)
+                    HorizontalDivider()
+                    FeatureRow("Learning Center", "In-depth guides & feature deep-dives", leadingIcon = { Icon(Icons.Default.School, null) }, trailingContent = { Icon(Icons.Default.ChevronRight, null) }, onClick = onNavigateToLearning)
                 }
             }
 

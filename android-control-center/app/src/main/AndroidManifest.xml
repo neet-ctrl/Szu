@@ -190,6 +190,48 @@
             </intent-filter>
         </service>
 
+        <!-- Bluetooth Tile (Better Internet Tiles) -->
+        <service
+            android:name=".services.BluetoothTileService"
+            android:exported="true"
+            android:label="ACC Bluetooth"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+        </service>
+
+        <!-- NFC Tile (Better Internet Tiles) -->
+        <service
+            android:name=".services.NfcTileService"
+            android:exported="true"
+            android:label="ACC NFC"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+        </service>
+
+        <!-- Airplane Mode Tile (Better Internet Tiles) -->
+        <service
+            android:name=".services.AirplaneModeTileService"
+            android:exported="true"
+            android:label="ACC Airplane Mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.ACTIVE_TILE"
+                android:value="true" />
+        </service>
+
         <!-- Boot Receiver -->
         <receiver
             android:name=".receivers.BootReceiver"

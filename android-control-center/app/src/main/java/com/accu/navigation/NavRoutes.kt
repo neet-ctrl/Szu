@@ -42,6 +42,8 @@ sealed class Screen(val route: String) {
     }
     data object SmartSpacer         : Screen("smartspacer")
     data object VirusScan           : Screen("virus_scan")
+    data object AllFeatures         : Screen("all_features")
+    data object Tutorial            : Screen("tutorial")
 }
 
 data class TopLevelDestination(
