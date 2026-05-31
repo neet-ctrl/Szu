@@ -1,1 +1,2 @@
 - [ACCU Project Architecture](accu-arch.md) — 74 UI Kt files, 17 repos merged, 57 routes wired; key conventions for future sessions.
+- [Global Search Architecture](global-search.md) — SearchIndex.kt is the single source of truth for all searchable screens; iconForName in DashboardScreen.kt maps icon names to Icons.Default.*.

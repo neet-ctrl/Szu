@@ -77,6 +77,8 @@ data class SearchResult(
     val subtitle: String,
     val route: String,
     val icon: String,
+    val category: String = "General",
+    val tags: List<String> = emptyList(),
 )
 
 @HiltViewModel
@@ -90,29 +92,7 @@ class DashboardViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
-    private val allSearchableItems = listOf(
-        SearchResult("Shizuku Center", "Manage Shizuku service & wireless ADB", "shizuku_center", "shizuku"),
-        SearchResult("Shell Terminal", "Execute ADB shell commands", "shell", "terminal"),
-        SearchResult("App Manager", "View & manage installed apps", "app_manager", "apps"),
-        SearchResult("Debloat", "Remove system bloatware safely", "debloat", "delete"),
-        SearchResult("Freeze Apps", "Freeze/suspend/hide apps", "freeze_apps", "ac_unit"),
-        SearchResult("Privacy Center", "Block trackers & disable components", "privacy", "security"),
-        SearchResult("Customization", "Material You, themes & dark mode", "customization", "palette"),
-        SearchResult("Dark Mode", "Per-app dark mode (DarQ)", "dark_mode", "dark_mode"),
-        SearchResult("Color Editor", "Monet color palette editor", "color_editor", "color_lens"),
-        SearchResult("Storage Center", "Clean cache & analyze storage", "storage", "storage"),
-        SearchResult("File Manager", "Browse & manage files", "file_manager", "folder"),
-        SearchResult("Installer", "Install APKs with advanced options", "installer", "install_mobile"),
-        SearchResult("Key Mapper", "Remap buttons & gestures", "automation", "keyboard"),
-        SearchResult("Language Center", "Per-app language selection", "language_center", "language"),
-        SearchResult("Network Center", "Wi-Fi & mobile data controls", "network_center", "wifi"),
-        SearchResult("Audio Center", "DSP equalizer & audio effects", "audio_center", "equalizer"),
-        SearchResult("Call Recorder", "Record calls via Shizuku", "call_recorder", "call"),
-        SearchResult("Smart Widgets", "At-a-Glance enhancements", "widgets", "widgets"),
-        SearchResult("Component Manager", "Disable activities/services/receivers", "component_manager", "settings"),
-        SearchResult("Permission Manager", "View & manage app permissions", "permission_manager", "admin_panel_settings"),
-        SearchResult("Learning Center", "Tutorials & guides", "learning_center", "school"),
-    )
+    private val allSearchableItems = SearchIndex.entries
 
     init {
         loadDashboard()
@@ -184,9 +164,30 @@ class DashboardViewModel @Inject constructor(
     fun onSearchQueryChanged(query: String) {
         _uiState.update { state ->
             val results = if (query.isBlank()) emptyList()
-            else allSearchableItems.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                    it.subtitle.contains(query, ignoreCase = true)
+            else {
+                val q = query.trim().lowercase()
+                allSearchableItems
+                    .mapNotNull { item ->
+                        val score = when {
+                            item.title.equals(q, ignoreCase = true)              -> 100
+                            item.title.startsWith(q, ignoreCase = true)          -> 85
+                            item.title.contains(q, ignoreCase = true)            -> 70
+                            item.tags.any { it.equals(q, ignoreCase = true) }    -> 60
+                            item.subtitle.contains(q, ignoreCase = true)         -> 50
+                            item.tags.any { it.contains(q, ignoreCase = true) }  -> 35
+                            // multi-word: all words must match somewhere
+                            q.contains(' ') && q.split(' ').all { word ->
+                                item.title.contains(word, ignoreCase = true) ||
+                                item.subtitle.contains(word, ignoreCase = true) ||
+                                item.tags.any { t -> t.contains(word, ignoreCase = true) }
+                            } -> 25
+                            else -> 0
+                        }
+                        if (score > 0) score to item else null
+                    }
+                    .sortedByDescending { it.first }
+                    .map { it.second }
+                    .take(30)
             }
             state.copy(searchQuery = query, searchResults = results)
         }
