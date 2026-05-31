@@ -99,9 +99,8 @@ jobs:
 
       - name: "📦 Locate APKs"
         id: apk
-        working-directory: android-control-center
         run: |
-          APK_FILES=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned*" | sort)
+          APK_FILES=$(find android-control-center/app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned*" | sort)
           echo "Found APKs:"
           echo "$APK_FILES" | xargs ls -lh
           PRIMARY=$(echo "$APK_FILES" | grep -i "universal" | head -1)

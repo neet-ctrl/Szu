@@ -98,9 +98,8 @@ jobs:
 
       - name: "📦 Locate APK"
         id: apk
-        working-directory: ${{ env.DEMO_DIR }}
         run: |
-          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned*" | head -1)
+          APK_PATH=$(find ${{ env.DEMO_DIR }}/app/build/outputs/apk/release -name "*.apk" ! -name "*-unsigned*" | head -1)
           echo "Found APK: $APK_PATH"
           echo "path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "$APK_PATH")" >> "$GITHUB_OUTPUT"
@@ -108,7 +107,6 @@ jobs:
       - name: "📊 APK size"
         id: apk_info
         run: |
-          SIZE_MB=$(stat -c%s "${{ env.DEMO_DIR }}/${{ steps.apk.outputs.path }}" 2>/dev/null || stat -c%s "${{ steps.apk.outputs.path }}" | awk '{printf "%.2f", $1/1048576}')
           SIZE_MB=$(stat -c%s "${{ steps.apk.outputs.path }}" | awk '{printf "%.2f", $1/1048576}')
           echo "size=${SIZE_MB} MB" >> "$GITHUB_OUTPUT"
 
