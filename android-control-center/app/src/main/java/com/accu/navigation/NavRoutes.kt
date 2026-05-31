@@ -105,6 +105,9 @@ sealed class Screen(val route: String) {
     data object LanguageDetail      : Screen("language_detail/{packageName}/{appName}") {
         fun withApp(pkg: String, appName: String) = "language_detail/$pkg/$appName"
     }
+
+    // App Explorer (new flagship feature)
+    data object AppExplorer         : Screen("app_explorer")
 }
 
 data class TopLevelDestination(

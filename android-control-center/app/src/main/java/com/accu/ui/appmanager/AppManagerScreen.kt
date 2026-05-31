@@ -29,6 +29,7 @@ fun AppManagerScreen(
     onNavigateToFreeze: () -> Unit,
     onNavigateToComponents: () -> Unit,
     onNavigateToPermissions: () -> Unit,
+    onNavigateToAppExplorer: () -> Unit = {},
     viewModel: AppManagerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -72,6 +73,7 @@ fun AppManagerScreen(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    item { AssistChip(onClick = onNavigateToAppExplorer, label = { Text("Explorer") }, leadingIcon = { Icon(Icons.Default.Explore, null, Modifier.size(16.dp)) }) }
                     item { AssistChip(onClick = onNavigateToDebloat, label = { Text("Debloat") }, leadingIcon = { Icon(Icons.Default.Delete, null, Modifier.size(16.dp)) }) }
                     item { AssistChip(onClick = onNavigateToFreeze, label = { Text("Freeze") }, leadingIcon = { Icon(Icons.Default.AcUnit, null, Modifier.size(16.dp)) }) }
                     item { AssistChip(onClick = onNavigateToComponents, label = { Text("Components") }, leadingIcon = { Icon(Icons.Default.Settings, null, Modifier.size(16.dp)) }) }

@@ -19,6 +19,7 @@ import com.accu.ui.appmanager.DebloatScreen
 import com.accu.ui.appmanager.FreezeAppsScreen
 import com.accu.ui.appmanager.CantaPresetsScreen
 import com.accu.ui.appmanager.VirusTotalScreen
+import com.accu.ui.appmanager.AppExplorerScreen
 import com.accu.ui.appmanager.CantaLogsScreen
 import com.accu.ui.appmanager.InureAnalyticsScreen
 import com.accu.ui.appmanager.AppBatchOperationsScreen
@@ -138,6 +139,7 @@ fun AppNavigation() {
                     onNavigateToFreeze = { navController.navigate(Screen.FreezeApps.route) },
                     onNavigateToComponents = { navController.navigate(Screen.ComponentManager.route) },
                     onNavigateToPermissions = { navController.navigate(Screen.PermissionManager.route) },
+                    onNavigateToAppExplorer = { navController.navigate(Screen.AppExplorer.route) },
                 )
             }
             composable(Screen.AppDetail.route) { back ->
@@ -230,6 +232,11 @@ fun AppNavigation() {
                     onNavigateToNetwork = { navController.navigate(Screen.NetworkCenter.route) },
                     onNavigateToLearning = { navController.navigate(Screen.LearningCenter.route) },
                 )
+            }
+
+            // App Explorer
+            composable(Screen.AppExplorer.route) {
+                AppExplorerScreen(onBack = { navController.popBackStack() })
             }
 
             // SmartSpacer (alias route)
