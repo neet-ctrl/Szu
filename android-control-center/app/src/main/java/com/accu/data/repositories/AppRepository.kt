@@ -161,6 +161,10 @@ class AppRepository @Inject constructor(
     suspend fun clearData(packageName: String): Boolean = withContext(Dispatchers.IO) {
         shizukuUtils.execShizuku("pm clear $packageName").isSuccess
     }
+
+    suspend fun launchActivity(pkg: String, activity: String): Boolean = withContext(Dispatchers.IO) {
+        shizukuUtils.execShizuku("am start -n $pkg/$activity").isSuccess
+    }
 }
 
 enum class FreezeMethod { DISABLE, SUSPEND, HIDE, UNHIDE }

@@ -103,7 +103,13 @@ class NetworkViewModel @Inject constructor(
     fun toggleHotspot() {
         viewModelScope.launch {
             val current = _uiState.value.isHotspotEnabled
-            _uiState.update { it.copy(isHotspotEnabled = !current) }
+            val cmd = if (current) "svc wifi hotspot disable" else "svc wifi hotspot enable"
+            val result = shellRepository.execute(cmd)
+            if (result.isNotBlank() && result.contains("error", ignoreCase = true)) {
+                // keep current state, surface error
+            } else {
+                _uiState.update { it.copy(isHotspotEnabled = !current) }
+            }
         }
     }
 

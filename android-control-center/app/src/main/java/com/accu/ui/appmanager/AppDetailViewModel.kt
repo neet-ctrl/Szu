@@ -160,29 +160,30 @@ class AppDetailViewModel @Inject constructor(
 
     fun clearData() {
         viewModelScope.launch {
-            appRepository.clearData(_state.value.packageName)
-            _state.update { it.copy(snackbarMessage = "Data cleared") }
+            val ok = appRepository.clearData(_state.value.packageName)
+            _state.update { it.copy(snackbarMessage = if (ok) "Data cleared" else "Failed to clear data — check connection") }
         }
     }
 
     fun uninstall() {
         viewModelScope.launch {
-            appRepository.uninstallForUser(_state.value.packageName)
-            _state.update { it.copy(snackbarMessage = "Uninstalled for current user") }
+            val ok = appRepository.uninstallForUser(_state.value.packageName)
+            _state.update { it.copy(snackbarMessage = if (ok) "Uninstalled for current user" else "Failed to uninstall — check connection") }
         }
     }
 
     fun extractApk() {
+        val dest = "/sdcard/Download/${_state.value.packageName}.apk"
         viewModelScope.launch {
-            appRepository.extractApk(_state.value.packageName, "/sdcard/Download/${_state.value.packageName}.apk")
-            _state.update { it.copy(snackbarMessage = "APK extracted to Downloads") }
+            val ok = appRepository.extractApk(_state.value.packageName, dest)
+            _state.update { it.copy(snackbarMessage = if (ok) "APK saved to Downloads/${_state.value.packageName}.apk" else "Failed to extract APK — check connection") }
         }
     }
 
     fun forceStop() {
         viewModelScope.launch {
-            appRepository.forceStop(_state.value.packageName)
-            _state.update { it.copy(snackbarMessage = "Force stopped") }
+            val ok = appRepository.forceStop(_state.value.packageName)
+            _state.update { it.copy(snackbarMessage = if (ok) "Force stopped" else "Failed to force stop — check connection") }
         }
     }
 
@@ -240,13 +241,8 @@ class AppDetailViewModel @Inject constructor(
 
     fun launchActivity(activityName: String) {
         viewModelScope.launch {
-            appRepository.launchActivity(_state.value.packageName, activityName)
+            val ok = appRepository.launchActivity(_state.value.packageName, activityName)
+            if (!ok) _state.update { it.copy(snackbarMessage = "Failed to launch — check ACCU connection") }
         }
     }
 }
-
-suspend fun AppRepository.launchActivity(pkg: String, activity: String) {
-    execShizuku("am start -n $pkg/$activity")
-}
-
-private suspend fun AppRepository.execShizuku(cmd: String) = Unit

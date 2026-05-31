@@ -106,7 +106,12 @@ class FileManagerViewModel @Inject constructor(
         viewModelScope.launch {
             val joined = paths.joinToString(" ")
             val result = shizukuUtils.execShizuku("rm -rf $joined")
-            if (result.isSuccess) { navigateTo(_state.value.currentPath); _state.update { it.copy(snackbarMessage = "Deleted ${paths.size} items", selectedFiles = emptySet(), isMultiSelect = false) } }
+            if (result.isSuccess) {
+                navigateTo(_state.value.currentPath)
+                _state.update { it.copy(snackbarMessage = "Deleted ${paths.size} items", selectedFiles = emptySet(), isMultiSelect = false) }
+            } else {
+                _state.update { it.copy(snackbarMessage = "Delete failed — ${result.error.ifBlank { "check ACCU connection" }}") }
+            }
         }
     }
 
@@ -115,6 +120,7 @@ class FileManagerViewModel @Inject constructor(
             val parent = File(oldPath).parent ?: return@launch
             val result = shizukuUtils.execShizuku("mv $oldPath $parent/$newName")
             if (result.isSuccess) navigateTo(_state.value.currentPath)
+            else _state.update { it.copy(snackbarMessage = "Rename failed — ${result.error.ifBlank { "check ACCU connection" }}") }
         }
     }
 

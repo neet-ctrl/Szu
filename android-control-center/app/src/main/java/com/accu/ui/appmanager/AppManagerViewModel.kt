@@ -211,15 +211,15 @@ class AppManagerViewModel @Inject constructor(
 
     fun forceStop(packageName: String) {
         viewModelScope.launch {
-            appRepository.forceStop(packageName)
-            _state.update { it.copy(snackbarMessage = "App force stopped") }
+            val ok = appRepository.forceStop(packageName)
+            _state.update { it.copy(snackbarMessage = if (ok) "App force stopped" else "Failed to force stop — check connection") }
         }
     }
 
     fun clearData(packageName: String) {
         viewModelScope.launch {
-            appRepository.clearData(packageName)
-            _state.update { it.copy(snackbarMessage = "App data cleared") }
+            val ok = appRepository.clearData(packageName)
+            _state.update { it.copy(snackbarMessage = if (ok) "App data cleared" else "Failed to clear data — check connection") }
         }
     }
 
@@ -242,14 +242,27 @@ class AppManagerViewModel @Inject constructor(
 
     fun batchFreeze() {
         val pkgs = _state.value.selectedApps.toList()
-        viewModelScope.launch { pkgs.forEach { appRepository.freezeApp(it, FreezeMethod.DISABLE) } }
-        _state.update { it.copy(isMultiSelect = false, selectedApps = emptySet(), snackbarMessage = "${pkgs.size} apps frozen") }
+        viewModelScope.launch {
+            _state.update { it.copy(isMultiSelect = false, selectedApps = emptySet()) }
+            var succeeded = 0
+            pkgs.forEach { pkg -> if (appRepository.freezeApp(pkg, FreezeMethod.DISABLE)) succeeded++ }
+            val msg = if (succeeded == pkgs.size) "$succeeded apps frozen"
+                      else "$succeeded/${pkgs.size} frozen — ${pkgs.size - succeeded} failed (check connection)"
+            _state.update { it.copy(snackbarMessage = msg) }
+        }
     }
 
     fun batchUninstall() {
         val pkgs = _state.value.selectedApps.toList()
-        viewModelScope.launch { pkgs.forEach { appRepository.uninstallForUser(it) } }
-        _state.update { it.copy(isMultiSelect = false, selectedApps = emptySet(), snackbarMessage = "${pkgs.size} apps removed") }
+        viewModelScope.launch {
+            _state.update { it.copy(isMultiSelect = false, selectedApps = emptySet()) }
+            var succeeded = 0
+            pkgs.forEach { pkg -> if (appRepository.uninstallForUser(pkg)) succeeded++ }
+            val msg = if (succeeded == pkgs.size) "$succeeded apps removed"
+                      else "$succeeded/${pkgs.size} removed — ${pkgs.size - succeeded} failed"
+            _state.update { it.copy(snackbarMessage = msg) }
+            if (succeeded > 0) loadApps()
+        }
     }
 
     fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }

@@ -140,24 +140,15 @@ adb shell ip route | awk '{print $9}'
 # → e.g. 192.168.1.42
 # Step C: unplug the OTG cable
 # Step D: connect wirelessly
+
 adb connect 192.168.1.42:5555
 # → "connected to 192.168.1.42:5555"
+
 adb devices
 # → 192.168.1.42:5555  device
+
 Disconnect when done:
 ACCU Center → tap "Stop"
 → session cleared, status card goes back to "Not Connected"
+
 All of this is now written into every doc file (README.md, HOW_TO_TEST.md) and the in-app ADB Tutorial screen (ACCU → Shell → Tutorial tab) with the exact same steps, so users can reference it directly inside the app.
-
-Next, I can add a Root connection tutorial section (full LibSU grant flow, how to verify uid=0, and what extra commands become available with root that ADB uid=2000 cannot run). Would you like me to do that?
-
-Make sure sure whatever u changes should not make any type of error in build ok
-
-Just now
-The only file that affects the build is AdbTutorialScreen.kt — all others are documentation. Let me audit the full Kotlin file for any syntax issues:
-
-Let me read the rest of the Kotlin file to check the full syntax in one pass:
-
-You're out of credits.
-Queue
-Many places i saw even

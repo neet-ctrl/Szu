@@ -313,28 +313,39 @@ class ScriptEditorViewModel @Inject constructor(
             val start = System.currentTimeMillis()
             val lines = content.lines().filter { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("#!/") }
             val outputBuilder = StringBuilder()
+            var failedLines = 0
             lines.forEachIndexed { i, line ->
                 _state.update { it.copy(runOutput = outputBuilder.toString() + "$ $line\n") }
-                val result = try {
+                val shellResult = try {
                     shizukuUtils.execShizuku(line.trim())
                 } catch (e: Exception) {
-                    "Error: ${e.message}"
+                    null
                 }
+                val lineOk = shellResult?.isSuccess ?: false
+                if (!lineOk) failedLines++
                 outputBuilder.appendLine("$ ${line.trim()}")
-                outputBuilder.appendLine(result)
+                if (shellResult != null) {
+                    if (shellResult.output.isNotBlank()) outputBuilder.appendLine(shellResult.output.trim())
+                    if (!shellResult.isSuccess && shellResult.error.isNotBlank()) outputBuilder.appendLine("error: ${shellResult.error.trim()}")
+                } else {
+                    outputBuilder.appendLine("error: command failed")
+                }
                 outputBuilder.appendLine()
                 _state.update { it.copy(runOutput = outputBuilder.toString()) }
                 delay(50)
             }
             val duration = System.currentTimeMillis() - start
-            val result = ScriptRunResult(scriptId = id, output = outputBuilder.toString(), exitCode = 0, durationMs = duration)
+            val exitCode = if (failedLines == 0) 0 else 1
+            val result = ScriptRunResult(scriptId = id, output = outputBuilder.toString(), exitCode = exitCode, durationMs = duration)
             val updatedScripts = _state.value.scripts.map {
                 if (it.id == id) it.copy(lastRun = System.currentTimeMillis(), runCount = it.runCount + 1, lastOutput = outputBuilder.toString().take(500))
                 else it
             }
+            val msg = if (failedLines == 0) "Script completed in ${duration}ms"
+                      else "Script finished with $failedLines error(s) — ${duration}ms"
             _state.update { it.copy(
                 isRunning = false, runResults = it.runResults + result, scripts = updatedScripts,
-                snackbarMessage = "Script completed in ${duration}ms",
+                snackbarMessage = msg,
             )}
         }
     }

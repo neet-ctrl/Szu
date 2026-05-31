@@ -96,17 +96,20 @@ class StorageViewModel @Inject constructor(
     fun cleanCache() {
         viewModelScope.launch {
             _state.update { it.copy(isScanning = true, scanProgress = 0f) }
-            var cleaned = 0L
             val pm = context.packageManager
             val packages = pm.getInstalledPackages(0)
+            var succeeded = 0
             packages.forEachIndexed { i, pkg ->
                 _state.update { it.copy(scanProgress = i.toFloat() / packages.size) }
                 try {
                     val result = shizukuUtils.execShizuku("pm clear --cache-only ${pkg.packageName}")
+                    if (result.isSuccess) succeeded++
                     delay(20)
                 } catch (_: Exception) {}
             }
-            _state.update { it.copy(isScanning = false, scanProgress = 1f, cleanedBytes = cleaned, snackbarMessage = "Cache cleaned!") }
+            val msg = if (succeeded == packages.size) "Cache cleaned for $succeeded apps"
+                      else "Cleaned $succeeded/${packages.size} apps (rest may lack permission)"
+            _state.update { it.copy(isScanning = false, scanProgress = 1f, snackbarMessage = msg) }
             delay(500); loadStorage()
         }
     }
@@ -114,8 +117,15 @@ class StorageViewModel @Inject constructor(
     fun cleanJunkFiles() {
         viewModelScope.launch {
             _state.update { it.copy(isScanning = true) }
-            val result = shizukuUtils.execShizuku("find /sdcard -name '*.tmp' -delete && find /sdcard -name '*.log' -delete && find /sdcard/DCIM -name '.thumbnail' -type d -exec rm -rf {} +")
-            _state.update { it.copy(isScanning = false, snackbarMessage = "Junk files removed") }
+            val result = shizukuUtils.execShizuku(
+                "find /sdcard -name '*.tmp' -delete 2>/dev/null; " +
+                "find /sdcard -name '*.log' -delete 2>/dev/null; " +
+                "find /sdcard/DCIM -name '.thumbnail' -type d -exec rm -rf {} + 2>/dev/null; " +
+                "echo done"
+            )
+            val msg = if (result.isSuccess) "Junk files removed" else "Partial clean — some files could not be removed"
+            _state.update { it.copy(isScanning = false, snackbarMessage = msg) }
+            loadStorage()
         }
     }
 
