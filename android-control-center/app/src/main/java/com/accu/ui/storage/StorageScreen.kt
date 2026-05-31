@@ -58,6 +58,7 @@ data class StorageCategory(val name: String, val bytes: Long, val color: Color, 
 class StorageViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val shizukuUtils: ShizukuUtils,
+    private val connectionManager: com.accu.connection.AccuConnectionManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(StorageUiState())
     val state: StateFlow<StorageUiState> = _state.asStateFlow()
@@ -67,21 +68,41 @@ class StorageViewModel @Inject constructor(
     fun loadStorage() {
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true) }
-            val stat = StatFs(Environment.getDataDirectory().path)
-            val total = stat.totalBytes; val free = stat.availableBytes; val used = total - free
 
-            val pm = context.packageManager
-            var cacheTotal = 0L
-            try {
-                pm.getInstalledPackages(PackageManager.GET_META_DATA).forEach { pkg ->
-                    try {
-                        val dir = context.packageManager.getApplicationInfo(pkg.packageName, 0).dataDir
-                        val cacheDir = java.io.File("$dir/cache")
-                        if (cacheDir.exists()) cacheTotal += dirSize(cacheDir)
-                    } catch (_: Exception) {}
-                }
-            } catch (_: Exception) {}
+            val cacheTotal: Long
+            val total: Long
+            val free: Long
 
+            if (connectionManager.isRemoteSession()) {
+                // Remote: get storage stats via df command on target device
+                val dfOut = shizukuUtils.execShizuku("df /data 2>/dev/null | tail -1").output.trim()
+                val dfParts = dfOut.split(Regex("\\s+"))
+                // df output: Filesystem 1K-blocks Used Available Use% Mounted
+                total = (dfParts.getOrNull(1)?.toLongOrNull() ?: 0L) * 1024
+                free  = (dfParts.getOrNull(3)?.toLongOrNull() ?: 0L) * 1024
+
+                // Cache: sum /data/data/*/cache on target
+                val duOut = shizukuUtils.execShizuku("du -sb /data/data/*/cache 2>/dev/null | awk '{sum += \$1} END {print sum}'").output.trim()
+                cacheTotal = duOut.toLongOrNull() ?: 0L
+            } else {
+                // Local: fast Java API
+                val stat = StatFs(Environment.getDataDirectory().path)
+                total = stat.totalBytes; free = stat.availableBytes
+
+                var localCache = 0L
+                try {
+                    context.packageManager.getInstalledPackages(PackageManager.GET_META_DATA).forEach { pkg ->
+                        try {
+                            val dir = context.packageManager.getApplicationInfo(pkg.packageName, 0).dataDir
+                            val cacheDir = java.io.File("$dir/cache")
+                            if (cacheDir.exists()) localCache += dirSize(cacheDir)
+                        } catch (_: Exception) {}
+                    }
+                } catch (_: Exception) {}
+                cacheTotal = localCache
+            }
+
+            val used = total - free
             val categories = listOf(
                 StorageCategory("Apps & Data", used / 3, Color(0xFF4A56E2), Icons.Default.Apps),
                 StorageCategory("Cache", cacheTotal, Color(0xFFFF6D00), Icons.Default.ClearAll),
@@ -94,23 +115,30 @@ class StorageViewModel @Inject constructor(
     }
 
     fun cleanCache() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isScanning = true, scanProgress = 0f) }
-            val pm = context.packageManager
-            val packages = pm.getInstalledPackages(0)
+
+            // Get package list from target device (shell) or local (PackageManager)
+            val packageNames: List<String> = if (connectionManager.isRemoteSession()) {
+                connectionManager.listPackages().map { it.packageName }
+            } else {
+                try { context.packageManager.getInstalledPackages(0).map { it.packageName } }
+                catch (_: Exception) { emptyList() }
+            }
+
             var succeeded = 0
-            packages.forEachIndexed { i, pkg ->
-                _state.update { it.copy(scanProgress = i.toFloat() / packages.size) }
+            packageNames.forEachIndexed { i, pkgName ->
+                _state.update { it.copy(scanProgress = i.toFloat() / packageNames.size) }
                 try {
-                    val result = shizukuUtils.execShizuku("pm clear --cache-only ${pkg.packageName}")
+                    val result = shizukuUtils.execShizuku("pm clear --cache-only $pkgName")
                     if (result.isSuccess) succeeded++
-                    delay(20)
+                    kotlinx.coroutines.delay(20)
                 } catch (_: Exception) {}
             }
-            val msg = if (succeeded == packages.size) "Cache cleaned for $succeeded apps"
-                      else "Cleaned $succeeded/${packages.size} apps (rest may lack permission)"
+            val msg = if (succeeded == packageNames.size) "Cache cleaned for $succeeded apps"
+                      else "Cleaned $succeeded/${packageNames.size} apps (rest may lack permission)"
             _state.update { it.copy(isScanning = false, scanProgress = 1f, snackbarMessage = msg) }
-            delay(500); loadStorage()
+            kotlinx.coroutines.delay(500); loadStorage()
         }
     }
 

@@ -152,6 +152,7 @@ fun buildAppCommands(pkg: String): List<AppCommand> = listOf(
 class AppExplorerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val shizuku: ShizukuUtils,
+    private val connectionManager: com.accu.connection.AccuConnectionManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AppExplorerUiState())
@@ -161,6 +162,18 @@ class AppExplorerViewModel @Inject constructor(
 
     fun loadApps() = viewModelScope.launch(Dispatchers.IO) {
         _state.update { it.copy(isLoading = true) }
+        val appList = if (connectionManager.isRemoteSession()) {
+            loadAppsViaShell()
+        } else {
+            loadAppsViaPackageManager()
+        }
+        _state.update { s ->
+            s.copy(apps = appList, isLoading = false).let { applyFilter(it) }
+        }
+    }
+
+    /** Local path: rich data via Android PackageManager API */
+    private fun loadAppsViaPackageManager(): List<AppInfo> {
         val pm = context.packageManager
         val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA
         val packages = try {
@@ -169,14 +182,43 @@ class AppExplorerViewModel @Inject constructor(
             else
                 @Suppress("DEPRECATION") pm.getInstalledPackages(flags)
         } catch (_: Exception) { emptyList() }
-
-        val appList = packages.mapNotNull { pkg ->
+        return packages.mapNotNull { pkg ->
             try { buildAppInfo(pm, pkg) } catch (_: Exception) { null }
         }
-        _state.update { s ->
-            s.copy(apps = appList, isLoading = false).let { applyFilter(it) }
+    }
+
+    /**
+     * Remote path: shell-based listing via exec() → routes to the connected target device.
+     * Labels and icons are not available remotely — shows package name as label.
+     */
+    private suspend fun loadAppsViaShell(): List<AppInfo> {
+        val packages = connectionManager.listPackages()
+        return packages.map { pkg ->
+            AppInfo(
+                packageName     = pkg.packageName,
+                appName         = guessAppLabel(pkg.packageName),
+                versionName     = "",
+                versionCode     = 0L,
+                targetSdk       = 0,
+                minSdk          = 0,
+                installDate     = 0L,
+                updateDate      = 0L,
+                installerPackage= null,
+                apkPath         = pkg.apkPath,
+                dataDir         = "/data/data/${pkg.packageName}",
+                isSystemApp     = pkg.isSystem,
+                isEnabled       = pkg.isEnabled,
+                sizeBytes       = 0L,
+                permissions     = emptyList(),
+            )
         }
     }
+
+    /** Derive a human-readable label from the package name (for remote sessions) */
+    private fun guessAppLabel(packageName: String): String =
+        packageName.split(".").lastOrNull()
+            ?.replaceFirstChar { it.uppercase() }
+            ?: packageName
 
     private fun buildAppInfo(pm: PackageManager, pkg: PackageInfo): AppInfo {
         val ai = pkg.applicationInfo

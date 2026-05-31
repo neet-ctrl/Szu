@@ -145,28 +145,99 @@ class AccuConnectionManager @Inject constructor(
     }
 
     /**
+     * True when commands should execute on a REMOTE device (wireless ADB / OTG) rather
+     * than the local device running ACCU.
+     */
+    fun isRemoteSession(): Boolean =
+        _state.value == ConnectionState.CONNECTED_WIRELESS ||
+        _state.value == ConnectionState.CONNECTED_OTG
+
+    /**
      * Execute a shell command using the best available privilege source.
      *
      * Priority:
-     *   1. Root (LibSU) — Shell.cmd(command).exec() as uid=0
-     *   2. Plain shell  — Runtime.exec(sh -c command) as app UID
+     *   1. Root (LibSU) — Shell.cmd(command).exec() as uid=0 on LOCAL device
+     *   2. CONNECTED_WIRELESS with system adb binary → "$adb -s ip:port shell command"
+     *      on the TARGET device (the device ACCU is connected to via ADB)
+     *   3. Plain shell — Runtime.exec(sh -c command) as app UID, local device
      *
-     * NOTE: We do NOT prepend "adb shell" or "adb -s ip:port shell" because
-     * the `adb` binary does not exist on Android devices. ACCU uses LibSU
-     * as its Shizuku-equivalent privilege source.
+     * This means: when connected to a target phone via wireless ADB, ALL execShizuku()
+     * calls route to THAT device, not the device running ACCU.
      */
     suspend fun exec(command: String): ShellResult = withContext(Dispatchers.IO) {
         try {
-            if (Shell.getShell().isRoot) {
-                execRoot(command)
-            } else {
-                execPlainShell(command)
+            when {
+                // Priority 1: LibSU root — uid=0 on local device
+                Shell.getShell().isRoot -> execRoot(command)
+
+                // Priority 2: CONNECTED_WIRELESS → execute on the TARGET device
+                _state.value == ConnectionState.CONNECTED_WIRELESS -> {
+                    val adb = findAdbBinary()
+                    val ip  = getLastConnectedIp()
+                    if (adb != null && ip.isNotBlank()) {
+                        execPlainShell("$adb -s $ip:${getLastConnectedPort()} shell $command")
+                    } else {
+                        // No system adb binary — fall through to local shell
+                        execPlainShell(command)
+                    }
+                }
+
+                // Priority 3: plain local shell
+                else -> execPlainShell(command)
             }
         } catch (e: Exception) {
             Timber.e(e, "$TAG exec failed: $command")
             ShellResult("", e.message ?: "error", -1)
         }
     }
+
+    // ─── Shell-based package discovery (works on both local root and remote ADB) ─
+
+    data class ShellPackage(
+        val packageName: String,
+        val apkPath: String,
+        val isSystem: Boolean,
+        val isEnabled: Boolean,
+    )
+
+    /**
+     * List installed packages via shell — routes through exec(), so it targets the
+     * connected device (remote when CONNECTED_WIRELESS, local when CONNECTED_ROOT).
+     *
+     * Parses `pm list packages -f` output:
+     *   "package:/data/app/com.example-xyz.apk=com.example"
+     */
+    suspend fun listPackages(thirdPartyOnly: Boolean = false): List<ShellPackage> =
+        withContext(Dispatchers.IO) {
+            val flags = if (thirdPartyOnly) "-f -3" else "-f"
+            val allLines   = exec("pm list packages $flags 2>/dev/null").output
+            val disabledPkgs = exec("pm list packages -d 2>/dev/null").output
+                .lines()
+                .filter { it.startsWith("package:") }
+                .map { it.removePrefix("package:").trim() }
+                .toSet()
+
+            allLines.lines()
+                .filter { it.startsWith("package:") }
+                .mapNotNull { line ->
+                    try {
+                        val content = line.removePrefix("package:")
+                        val eqIdx = content.lastIndexOf('=')
+                        if (eqIdx < 0) return@mapNotNull null
+                        val apkPath = content.substring(0, eqIdx).trim()
+                        val pkgName = content.substring(eqIdx + 1).trim()
+                        if (pkgName.isBlank()) return@mapNotNull null
+                        ShellPackage(
+                            packageName = pkgName,
+                            apkPath     = apkPath,
+                            isSystem    = apkPath.startsWith("/system/") ||
+                                          apkPath.startsWith("/vendor/") ||
+                                          apkPath.startsWith("/product/"),
+                            isEnabled   = pkgName !in disabledPkgs,
+                        )
+                    } catch (_: Exception) { null }
+                }
+        }
 
     /** Execute via LibSU root — uid=0, full privilege (equivalent to Shizuku server process) */
     fun execRoot(command: String): ShellResult = try {

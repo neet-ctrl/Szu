@@ -59,6 +59,7 @@ data class AppCleanerUiState(
 class AppCleanerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val shizukuUtils: ShizukuUtils,
+    private val connectionManager: com.accu.connection.AccuConnectionManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(AppCleanerUiState())
@@ -70,10 +71,15 @@ class AppCleanerViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true, scanError = null) }
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                // Get package list from target device (remote) or local device
+                val packageNames: List<String> = if (connectionManager.isRemoteSession()) {
+                    connectionManager.listPackages().map { it.packageName }
+                } else {
+                    try { context.packageManager.getInstalledPackages(PackageManager.GET_META_DATA).map { it.packageName } }
+                    catch (_: Exception) { emptyList() }
+                }
 
-                // One privileged command to get all cache sizes at once
+                // One privileged command to get all cache sizes at once (routes to target device)
                 val duResult = shizukuUtils.execShizuku(
                     "du -sb /data/data/*/cache 2>/dev/null; du -sb /data/user/0/*/cache 2>/dev/null"
                 )
@@ -95,26 +101,30 @@ class AppCleanerViewModel @Inject constructor(
                     }
                 }
 
-                // If privileged shell not available, fall back to readable cache dirs
-                if (sizeMap.isEmpty()) {
-                    packages.forEach { pkg ->
+                // If privileged shell not available, fall back to readable local cache dirs
+                if (sizeMap.isEmpty() && !connectionManager.isRemoteSession()) {
+                    packageNames.forEach { pkgName ->
                         try {
-                            val ai = pkg.applicationInfo ?: return@forEach
-                            val cacheDir = java.io.File("${ai.dataDir}/cache")
+                            val cacheDir = java.io.File("/data/data/$pkgName/cache")
                             if (cacheDir.exists() && cacheDir.canRead()) {
                                 val size = cacheDir.walkTopDown().sumOf { if (it.isFile) it.length() else 0L }
-                                if (size > 0) sizeMap[pkg.packageName] = size
+                                if (size > 0) sizeMap[pkgName] = size
                             }
                         } catch (_: Exception) {}
                     }
                 }
 
-                val apps = packages.mapNotNull { pkg ->
-                    val ai = pkg.applicationInfo ?: return@mapNotNull null
-                    val cacheBytes = sizeMap[pkg.packageName] ?: 0L
+                val apps = packageNames.mapNotNull { pkgName ->
+                    val cacheBytes = sizeMap[pkgName] ?: 0L
                     if (cacheBytes == 0L) return@mapNotNull null
-                    val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pkg.packageName }
-                    AppCacheInfo(pkg.packageName, appName, cacheBytes)
+                    val appName = if (connectionManager.isRemoteSession()) {
+                        pkgName.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkgName
+                    } else {
+                        try { context.packageManager.getApplicationLabel(
+                            context.packageManager.getApplicationInfo(pkgName, 0)
+                        ).toString() } catch (_: Exception) { pkgName }
+                    }
+                    AppCacheInfo(pkgName, appName, cacheBytes)
                 }.sortedByDescending { it.cacheSize }
 
                 val errorMsg = if (apps.isEmpty() && !shizukuUtils.isShizukuAvailable()) {
