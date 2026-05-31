@@ -1,7 +1,6 @@
 package com.accu.di
 
 import android.content.Context
-import com.accu.utils.ShizukuUtils
 import com.topjohnwu.superuser.Shell
 import dagger.Module
 import dagger.Provides
@@ -14,10 +13,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-
-    @Provides
-    @Singleton
-    fun provideShizukuUtils(): ShizukuUtils = ShizukuUtils()
 
     @Provides
     @Singleton

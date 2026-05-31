@@ -215,7 +215,7 @@ fun AppNavigation() {
                 LearningCenterScreen(onNavigateTo = { route -> navController.navigate(route) })
             }
             composable(Screen.AllFeatures.route) {
-                AllFeaturesScreen(onNavigateTo = { route -> navController.navigate(route) })
+                AllFeaturesScreen(onBack = { navController.popBackStack() })
             }
             composable(Screen.Tutorial.route) {
                 TutorialScreen(
