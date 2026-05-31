@@ -198,6 +198,14 @@ sealed class Screen(val route: String) {
     data object AccuServiceHub     : Screen("accu_service_hub")
     /** Full SDK documentation for third-party developers */
     data object AccuSdkDocs        : Screen("accu_sdk_docs")
+
+    // ── ADB Toolkit screens ───────────────────────────────────────────────────
+    data object AdbLogcat          : Screen("adb_logcat")
+    data object AdbProcesses       : Screen("adb_processes")
+    data object AdbDeviceInfo      : Screen("adb_device_info")
+    data object AdbFastboot        : Screen("adb_fastboot")
+    data object AdbScreenCapture   : Screen("adb_screen_capture")
+    data object AdbTutorial        : Screen("adb_tutorial")
 }
 
 data class TopLevelDestination(

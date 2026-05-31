@@ -1,0 +1,247 @@
+Create a new Markdown file:
+
+docs/ACCU_THIRD_PARTY_DEVELOPER_GUIDE.md
+
+This document must be a complete, production-grade developer guide for integrating third-party Android applications with ACCU System Service.
+
+The guide must assume the reader has never used ACCU before and must contain enough information for a developer to successfully integrate their APK with ACCU without confusion.
+
+Requirements:
+
+1. Introduction
+
+- What ACCU is.
+- How ACCU works.
+- ACCU architecture.
+- Comparison with Shizuku.
+- ACCU permission model.
+- ACCU scope system.
+
+2. Architecture Diagrams
+   Include detailed diagrams showing:
+
+App
+↓
+AccuClient
+↓
+AIDL
+↓
+AccuSystemService
+↓
+Permission Manager
+↓
+Wireless ADB Backend
+↓
+Android System
+
+Also explain every layer.
+
+3. Complete Project Structure
+   Show exactly where every file must be placed inside another Android project.
+
+Example:
+
+app/
+└─ src/
+└─ main/
+├─ aidl/
+│   └─ com/
+│       └─ accu/
+│           └─ api/
+│               ├─ IAccuService.aidl
+│               ├─ IAccuPermissionCallback.aidl
+│               └─ IAccuProcessCallback.aidl
+├─ java/
+└─ AndroidManifest.xml
+
+Explain every folder and every file.
+
+4. SDK Installation
+   Explain:
+
+- AIDL integration
+- SDK integration
+- Gradle configuration
+- Version compatibility
+
+5. Manifest Setup
+   Provide complete AndroidManifest examples.
+
+Explain:
+
+- queries section
+- service discovery
+- permissions
+- exported requirements
+
+6. Binding to ACCU
+   Provide complete code examples.
+
+Explain:
+
+- ServiceConnection
+- bindService
+- unbindService
+- connection lifecycle
+- reconnection handling
+
+7. Permission Flow
+   Explain step-by-step:
+
+Application starts
+↓
+Connect to ACCU
+↓
+Request scopes
+↓
+ACCU popup appears
+↓
+User grants access
+↓
+Permission stored
+↓
+API enabled
+
+Include screenshots placeholders.
+
+8. Scope System
+   Explain every scope in detail:
+
+SHELL
+PACKAGE_MANAGE
+PERMISSIONS
+SETTINGS
+FILES
+ADB
+DEVICE_CONTROL
+NETWORK
+LOCALE
+ALL
+
+Explain exactly what every scope allows.
+
+9. Complete API Reference
+   Document all available API methods.
+
+For every method provide:
+
+- Method name
+- Parameters
+- Return values
+- Exceptions
+- Required scopes
+- Example code
+- Best practices
+
+10. Shell APIs
+    Provide detailed examples:
+
+- exec()
+- process callbacks
+- output handling
+- long-running commands
+
+11. Package APIs
+    Provide examples:
+
+- disablePackage()
+- enablePackage()
+- uninstallPackage()
+- package inspection
+
+12. Permission APIs
+    Provide examples:
+
+- grantPermission()
+- revokePermission()
+- permission inspection
+
+13. Settings APIs
+    Provide examples:
+
+- secure settings
+- global settings
+- system settings
+
+14. File APIs
+    Provide examples:
+
+- reading files
+- writing files
+- transferring files
+
+15. Device Control APIs
+    Provide examples:
+
+- reboot
+- input commands
+- activity launching
+- broadcasts
+
+16. Error Handling
+    Document every possible failure.
+
+Examples:
+
+- ACCU not installed
+- ACCU not running
+- Wireless ADB disconnected
+- Permission denied
+- Missing scope
+- Service unavailable
+- Timeout
+
+Provide code examples.
+
+17. Security Model
+    Explain:
+
+- UID verification
+- package verification
+- permission storage
+- scope isolation
+- revocation
+- audit logs
+
+18. Troubleshooting
+    Create a large troubleshooting section.
+
+Include:
+
+- Service not connecting
+- Permission popup not appearing
+- AIDL mismatch
+- Wireless ADB unavailable
+- Package visibility issues
+- Android version issues
+
+19. Migration Guide
+    Explain how a developer can migrate from Shizuku to ACCU.
+
+Show:
+
+- equivalent APIs
+- equivalent permission flow
+- equivalent architecture
+
+20. Sample Applications
+    Provide complete sample projects:
+
+- Package manager app
+- Permission manager app
+- Settings editor app
+- Shell utility app
+
+21. Best Practices
+    Explain:
+
+- connection management
+- caching
+- retries
+- permission handling
+- user experience
+
+22. Verification Checklist
+    Provide a final checklist a developer can follow to verify their app is correctly integrated with ACCU.
+
+The Markdown file must be extremely detailed, beginner-friendly, professional, and complete enough that a third-party developer can successfully connect their APK to ACCU without needing additional documentation.

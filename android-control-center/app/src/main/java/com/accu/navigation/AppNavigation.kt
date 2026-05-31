@@ -121,6 +121,13 @@ import com.accu.ui.dashboard.NavHistoryViewModel
 // ACCU System Service (IPC privilege hub)
 import com.accu.ui.apiservice.AccuServiceScreen
 import com.accu.ui.apiservice.AccuSdkDocsScreen
+// ADB Toolkit screens
+import com.accu.ui.shell.AdbLogcatScreen
+import com.accu.ui.shell.AdbProcessScreen
+import com.accu.ui.shell.AdbDeviceInfoScreen
+import com.accu.ui.shell.AdbFastbootScreen
+import com.accu.ui.shell.AdbScreenCaptureScreen
+import com.accu.ui.shell.AdbTutorialScreen
 
 @Composable
 fun AppNavigation() {
@@ -207,6 +214,12 @@ fun AppNavigation() {
                         }
                         navController.navigate(route)
                     },
+                    onNavigateToLogcat       = { navController.navigate(Screen.AdbLogcat.route) },
+                    onNavigateToProcesses    = { navController.navigate(Screen.AdbProcesses.route) },
+                    onNavigateToDeviceInfo   = { navController.navigate(Screen.AdbDeviceInfo.route) },
+                    onNavigateToFastboot     = { navController.navigate(Screen.AdbFastboot.route) },
+                    onNavigateToScreenCapture = { navController.navigate(Screen.AdbScreenCapture.route) },
+                    onNavigateToTutorial     = { navController.navigate(Screen.AdbTutorial.route) },
                 )
             }
             composable(Screen.AppManager.route) {
@@ -726,6 +739,26 @@ fun AppNavigation() {
             // Advanced Permission Center
             composable(Screen.PermissionCenter.route) {
                 AccuPermissionsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // ── ADB Toolkit screens ───────────────────────────────────────────────
+            composable(Screen.AdbLogcat.route) {
+                AdbLogcatScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AdbProcesses.route) {
+                AdbProcessScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AdbDeviceInfo.route) {
+                AdbDeviceInfoScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AdbFastboot.route) {
+                AdbFastbootScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AdbScreenCapture.route) {
+                AdbScreenCaptureScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Screen.AdbTutorial.route) {
+                AdbTutorialScreen(onBack = { navController.popBackStack() })
             }
 
             // ── ACCU System Service Hub ──────────────────────────────────────────

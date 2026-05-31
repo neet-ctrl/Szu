@@ -53,6 +53,12 @@ fun ShellScreen(
     onNavigateToScripts: () -> Unit = {},
     onNavigateToCommandExamples: () -> Unit = {},
     onNavigateToFileBrowser: (AdbConnectionMode, String) -> Unit = { _, _ -> },
+    onNavigateToLogcat: () -> Unit = {},
+    onNavigateToProcesses: () -> Unit = {},
+    onNavigateToDeviceInfo: () -> Unit = {},
+    onNavigateToFastboot: () -> Unit = {},
+    onNavigateToScreenCapture: () -> Unit = {},
+    onNavigateToTutorial: () -> Unit = {},
     viewModel: ShellViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -133,6 +139,32 @@ fun ShellScreen(
                             text = { Text(mode.label, style = MaterialTheme.typography.labelSmall) },
                             icon = { Icon(mode.icon, mode.label, modifier = Modifier.size(16.dp)) }
                         )
+                    }
+                }
+
+                // ADB Tools quick-access row
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        data class AdbTool(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val action: () -> Unit)
+                        val tools = listOf(
+                            AdbTool(Icons.Outlined.Article,        "Logcat",       onNavigateToLogcat),
+                            AdbTool(Icons.Outlined.Speed,          "Processes",    onNavigateToProcesses),
+                            AdbTool(Icons.Outlined.PhoneAndroid,   "Device Info",  onNavigateToDeviceInfo),
+                            AdbTool(Icons.Outlined.Screenshot,     "Screenshot",   onNavigateToScreenCapture),
+                            AdbTool(Icons.Outlined.DeveloperMode,  "Fastboot",     onNavigateToFastboot),
+                            AdbTool(Icons.Outlined.School,         "Tutorial",     onNavigateToTutorial),
+                            AdbTool(Icons.Outlined.FolderOpen,     "Files",        { onNavigateToFileBrowser(currentMode.toConnectionMode(), uiState.connectedHost) }),
+                        )
+                        items(tools) { tool ->
+                            SuggestionChip(
+                                onClick = tool.action,
+                                label = { Text(tool.label, style = MaterialTheme.typography.labelSmall) },
+                                icon = { Icon(tool.icon, null, modifier = Modifier.size(14.dp)) },
+                            )
+                        }
                     }
                 }
 
