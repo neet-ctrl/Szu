@@ -1,0 +1,185 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  ACCU SDK FullDemoApp — Workspace Root Trigger                           ║
+# ║  Push the ENTIRE workspace from `cd /workspace` → this fires.           ║
+# ║  Mirrors the pattern from .github/workflows/build.yml (main ACCU app).  ║
+# ║  DEBUG APK ONLY — no signed / release build.                             ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+name: "🧪 Build FullDemoApp Debug APK"
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'exports/accu-sdk-src/samples/FullDemoApp/**'
+      - '.github/workflows/build-full-demo-app.yml'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'exports/accu-sdk-src/samples/FullDemoApp/**'
+  workflow_dispatch:
+    inputs:
+      run_lint:
+        description: 'Run lint check'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  JAVA_VERSION:  '17'
+  DEMO_DIR:      'exports/accu-sdk-src/samples/FullDemoApp'
+  GRADLE_OPTS:   '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true'
+
+jobs:
+  build-debug:
+    name: "🏗️ Build FullDemoApp Debug APK"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: "📥 Checkout repository"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: "☕ Set up JDK ${{ env.JAVA_VERSION }}"
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: "📱 Setup Android SDK"
+        uses: android-actions/setup-android@v3
+
+      - name: "🔧 Download Gradle Wrapper JAR"
+        run: |
+          WRAPPER_JAR="${{ env.DEMO_DIR }}/gradle/wrapper/gradle-wrapper.jar"
+          if [ ! -f "$WRAPPER_JAR" ]; then
+            echo "Downloading gradle-wrapper.jar for Gradle 8.7…"
+            curl -fsSL -o "$WRAPPER_JAR" \
+              "https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar" \
+              || curl -fsSL -o "$WRAPPER_JAR" \
+                "https://raw.githubusercontent.com/gradle/gradle/v8.7.0/gradle/wrapper/gradle-wrapper.jar"
+            echo "Downloaded: $(ls -lh $WRAPPER_JAR)"
+          else
+            echo "gradle-wrapper.jar already present."
+          fi
+
+      - name: "🔑 Grant gradlew execute permission"
+        run: chmod +x ${{ env.DEMO_DIR }}/gradlew
+
+      - name: "💾 Cache Gradle"
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android/build-cache
+            ${{ env.DEMO_DIR }}/.gradle
+          key: ${{ runner.os }}-gradle-fulldemo-${{ hashFiles(format('{0}/**/*.gradle*', env.DEMO_DIR), format('{0}/**/gradle-wrapper.properties', env.DEMO_DIR), format('{0}/**/libs.versions.toml', env.DEMO_DIR)) }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-fulldemo-
+
+      - name: "🔨 Build DEBUG APK"
+        working-directory: ${{ env.DEMO_DIR }}
+        run: |
+          echo "=== Building FullDemoApp (com.accu.sdkdemo) DEBUG APK ==="
+          echo "Branch : ${{ github.ref_name }}"
+          echo "Commit : ${{ github.sha }}"
+          echo "Run #  : ${{ github.run_number }}"
+          echo ""
+          ./gradlew assembleDebug \
+            --no-daemon \
+            --stacktrace \
+            -Pandroid.injected.testOnly=false
+        env:
+          JAVA_OPTS:    "-Xmx6g -XX:MaxMetaspaceSize=1g"
+          GRADLE_OPTS:  "-Dorg.gradle.daemon=false"
+
+      - name: "✅ Verify APK exists"
+        working-directory: ${{ env.DEMO_DIR }}
+        run: |
+          echo "=== Built APK Files ==="
+          ls -lh app/build/outputs/apk/debug/*.apk
+          echo ""
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          echo "APK size: $(du -sh $APK | cut -f1)"
+          echo "Build #${{ github.run_number }} · Branch: ${{ github.ref_name }} · Commit: ${{ github.sha }}"
+
+      - name: "📤 Upload Debug APK"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "FullDemoApp-debug-build${{ github.run_number }}"
+          path: ${{ env.DEMO_DIR }}/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: "📊 Upload Build Reports"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "fulldemo-build-report-${{ github.run_number }}"
+          path: ${{ env.DEMO_DIR }}/app/build/reports/
+          retention-days: 7
+
+      - name: "📋 Build Summary"
+        run: |
+          echo "## 🧪 FullDemoApp Debug APK Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| App Package | \`com.accu.sdkdemo\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build # | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| APK Artifact | FullDemoApp-debug-build${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Screens Included (14 total)" >> $GITHUB_STEP_SUMMARY
+          echo "Dashboard · Connection Diagnostics · Permission Test · Scope Inspector · Shell Test · Package Manager · Permission Ops · Settings Test · Locale Test · API Explorer · Log Center · Crash Center · Diagnostics Export · Automated Tests" >> $GITHUB_STEP_SUMMARY
+
+  lint:
+    name: "🔍 Lint Check (non-blocking)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ github.event.inputs.run_lint == 'true' || github.event_name == 'pull_request' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: gradle
+
+      - uses: android-actions/setup-android@v3
+
+      - name: "🔧 Download Gradle Wrapper JAR"
+        run: |
+          WRAPPER_JAR="${{ env.DEMO_DIR }}/gradle/wrapper/gradle-wrapper.jar"
+          if [ ! -f "$WRAPPER_JAR" ]; then
+            curl -fsSL -o "$WRAPPER_JAR" \
+              "https://github.com/gradle/gradle/raw/v8.7.0/gradle/wrapper/gradle-wrapper.jar"
+          fi
+
+      - name: "🔍 Run Lint (non-blocking)"
+        working-directory: ${{ env.DEMO_DIR }}
+        run: |
+          chmod +x gradlew
+          ./gradlew lintDebug --no-daemon
+        continue-on-error: true
+        env:
+          JAVA_OPTS: "-Xmx4g"
+
+      - name: "📤 Upload Lint Report"
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: "fulldemo-lint-report-${{ github.run_number }}"
+          path: ${{ env.DEMO_DIR }}/app/build/reports/lint-results-debug.html
+          retention-days: 7

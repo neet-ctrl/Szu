@@ -5,22 +5,16 @@ plugins {
 }
 
 android {
-    namespace   = "com.accu.sdkdemo"
-    compileSdk  = 35
+    namespace  = "com.accu.sdkdemo"
+    compileSdk = 35
 
     defaultConfig {
-        applicationId   = "com.accu.sdkdemo"
-        minSdk          = 29
-        targetSdk       = 35
-        versionCode     = 1
-        versionName     = "1.0.0"
-
+        applicationId = "com.accu.sdkdemo"
+        minSdk        = 29
+        targetSdk     = 35
+        versionCode   = 1
+        versionName   = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        // AIDL must be enabled for ACCU IPC
-        buildFeatures {
-            aidl = true
-        }
     }
 
     buildTypes {
@@ -61,5 +55,6 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.gson)
+    implementation(libs.kotlinx.coroutines.android)
     debugImplementation(libs.androidx.ui.tooling)
 }

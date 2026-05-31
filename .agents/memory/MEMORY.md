@@ -1,4 +1,5 @@
 - [ACCU Project Architecture](accu-arch.md) — 74 UI Kt files, 17 repos merged, 57 routes wired; key conventions for future sessions.
+- [FullDemoApp architecture](fulldemoapp.md) — 14-screen ACCU SDK test app at exports/accu-sdk-src/samples/FullDemoApp/; workflow fires on any push touching that path.
 - [Global Search Architecture](global-search.md) — SearchIndex.kt is the single source of truth for all searchable screens; iconForName in DashboardScreen.kt maps icon names to Icons.Default.*.
 - [ACCU System Service Architecture](accu-system-service.md) — Full Shizuku-replica IPC privilege broker; AIDL in com.accu.api, service in com.accu.service, UI in com.accu.ui.apiservice.
 - [ACCU Boot Autostart](accu-boot-autostart.md) — BootReceiver reads PREF_AUTOSTART from PREFS_SERVICE prefs; constants live on AccuSystemService.Companion; ViewModel holds toggle state + write method; Screen uses Switch with thumbContent.
