@@ -54,10 +54,6 @@ jobs:
       - name: "📱 Setup Android SDK"
         uses: android-actions/setup-android@v3
 
-      - name: "📦 Install Android SDK platform 36"
-        run: |
-          sdkmanager "platforms;android-36" "build-tools;35.0.0" --sdk_root=$ANDROID_SDK_ROOT
-
       - name: "🔧 Download Gradle Wrapper JAR"
         working-directory: android-control-center
         run: |
@@ -111,9 +107,8 @@ jobs:
 
       - name: "📦 Locate APKs"
         id: apk
-        working-directory: android-control-center
         run: |
-          APK_FILES=$(find app/build/outputs/apk/debug -name "*.apk" | sort)
+          APK_FILES=$(find android-control-center/app/build/outputs/apk/debug -name "*.apk" | sort)
           echo "Found APKs:"
           echo "$APK_FILES" | xargs ls -lh
           PRIMARY=$(echo "$APK_FILES" | grep -i "universal" | head -1)

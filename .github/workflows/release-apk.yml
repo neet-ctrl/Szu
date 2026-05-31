@@ -40,10 +40,6 @@ jobs:
       - name: "📱 Setup Android SDK"
         uses: android-actions/setup-android@v3
 
-      - name: "📦 Install Android SDK platform 36"
-        run: |
-          sdkmanager "platforms;android-36" "build-tools;35.0.0" --sdk_root=$ANDROID_SDK_ROOT
-
       - name: "🔧 Download Gradle Wrapper JAR"
         working-directory: android-control-center
         run: |
