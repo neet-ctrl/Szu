@@ -434,7 +434,7 @@ class AccuClient(private val context: Context) {
                 doPrivilegedWork(service)
 
             } catch (e: Exception) {
-                Log.e("MyApp", "ACCU not available: ${e.message}")
+                Log.e("MyApp", "ACCU not available: ${'$'}{e.message}")
             }
         }
     }
@@ -687,13 +687,13 @@ service.setApplicationLocale("com.whatsapp", "")
     // use result
 } catch (e: SecurityException) {
     // Missing scope or permission not granted
-    Log.e("ACCU", "Permission denied: ${e.message}")
+    Log.e("ACCU", "Permission denied: ${'$'}{e.message}")
 } catch (e: android.os.DeadObjectException) {
     // ACCU service was killed — rebind
     accu.disconnect()
     accu.connect()
 } catch (e: Exception) {
-    Log.e("ACCU", "Unexpected error: ${e.message}")
+    Log.e("ACCU", "Unexpected error: ${'$'}{e.message}")
 }""", "kotlin", clipboard)
 
         Heading("9.3 Check if ACCU is installed before binding")

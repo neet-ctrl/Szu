@@ -26,6 +26,9 @@ class CallRecordingService : Service() {
         const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.accu.ACTION_START_RECORDING"
         const val ACTION_STOP = "com.accu.ACTION_STOP_RECORDING"
+        const val EXTRA_FORMAT = "extra_format"
+        const val EXTRA_SOURCE = "extra_source"
+        const val EXTRA_OUTPUT_DIR = "extra_output_dir"
         var isRecording = false
 
         fun start(context: Context) {

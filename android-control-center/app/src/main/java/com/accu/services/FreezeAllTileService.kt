@@ -26,7 +26,7 @@ class FreezeAllTileService : TileService() {
             val prefs = getSharedPreferences("accu_freeze_prefs", Context.MODE_PRIVATE)
             val frozen = prefs.getStringSet("frozen_packages", emptySet()) ?: emptySet()
             if (frozen.isEmpty()) return@launch
-            if (!ShizukuUtils.isShizukuAvailable()) return@launch
+            if (!rikka.shizuku.Shizuku.pingBinder()) return@launch
             frozen.forEach { pkg ->
                 try { Runtime.getRuntime().exec(arrayOf("pm", "suspend", pkg)) } catch (_: Exception) {}
             }

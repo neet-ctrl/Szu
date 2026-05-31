@@ -51,5 +51,5 @@ class ACCAccessibilityService : AccessibilityService() {
         instance = null
     }
 
-    fun performGlobalAction(action: Int): Boolean = performGlobalAction(action)
+    override fun performGlobalAction(action: Int): Boolean = super.performGlobalAction(action)
 }

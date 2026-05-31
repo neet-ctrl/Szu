@@ -147,7 +147,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
             )
         }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)) {
 
             // ─── Device Profiles ──────────────────────────────────────────
             item {
@@ -247,7 +247,7 @@ fun DSPControlsScreen(onBack: () -> Unit = {}) {
 
             // ─── Surround / 3D ────────────────────────────────────────────
             item {
-                DSPSection("Surround / 3D Sound", Icons.Default.Surround, surroundEnabled, { surroundEnabled = it }) {
+                DSPSection("Surround / 3D Sound", Icons.Default.GraphicEq, surroundEnabled, { surroundEnabled = it }) {
                     var expanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded, { expanded = it }) {
                         OutlinedTextField(surroundMode, {}, readOnly = true, label = { Text("Mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })

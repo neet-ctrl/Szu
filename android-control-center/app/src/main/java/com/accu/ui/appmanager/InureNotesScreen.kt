@@ -97,7 +97,7 @@ fun InureNotesScreen(onBack: () -> Unit = {}) {
                     }
                 }
             } else {
-                LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp, bottom = 88.dp)) {
+                LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 88.dp)) {
                     items(filtered, key = { it.pkg }) { note ->
                         ElevatedCard(Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable {
                             editingNote = note; editContent = note.content

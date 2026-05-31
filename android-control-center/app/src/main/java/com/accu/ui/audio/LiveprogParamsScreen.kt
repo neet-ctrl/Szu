@@ -73,7 +73,7 @@ fun LiveprogParamsScreen(onBack: () -> Unit = {}) {
                 }
             }
 
-            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, bottom = 24.dp)) {
+            LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
                 items(params, key = { it.name }) { param ->
                     ElevatedCard(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Column(Modifier.padding(12.dp)) {

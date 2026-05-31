@@ -119,6 +119,7 @@ dependencies {
     implementation(libs.material3.adaptive.layout)
     implementation(libs.material3.adaptive.navigation)
     implementation(libs.material3.window.size)
+    implementation(libs.material3.adaptive.navigation.suite)
 
     // AndroidX
     implementation(libs.core.ktx)

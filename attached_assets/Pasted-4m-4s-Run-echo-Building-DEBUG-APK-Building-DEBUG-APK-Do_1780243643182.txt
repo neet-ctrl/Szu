@@ -1,0 +1,1119 @@
+4m 4s
+Run echo "Building DEBUG APK"
+Building DEBUG APK
+Downloading https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+.............10%.............20%.............30%.............40%.............50%.............60%.............70%.............80%.............90%.............100%
+
+Welcome to Gradle 8.11.1!
+
+Here are the highlights of this release:
+ - Parallel load and store for Configuration Cache
+ - Java compilation errors at the end of the build output
+ - Consolidated report for warnings and deprecations
+
+For more details see https://docs.gradle.org/8.11.1/release-notes.html
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.11.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+Configuration on demand is an incubating feature.
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig
+> Task :app:compileDebugAidl
+> Task :app:generateDebugResValues
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:processDebugManifestForPackage
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:l8DexDesugarLibDebug
+> Task :app:mergeDebugJniLibFolders
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugNativeLibs
+> Task :app:processDebugResources
+> Task :app:mergeExtDexDebug
+> Task :app:mergeLibDexDebug
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libdatastore_shared_counter.so.
+
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+> Task :app:kspDebugKotlin
+> Task :app:compileDebugKotlin
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:12:23 Unresolved reference 'getInstalledApps'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:27:23 Unresolved reference 'uninstallApp'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:37:32 Unresolved reference 'setComponentEnabled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:55:25 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:62:23 Unresolved reference 'clearAppData'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/domain/usecases/AppUseCases.kt:69:23 Unresolved reference 'forceStopApp'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:7:44 Unresolved reference 'navigationsuite'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:156:5 Unresolved reference 'NavigationSuiteScaffold'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:160:17 Unresolved reference 'item'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:161:30 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:162:31 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/navigation/AppNavigation.kt:176:9 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/ACCAccessibilityService.kt:54:9 'performGlobalAction' hides member of supertype 'AccessibilityService' and needs an 'override' modifier.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/AudioEffectService.kt:36:31 Initializer type mismatch: expected 'kotlin.Short', actual 'kotlin.Int'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/AutoFreezeService.kt:19:1 Class 'AutoFreezeService' is not abstract and does not implement abstract base class member 'onBind'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/AutoFreezeService.kt:24:5 'onBind' overrides nothing. Potential signatures for overriding:
+fun onBind(p0: Intent!): IBinder?
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/services/FreezeAllTileService.kt:29:31 Unresolved reference 'isShizukuAvailable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/apiservice/AccuSdkDocsScreen.kt:437:55 Unresolved reference 'e'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/apiservice/AccuSdkDocsScreen.kt:690:41 Unresolved reference 'e'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/apiservice/AccuSdkDocsScreen.kt:696:40 Unresolved reference 'e'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/apiservice/AccuServiceScreen.kt:89:38 Unresolved reference 'tabIndicatorOffset'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppBatchOperationsScreen.kt:32:110 Unresolved reference 'BlockFlipped'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppDetailScreen.kt:102:111 Unresolved reference 'clearSnackbar'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppDetailScreen.kt:170:80 Cannot access 'fun Modifier.clip(shape: Shape): Modifier': it is private in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppDetailScreen.kt:222:26 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppDetailScreen.kt:463:78 Unresolved reference 'Install'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:46:12 Redeclaration:
+enum class AppFilter : Enum<AppFilter>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:133:156 Unresolved reference 'BlockFlipped'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:26 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:26 Cannot access 'fun <T> PersistentCompositionLocalMap.contains(key: CompositionLocal<T>): Boolean': it is internal in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:78 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:261:78 Cannot access 'fun <T> PersistentCompositionLocalMap.contains(key: CompositionLocal<T>): Boolean': it is internal in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:270:54 Argument type mismatch: actual type is 'kotlin.collections.Map<K, V>', but 'kotlin.collections.Map<kotlin.String, kotlin.Pair<kotlin.String, kotlin.String>>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppExplorerScreen.kt:270:98 Unresolved reference. None of the following candidates is applicable because of a receiver type mismatch:
+fun <C : CharSequence, R, R> C.ifBlank(defaultValue: () -> R): R
+    [R|Contract description]
+     <
+        CallsInPlace(defaultValue, AT_MOST_ONCE)
+    >
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerScreen.kt:187:49 Cannot access 'fun Modifier.clip(shape: Shape): Modifier': it is private in file.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:54:12 Redeclaration:
+enum class AppFilter : Enum<AppFilter>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:162:21 'when' expression must be exhaustive. Add the 'ALL' branch or an 'else' branch.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:162:21 Argument type mismatch: actual type is 'kotlin.Unit', but 'kotlin.Boolean' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:163:35 Unresolved reference 'ENABLED'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:164:35 Unresolved reference 'DISABLED'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:165:35 Unresolved reference 'FROZEN'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/AppManagerViewModel.kt:166:35 Unresolved reference 'HIDDEN'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/ComponentManagerScreen.kt:77:48 This material3 API is experimental and is likely to change or to be removed in the future.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/ComponentManagerScreen.kt:77:59 This material3 API is experimental and is likely to change or to be removed in the future.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/ComponentManagerScreen.kt:77:63 Unresolved reference 'isBlocked'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/ComponentManagerScreen.kt:78:48 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/ComponentManagerScreen.kt:78:62 Unresolved reference 'isBlocked'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/DebloatScreen.kt:278:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:247:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:249:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/FreezeAppsScreen.kt:251:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/InureMusicScreen.kt:198:82 Unresolved reference 'isFavorite'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/InureNotesScreen.kt:100:45 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:79:34 Unresolved reference 'collectAsStateWithLifecycle'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:26 Unresolved reference 'groups'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:33 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:40 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:45 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:80:71 Unresolved reference 'searchQuery'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:95:31 Unresolved reference 'searchQuery'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:107:19 Argument type mismatch: actual type is 'kotlinx.coroutines.flow.Flow<ERROR CLASS: Cannot infer argument for type parameter T>', but 'kotlin.Int' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:107:40 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:108:33 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:37 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:44 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:44 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:50 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:109:55 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:110:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:111:52 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:112:68 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:116:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:117:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:118:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:119:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:120:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:120:82 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:121:39 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:27 Unresolved reference 'grants'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:34 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:43 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:43 'fun <T> Flow<T>.forEach(action: suspend (@ParameterName(...) T) -> Unit): Unit' is deprecated. Flow analogue of 'forEach' is 'collect'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:43 Not enough information to infer type argument for 'T'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:130:53 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:131:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:132:60 Unresolved reference 'appName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:133:62 Unresolved reference 'packageName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:137:131 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:138:56 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:140:47 Unresolved reference 'isGranted'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:142:87 Unresolved reference 'packageName'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:142:106 Unresolved reference 'permission'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:151:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/appmanager/PermissionManagerScreen.kt:157:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/AudioCenterScreen.kt:197:32 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/AudioCenterScreen.kt:232:37 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/AudioCenterScreen.kt:238:44 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/ConvolutionScreen.kt:64:53 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/ConvolutionScreen.kt:111:60 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/DSPControlsScreen.kt:150:78 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/DSPControlsScreen.kt:250:65 Unresolved reference 'Surround'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/GraphicEQScreen.kt:158:144 No parameter with name 'strokeWidth' found.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/LiveprogEditorScreen.kt:221:29 Unresolved reference 'TransformedText'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/LiveprogEditorScreen.kt:221:76 Unresolved reference 'OffsetMapping'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/LiveprogEditorScreen.kt:234:45 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/LiveprogParamsScreen.kt:76:41 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/audio/ParametricEQScreen.kt:176:28 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/automation/ChooseActionScreen.kt:60:93 Unresolved reference 'SplitscreenPortrait'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/automation/ChooseActionScreen.kt:93:84 Unresolved reference 'PinchZoomIn'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecorderViewModel.kt:69:47 Unresolved reference 'EXTRA_FORMAT'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecorderViewModel.kt:70:47 Unresolved reference 'EXTRA_SOURCE'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecorderViewModel.kt:71:47 Unresolved reference 'EXTRA_OUTPUT_DIR'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecordingSettingsScreen.kt:14:12 Redeclaration:
+enum class AudioSource : Enum<AudioSource>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/CallRecordingSettingsScreen.kt:280:47 Unresolved reference 'Modifier'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:25:12 Redeclaration:
+enum class AudioSource : Enum<AudioSource>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:27 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:27 Not enough information to infer type argument for 'T'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:27 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:27 Not enough information to infer type argument for 'T'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:38 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:38 Not enough information to infer type argument for 'T'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:35:65 Unresolved reference 'SCRCPY_AUDIO'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/callrecorder/ScrcpyIntegrationScreen.kt:193:47 Unresolved reference 'Modifier'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/components/StatusBadge.kt:192:80 Unresolved reference 'LocalIndication'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:70:45 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:82:45 Unresolved reference 'clickable'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:209:8 Unresolved reference 'ExperimentalFoundationApi'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/crash/CrashHistoryScreen.kt:209:8 Annotation argument must be a compile-time constant.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:685:21 None of the following candidates is applicable:
+fun OutlinedTextField(state: TextFieldState, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., labelPosition: TextFieldLabelPosition = ..., label: @Composable() ComposableFunction1<TextFieldLabelScope, Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., inputTransformation: InputTransformation? = ..., outputTransformation: OutputTransformation? = ..., keyboardOptions: KeyboardOptions = ..., onKeyboardAction: KeyboardActionHandler? = ..., lineLimits: TextFieldLineLimits = ..., onTextLayout: (Density.(@ParameterName(...) Function0<TextLayoutResult?>) -> Unit)? = ..., scrollState: ScrollState = ..., shape: Shape = ..., colors: TextFieldColors = ..., contentPadding: PaddingValues = ..., interactionSource: MutableInteractionSource? = ...): Unit
+fun OutlinedTextField(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., label: @Composable() ComposableFunction0<Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., visualTransformation: VisualTransformation = ..., keyboardOptions: KeyboardOptions = ..., keyboardActions: KeyboardActions = ..., singleLine: Boolean = ..., maxLines: Int = ..., minLines: Int = ..., interactionSource: MutableInteractionSource? = ..., shape: Shape = ..., colors: TextFieldColors = ...): Unit
+fun OutlinedTextField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = ..., enabled: Boolean = ..., readOnly: Boolean = ..., textStyle: TextStyle = ..., label: @Composable() ComposableFunction0<Unit>? = ..., placeholder: @Composable() ComposableFunction0<Unit>? = ..., leadingIcon: @Composable() ComposableFunction0<Unit>? = ..., trailingIcon: @Composable() ComposableFunction0<Unit>? = ..., prefix: @Composable() ComposableFunction0<Unit>? = ..., suffix: @Composable() ComposableFunction0<Unit>? = ..., supportingText: @Composable() ComposableFunction0<Unit>? = ..., isError: Boolean = ..., visualTransformation: VisualTransformation = ..., keyboardOptions: KeyboardOptions = ..., keyboardActions: KeyboardActions = ..., singleLine: Boolean = ..., maxLines: Int = ..., minLines: Int = ..., interactionSource: MutableInteractionSource? = ..., shape: Shape = ..., colors: TextFieldColors = ...): Unit
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:686:69 Unresolved reference 'it'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:686:100 Unresolved reference 'it'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:687:35 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:690:29 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorBlendrStylesScreen.kt:690:164 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:76:58 Unresolved reference 'exportTheme'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:77:58 Unresolved reference 'importTheme'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:325:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:328:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/ColorEditorScreen.kt:330:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/CustomizationScreen.kt:303:52 Unresolved reference 'NavigationRounded'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:13 Unresolved reference 'AnimatedVisibility'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:63 Unresolved reference 'expandVertically'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:109:90 Unresolved reference 'shrinkVertically'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarQSunriseSunsetScreen.kt:110:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:260:17 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:261:17 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:264:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:421:29 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:424:29 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/DarkModeScreen.kt:426:29 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:80:33 'fun item(key: Any? = ..., contentType: Any? = ..., content: @Composable() ComposableFunction1<LazyItemScope, Unit>): Unit' cannot be called in this context with an implicit receiver. Use an explicit receiver if necessary.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:81:37 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/customization/PerAppThemingScreen.kt:96:37 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:247:28 Unresolved reference 'current'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:248:28 Unresolved reference 'current'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:463:50 None of the following candidates is applicable:
+fun Modifier.padding(paddingValues: PaddingValues): Modifier
+fun Modifier.padding(all: Dp): Modifier
+fun Modifier.padding(horizontal: Dp = ..., vertical: Dp = ...): Modifier
+fun Modifier.padding(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): Modifier
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/dashboard/DashboardScreen.kt:596:88 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:68:85 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:89:85 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:122:101 Unresolved reference 'filePath'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:140:85 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:164:85 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/filemanager/FilePropertiesScreen.kt:184:85 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/installer/InstallerScreen.kt:292:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:112:46 Argument type mismatch: actual type is 'kotlin.String', but 'android.os.LocaleList' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:112:59 Too many arguments for 'fun setApplicationLocales(p0: LocaleList): Unit'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:131:46 Argument type mismatch: actual type is 'kotlin.String', but 'android.os.LocaleList' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:131:59 Too many arguments for 'fun setApplicationLocales(p0: LocaleList): Unit'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/language/LanguageCenterScreen.kt:659:65 Type checking has run into a recursive problem. Easiest workaround: specify the types of your declarations explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/BetterInternetTilesSettingsScreen.kt:375:47 Unresolved reference 'Modifier'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkCenterScreen.kt:207:38 Smart cast to 'kotlin.String' is impossible, because 'privateDnsHost' is a delegated property.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:79:48 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:89:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:98:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:114:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:123:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:132:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:133:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/network/NetworkViewModel.kt:140:29 Unresolved reference 'execute'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/notifications/NotificationCenterScreen.kt:418:14 Unresolved reference 'animateItem'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/notifications/NotificationCenterScreen.kt:423:9 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/onboarding/OnboardingScreen.kt:129:43 Unresolved reference 'launch'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/onboarding/OnboardingScreen.kt:129:63 Suspend function 'suspend fun animateScrollToPage(page: Int, pageOffsetFraction: Float = ..., animationSpec: AnimationSpec<Float> = ...): Unit' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/OnlineRulesScreen.kt:31:12 Redeclaration:
+data class TrackerCategory : Any
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyScreen.kt:114:38 Unresolved reference 'tabIndicatorOffset'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyScreen.kt:230:37 Unresolved reference 'trackerCount'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyScreen.kt:231:34 Unresolved reference 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:32:12 Redeclaration:
+enum class TrackerCategory : Enum<TrackerCategory>
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:82:17 Cannot access 'constructor(label: String, icon: ImageVector): TrackerCategory': it is private in 'com/accu/ui/privacy/TrackerCategory'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:82:17 Enum types cannot be instantiated.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:106:61 Unresolved reference 'deleteByPackageAndComponent'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:193:33 Unresolved reference 'deleteAll'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/privacy/PrivacyViewModel.kt:194:28 Unresolved reference 'deleteAll'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/CommandExamplesScreen.kt:25:12 Redeclaration:
+data class CommandExample : Any
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/CommandExamplesScreen.kt:390:17 The API of this layout is experimental and is likely to change in the future.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:727:13 Unresolved reference 'SelectionContainer'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:728:17 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ScriptEditorScreen.kt:730:43 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellQsTileDashboardScreen.kt:332:33 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellQsTileDashboardScreen.kt:432:37 None of the following candidates is applicable:
+fun PaddingValues(all: Dp): PaddingValues
+fun PaddingValues(horizontal: Dp = ..., vertical: Dp = ...): PaddingValues
+fun PaddingValues(start: Dp = ..., top: Dp = ..., end: Dp = ..., bottom: Dp = ...): PaddingValues
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellScreen.kt:738:12 Redeclaration:
+data class CommandExample : Any
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellScreen.kt:743:48 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellScreen.kt:743:57 Unresolved reference 'category'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellScreen.kt:747:42 Unresolved reference 'category'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellScreen.kt:776:73 Unresolved reference 'category'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:250:111 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:250:111 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:251:117 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:251:117 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:252:106 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:252:106 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:253:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:253:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:254:113 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:254:113 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:255:124 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:255:124 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:256:115 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:256:115 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:257:103 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:257:103 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:258:103 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:258:103 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:259:109 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:259:109 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:260:75 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:260:75 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:261:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:261:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:262:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:262:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:263:106 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:263:106 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:264:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:264:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:266:114 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:266:114 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:267:122 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:267:122 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:268:110 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:268:110 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:269:138 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:269:138 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:270:114 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:270:114 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:271:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:271:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:272:98 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:272:98 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:274:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:274:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:275:85 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:275:85 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:276:70 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:276:70 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:277:70 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:277:70 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:278:70 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:278:70 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:279:74 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:279:74 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:280:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:280:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:281:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:281:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:282:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:282:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:283:65 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:283:65 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:284:104 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:284:104 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:285:85 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:285:85 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:286:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:286:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:287:108 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:287:108 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:288:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:288:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:289:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:289:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:290:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:290:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:291:70 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:291:70 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:292:96 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:292:96 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:293:85 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:293:85 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:294:106 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:294:106 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:295:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:295:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:296:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:296:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:297:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:297:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:298:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:298:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:299:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:299:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:300:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:300:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:301:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:301:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:302:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:302:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:303:90 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:303:90 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:304:99 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:304:99 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:305:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:305:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:306:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:306:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:307:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:307:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:309:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:309:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:310:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:310:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:311:84 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:311:84 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:312:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:312:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:313:126 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:313:126 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:314:125 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:314:125 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:315:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:315:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:316:98 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:316:98 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:317:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:317:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:318:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:318:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:319:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:319:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:320:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:320:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:321:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:321:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:322:117 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:322:117 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:323:125 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:323:125 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:325:126 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:325:126 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:326:130 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:326:130 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:327:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:327:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:329:111 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:329:111 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:330:112 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:330:112 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:331:111 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:331:111 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:333:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:333:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:334:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:334:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:335:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:335:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:336:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:336:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:337:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:337:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:338:107 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:338:107 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:339:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:339:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:340:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:340:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:341:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:341:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:342:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:342:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:343:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:343:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:344:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:344:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:345:109 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:345:109 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:346:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:346:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:347:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:347:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:348:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:348:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:349:90 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:349:90 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:350:84 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:350:84 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:351:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:351:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:352:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:352:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:353:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:353:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:354:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:354:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:355:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:355:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:356:73 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:356:73 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:357:94 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:357:94 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:358:79 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:358:79 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:360:94 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:360:94 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:361:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:361:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:362:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:362:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:363:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:363:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:364:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:364:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:365:84 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:365:84 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:366:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:366:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:367:79 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:367:79 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:368:74 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:368:74 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:369:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:369:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:370:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:370:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:371:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:371:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:372:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:372:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:373:111 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:373:111 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:374:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:374:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:376:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:376:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:377:71 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:377:71 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:378:73 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:378:73 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:379:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:379:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:380:86 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:380:86 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:381:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:381:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:382:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:382:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:383:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:383:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:384:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:384:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:385:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:385:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:386:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:386:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:388:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:388:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:389:110 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:389:110 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:390:96 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:390:96 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:391:94 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:391:94 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:392:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:392:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:393:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:393:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:394:113 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:394:113 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:395:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:395:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:396:106 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:396:106 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:397:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:397:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:398:105 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:398:105 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:399:106 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:399:106 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:400:108 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:400:108 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:401:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:401:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:402:99 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:402:99 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:403:94 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:403:94 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:404:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:404:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:405:104 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:405:104 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:406:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:406:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:407:84 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:407:84 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:408:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:408:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:409:96 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:409:96 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:410:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:410:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:411:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:411:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:412:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:412:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:413:104 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:413:104 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:414:133 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:414:133 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:415:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:415:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:416:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:416:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:417:105 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:417:105 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:418:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:418:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:419:109 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:419:109 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:420:117 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:420:117 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:421:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:421:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:422:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:422:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:423:128 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:423:128 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:424:117 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:424:117 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:425:144 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:425:144 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:426:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:426:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:428:71 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:428:71 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:429:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:429:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:430:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:430:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:431:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:431:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:432:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:432:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:433:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:433:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:434:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:434:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:435:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:435:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:436:99 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:436:99 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:437:85 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:437:85 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:438:105 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:438:105 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:439:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:439:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:440:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:440:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:442:110 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:442:110 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:443:118 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:443:118 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:444:118 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:444:118 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:445:103 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:445:103 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:446:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:446:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:447:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:447:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:448:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:448:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:449:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:449:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:450:91 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:450:91 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:451:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:451:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:452:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:452:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:453:108 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:453:108 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:454:135 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:454:135 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:455:119 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:455:119 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:456:134 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:456:134 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:457:122 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:457:122 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:458:114 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:458:114 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:459:129 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:459:129 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:460:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:460:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:461:128 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:461:128 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:462:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:462:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:463:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:463:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:465:74 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:465:74 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:466:76 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:466:76 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:467:71 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:467:71 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:468:73 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:468:73 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:469:62 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:469:62 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:470:64 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:470:64 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:471:100 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:471:100 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:472:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:472:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:473:93 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:473:93 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:474:76 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:474:76 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:475:107 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:475:107 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:476:65 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:476:65 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:477:67 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:477:67 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:479:61 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:479:61 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:480:97 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:480:97 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:481:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:481:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:482:67 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:482:67 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:483:101 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:483:101 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:484:107 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:484:107 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:485:96 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:485:96 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:486:126 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:486:126 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:487:127 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:487:127 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:488:82 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:488:82 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:489:96 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:489:96 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:490:63 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:490:63 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:491:81 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:491:81 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:492:84 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:492:84 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:493:67 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:493:67 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:494:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:494:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:495:71 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:495:71 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:496:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:496:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:497:66 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:497:66 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:498:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:498:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:499:79 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:499:79 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:500:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:500:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:501:74 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:501:74 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:502:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:502:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:503:68 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:503:68 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:504:72 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:504:72 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:505:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:505:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:506:75 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:506:75 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:507:80 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:507:80 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:508:72 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:508:72 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:509:72 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:509:72 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:510:68 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:510:68 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:511:83 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:511:83 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:512:102 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:512:102 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:513:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:513:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:514:74 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:514:74 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:515:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:515:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:516:77 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:516:77 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:518:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:518:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:519:92 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:519:92 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:520:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:520:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:521:78 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:521:78 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:522:87 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:522:87 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:523:89 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:523:89 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:524:99 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:524:99 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:525:80 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:525:80 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:527:114 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:527:114 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:528:95 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:528:95 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:529:105 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:529:105 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:530:115 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:530:115 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:531:107 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:531:107 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:532:115 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:532:115 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:533:118 No value passed for parameter 'description'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shell/ShellViewModel.kt:533:118 No value passed for parameter 'labels'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:273:21 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:274:21 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:276:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:348:25 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:349:25 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/FreezeSchedulerScreen.kt:354:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/HailWorkProfileScreen.kt:105:67 Unresolved reference 'WorkspacesFilled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/ShizukuAppsScreen.kt:75:89 Unresolved reference 'BlockFlipped'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/ShizukuViewModel.kt:482:35 Suspend function 'suspend fun execShizuku(command: String): ShellResult' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/shizuku/ShizukuViewModel.kt:488:35 Suspend function 'suspend fun execShizuku(command: String): ShellResult' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:525:21 Unresolved reference 'SelectionContainer'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:63 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/LargeFileFinderScreen.kt:526:108 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:185:38 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:240:47 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:298:40 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:299:40 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:300:41 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:301:67 Overload resolution ambiguity between candidates:
+fun formatBytes(bytes: Long): String
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/StorageScreen.kt:317:9 Conflicting overloads:
+fun formatBytes(bytes: Long): String
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:189:25 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:190:25 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/storage/SystemCleanerScreen.kt:193:25 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:337:221 Unresolved reference 'viewModel'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:338:40 Unresolved reference 'viewModel'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:378:21 Argument type mismatch: actual type is 'androidx.compose.ui.Modifier', but 'kotlin.Function0<kotlin.Unit>' was expected.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:381:21 Argument already passed for this parameter.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:383:21 @Composable invocations can only happen from the context of a @Composable function
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:57 Unresolved reference 'targets'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:65 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:65 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:71 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:448:76 Unresolved reference 'isEnabled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:56 Unresolved reference 'complications'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:70 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:70 Suspend function 'suspend fun <T> Flow<T>.count(predicate: suspend (T) -> Boolean): Int' should be called only from a coroutine or another suspend function.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:76 Cannot infer type for this parameter. Please specify it explicitly.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/ui/widgets/SmartSpacerScreen.kt:449:81 Unresolved reference 'isEnabled'.
+e: file:///home/runner/work/Szu/Szu/android-control-center/app/src/main/java/com/accu/utils/ShizukuUtils.kt:59:35 Cannot access 'static fun newProcess(p0: Array<(out) String!>, p1: Array<(out) String!>?, p2: String?): ShizukuRemoteProcess!': it is private in 'rikka/shizuku/Shizuku'.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+* Exception is:
+org.gradle.api.tasks.TaskExecutionException: Execution failed for task ':app:compileDebugKotlin'.
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.lambda$executeIfValid$1(ExecuteActionsTaskExecuter.java:130)
+	at org.gradle.internal.Try$Failure.ifSuccessfulOrElse(Try.java:293)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:128)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.gradle.workers.internal.DefaultWorkerExecutor$WorkExecutionException: A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+	at org.gradle.workers.internal.DefaultWorkerExecutor$WorkItemExecution.waitForCompletion(DefaultWorkerExecutor.java:287)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.lambda$waitForItemsAndGatherFailures$2(DefaultAsyncWorkTracker.java:130)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:335)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLocks(DefaultWorkerLeaseService.java:318)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withoutLock(DefaultWorkerLeaseService.java:323)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:126)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForItemsAndGatherFailures(DefaultAsyncWorkTracker.java:92)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForAll(DefaultAsyncWorkTracker.java:78)
+	at org.gradle.internal.work.DefaultAsyncWorkTracker.waitForCompletion(DefaultAsyncWorkTracker.java:66)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$3.run(TaskExecution.java:252)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:29)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$1.execute(DefaultBuildOperationRunner.java:26)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.run(DefaultBuildOperationRunner.java:47)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeAction(TaskExecution.java:229)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeActions(TaskExecution.java:212)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.executeWithPreviousOutputFiles(TaskExecution.java:195)
+	at org.gradle.api.internal.tasks.execution.TaskExecution.execute(TaskExecution.java:162)
+	at org.gradle.internal.execution.steps.ExecuteStep.executeInternal(ExecuteStep.java:105)
+	at org.gradle.internal.execution.steps.ExecuteStep.access$000(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:59)
+	at org.gradle.internal.execution.steps.ExecuteStep$1.call(ExecuteStep.java:56)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:56)
+	at org.gradle.internal.execution.steps.ExecuteStep.execute(ExecuteStep.java:44)
+	at org.gradle.internal.execution.steps.CancelExecutionStep.execute(CancelExecutionStep.java:42)
+	at org.gradle.internal.execution.steps.TimeoutStep.executeWithoutTimeout(TimeoutStep.java:75)
+	at org.gradle.internal.execution.steps.TimeoutStep.execute(TimeoutStep.java:55)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:50)
+	at org.gradle.internal.execution.steps.PreCreateOutputParentsStep.execute(PreCreateOutputParentsStep.java:28)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:67)
+	at org.gradle.internal.execution.steps.RemovePreviousOutputsStep.execute(RemovePreviousOutputsStep.java:37)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:61)
+	at org.gradle.internal.execution.steps.BroadcastChangingOutputsStep.execute(BroadcastChangingOutputsStep.java:26)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:69)
+	at org.gradle.internal.execution.steps.CaptureOutputsAfterExecutionStep.execute(CaptureOutputsAfterExecutionStep.java:46)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:40)
+	at org.gradle.internal.execution.steps.ResolveInputChangesStep.execute(ResolveInputChangesStep.java:29)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithoutCache(BuildCacheStep.java:189)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeAndStoreInCache(BuildCacheStep.java:145)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$4(BuildCacheStep.java:101)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$executeWithCache$5(BuildCacheStep.java:101)
+	at org.gradle.internal.Try$Success.map(Try.java:175)
+	at org.gradle.internal.execution.steps.BuildCacheStep.executeWithCache(BuildCacheStep.java:85)
+	at org.gradle.internal.execution.steps.BuildCacheStep.lambda$execute$0(BuildCacheStep.java:74)
+	at org.gradle.internal.Either$Left.fold(Either.java:115)
+	at org.gradle.internal.execution.caching.CachingState.fold(CachingState.java:62)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:73)
+	at org.gradle.internal.execution.steps.BuildCacheStep.execute(BuildCacheStep.java:48)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:46)
+	at org.gradle.internal.execution.steps.StoreExecutionStateStep.execute(StoreExecutionStateStep.java:35)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.executeBecause(SkipUpToDateStep.java:75)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.lambda$execute$2(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:53)
+	at org.gradle.internal.execution.steps.SkipUpToDateStep.execute(SkipUpToDateStep.java:35)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:37)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsFinishedStep.execute(MarkSnapshottingInputsFinishedStep.java:27)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:49)
+	at org.gradle.internal.execution.steps.ResolveIncrementalCachingStateStep.executeDelegate(ResolveIncrementalCachingStateStep.java:27)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:71)
+	at org.gradle.internal.execution.steps.AbstractResolveCachingStateStep.execute(AbstractResolveCachingStateStep.java:39)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:65)
+	at org.gradle.internal.execution.steps.ResolveChangesStep.execute(ResolveChangesStep.java:36)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:107)
+	at org.gradle.internal.execution.steps.ValidateStep.execute(ValidateStep.java:56)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:64)
+	at org.gradle.internal.execution.steps.AbstractCaptureStateBeforeExecutionStep.execute(AbstractCaptureStateBeforeExecutionStep.java:43)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.executeWithNonEmptySources(AbstractSkipEmptyWorkStep.java:125)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:61)
+	at org.gradle.internal.execution.steps.AbstractSkipEmptyWorkStep.execute(AbstractSkipEmptyWorkStep.java:36)
+	at org.gradle.internal.execution.steps.legacy.MarkSnapshottingInputsStartedStep.execute(MarkSnapshottingInputsStartedStep.java:38)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:36)
+	at org.gradle.internal.execution.steps.LoadPreviousExecutionStateStep.execute(LoadPreviousExecutionStateStep.java:23)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:75)
+	at org.gradle.internal.execution.steps.HandleStaleOutputsStep.execute(HandleStaleOutputsStep.java:41)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.lambda$execute$0(AssignMutableWorkspaceStep.java:35)
+	at org.gradle.api.internal.tasks.execution.TaskExecution$4.withWorkspace(TaskExecution.java:289)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:31)
+	at org.gradle.internal.execution.steps.AssignMutableWorkspaceStep.execute(AssignMutableWorkspaceStep.java:22)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:40)
+	at org.gradle.internal.execution.steps.ChoosePipelineStep.execute(ChoosePipelineStep.java:23)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.lambda$execute$2(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:67)
+	at org.gradle.internal.execution.steps.ExecuteWorkBuildOperationFiringStep.execute(ExecuteWorkBuildOperationFiringStep.java:39)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:46)
+	at org.gradle.internal.execution.steps.IdentityCacheStep.execute(IdentityCacheStep.java:34)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:48)
+	at org.gradle.internal.execution.steps.IdentifyStep.execute(IdentifyStep.java:35)
+	at org.gradle.internal.execution.impl.DefaultExecutionEngine$1.execute(DefaultExecutionEngine.java:61)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.executeIfValid(ExecuteActionsTaskExecuter.java:127)
+	at org.gradle.api.internal.tasks.execution.ExecuteActionsTaskExecuter.execute(ExecuteActionsTaskExecuter.java:116)
+	at org.gradle.api.internal.tasks.execution.FinalizePropertiesTaskExecuter.execute(FinalizePropertiesTaskExecuter.java:46)
+	at org.gradle.api.internal.tasks.execution.ResolveTaskExecutionModeExecuter.execute(ResolveTaskExecutionModeExecuter.java:51)
+	at org.gradle.api.internal.tasks.execution.SkipTaskWithNoActionsExecuter.execute(SkipTaskWithNoActionsExecuter.java:57)
+	at org.gradle.api.internal.tasks.execution.SkipOnlyIfTaskExecuter.execute(SkipOnlyIfTaskExecuter.java:74)
+	at org.gradle.api.internal.tasks.execution.CatchExceptionTaskExecuter.execute(CatchExceptionTaskExecuter.java:36)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.executeTask(EventFiringTaskExecuter.java:77)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:55)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter$1.call(EventFiringTaskExecuter.java:52)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.api.internal.tasks.execution.EventFiringTaskExecuter.execute(EventFiringTaskExecuter.java:52)
+	at org.gradle.execution.plan.LocalTaskNodeExecutor.execute(LocalTaskNodeExecutor.java:42)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:331)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$InvokeNodeExecutorsAction.execute(DefaultTaskExecutionGraph.java:318)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.lambda$execute$0(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.internal.operations.CurrentBuildOperationRef.with(CurrentBuildOperationRef.java:85)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:314)
+	at org.gradle.execution.taskgraph.DefaultTaskExecutionGraph$BuildOperationAwareExecutionAction.execute(DefaultTaskExecutionGraph.java:303)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.execute(DefaultPlanExecutor.java:459)
+	at org.gradle.execution.plan.DefaultPlanExecutor$ExecutorWorker.run(DefaultPlanExecutor.java:376)
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64)
+	at org.gradle.internal.concurrent.AbstractManagedExecutor$1.run(AbstractManagedExecutor.java:48)
+Caused by: org.jetbrains.kotlin.gradle.tasks.CompilationErrorException: Compilation error. See log for more details
+	at org.jetbrains.kotlin.gradle.tasks.TasksUtilsKt.throwExceptionIfCompilationFailed(tasksUtils.kt:21)
+	at org.jetbrains.kotlin.compilerRunner.GradleKotlinCompilerWork.run(GradleKotlinCompilerWork.kt:119)
+	at org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction.execute(GradleCompilerRunnerWithWorkers.kt:76)
+	at org.gradle.workers.internal.DefaultWorkerServer.execute(DefaultWorkerServer.java:63)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:66)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1$1.create(NoIsolationWorkerFactory.java:62)
+	at org.gradle.internal.classloader.ClassLoaderUtils.executeInClassloader(ClassLoaderUtils.java:100)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.lambda$execute$0(NoIsolationWorkerFactory.java:62)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:44)
+	at org.gradle.workers.internal.AbstractWorker$1.call(AbstractWorker.java:41)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:209)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$CallableBuildOperationWorker.execute(DefaultBuildOperationRunner.java:204)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:66)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner$2.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:166)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.execute(DefaultBuildOperationRunner.java:59)
+	at org.gradle.internal.operations.DefaultBuildOperationRunner.call(DefaultBuildOperationRunner.java:53)
+	at org.gradle.workers.internal.AbstractWorker.executeWrappedInBuildOperation(AbstractWorker.java:41)
+	at org.gradle.workers.internal.NoIsolationWorkerFactory$1.execute(NoIsolationWorkerFactory.java:59)
+	at org.gradle.workers.internal.DefaultWorkerExecutor.lambda$submitWork$0(DefaultWorkerExecutor.java:174)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runExecution(DefaultConditionalExecutionQueue.java:194)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.access$700(DefaultConditionalExecutionQueue.java:127)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner$1.run(DefaultConditionalExecutionQueue.java:169)
+	at org.gradle.internal.Factories$1.create(Factories.java:31)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.withLocks(DefaultWorkerLeaseService.java:263)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:127)
+	at org.gradle.internal.work.DefaultWorkerLeaseService.runAsWorkerThread(DefaultWorkerLeaseService.java:132)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.runBatch(DefaultConditionalExecutionQueue.java:164)
+	at org.gradle.internal.work.DefaultConditionalExecutionQueue$ExecutionRunner.run(DefaultConditionalExecutionQueue.java:133)
+	... 2 more
+
+
+BUILD FAILED in 4m 3s
+
+> Task :app:compileDebugKotlin FAILED
+32 actionable tasks: 32 executed
+Error: Process completed with exit code 1

@@ -1,6 +1,7 @@
 package com.accu.ui.appmanager
 
 import android.content.pm.PackageManager
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material.icons.Icons
@@ -154,4 +155,3 @@ fun PermissionManagerScreen(
     }
 }
 
-private fun Modifier.clickable(onClick: () -> Unit) = this.then(androidx.compose.ui.Modifier.clickable(onClick = onClick))

@@ -57,7 +57,7 @@ fun ChooseActionScreen(onBack: () -> Unit = {}, onActionSelected: (String) -> Un
                 ActionEntry("Go Home", "Navigate to Home", Icons.Default.Home),
                 ActionEntry("Go Back", "Navigate back", Icons.Default.ArrowBack),
                 ActionEntry("Open Recents", "Open recent apps", Icons.Default.ViewCarousel),
-                ActionEntry("Toggle Split Screen", "Enter split-screen mode", Icons.Default.SplitscreenPortrait),
+                ActionEntry("Toggle Split Screen", "Enter split-screen mode", Icons.Default.ViewAgenda),
                 ActionEntry("Do Not Disturb", "Toggle DND mode", Icons.Default.DoNotDisturb),
                 ActionEntry("Rotate Screen", "Rotate display orientation", Icons.Default.ScreenRotation),
                 ActionEntry("Expand / Collapse", "Expand accessibility focus", Icons.Default.Fullscreen),
@@ -90,7 +90,7 @@ fun ChooseActionScreen(onBack: () -> Unit = {}, onActionSelected: (String) -> Un
                 ActionEntry("Show UI Element", "Interact with UI element", Icons.Default.TouchApp),
                 ActionEntry("Tap Screen", "Tap at coordinates", Icons.Default.TouchApp),
                 ActionEntry("Swipe Screen", "Swipe gesture at coordinates", Icons.Default.SwipeRight),
-                ActionEntry("Pinch Screen", "Two-finger pinch/zoom", Icons.Default.PinchZoomIn),
+                ActionEntry("Pinch Screen", "Two-finger pinch/zoom", Icons.Default.ZoomIn),
             )),
             ActionCategory("Phone / Communication", Icons.Default.Phone, listOf(
                 ActionEntry("Answer Call", "Accept incoming call", Icons.Default.Call),

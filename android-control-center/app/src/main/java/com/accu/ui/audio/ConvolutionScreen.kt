@@ -61,7 +61,6 @@ fun ConvolutionScreen(onBack: () -> Unit = {}) {
                             modifier = Modifier.fillMaxWidth().then(Modifier),
                         )
                         HorizontalDivider()
-                        androidx.compose.foundation.clickable.run {}
                     }
                 }
             },

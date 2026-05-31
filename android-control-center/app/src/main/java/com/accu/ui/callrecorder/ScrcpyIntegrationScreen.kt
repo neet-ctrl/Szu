@@ -1,6 +1,7 @@
 package com.accu.ui.callrecorder
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,7 +23,7 @@ enum class AudioCodec(val label: String, val extension: String, val description:
     RAW("Raw PCM", ".wav", "Uncompressed — for maximum quality"),
 }
 
-enum class AudioSource(val label: String, val description: String) {
+enum class ScrcpyAudioSource(val label: String, val description: String) {
     SCRCPY_AUDIO("scrcpy Audio Capture", "Routes system audio via scrcpy — works without root"),
     MIC_ONLY("Microphone Only", "Records from microphone — no caller audio"),
     MERGED("Microphone + System", "Merges both streams — requires root or Shizuku"),
@@ -32,7 +33,7 @@ enum class AudioSource(val label: String, val description: String) {
 @Composable
 fun ScrcpyIntegrationScreen(onBack: () -> Unit) {
     var selectedCodec by remember { mutableStateOf(AudioCodec.OPUS) }
-    var selectedSource by remember { mutableStateOf(AudioSource.SCRCPY_AUDIO) }
+    var selectedSource by remember { mutableStateOf(ScrcpyAudioSource.SCRCPY_AUDIO) }
     var bitrate by remember { mutableStateOf(128) }
     var sampleRate by remember { mutableStateOf(44100) }
     var serverExtracted by remember { mutableStateOf(false) }
@@ -108,7 +109,7 @@ fun ScrcpyIntegrationScreen(onBack: () -> Unit) {
 
             SectionCard(title = "Audio Source") {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AudioSource.entries.forEach { source ->
+                    ScrcpyAudioSource.entries.forEach { source ->
                         Card(
                             shape = RoundedCornerShape(10.dp),
                             colors = CardDefaults.cardColors(
@@ -189,6 +190,3 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
-private fun Modifier.clickable(onClick: () -> Unit): Modifier = this.then(
-    Modifier.then(androidx.compose.foundation.Modifier.clickable(onClick = onClick))
-)

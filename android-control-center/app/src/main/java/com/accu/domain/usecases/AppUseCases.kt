@@ -1,15 +1,14 @@
 package com.accu.domain.usecases
 
-import android.content.pm.PackageManager
 import com.accu.data.repositories.AppRepository
-import com.accu.data.repositories.ShellRepository
+import com.accu.utils.ShizukuUtils
 import javax.inject.Inject
 
 class GetInstalledAppsUseCase @Inject constructor(
     private val appRepository: AppRepository
 ) {
     suspend operator fun invoke(includeSystem: Boolean = false) =
-        appRepository.getInstalledApps(includeSystem)
+        appRepository.refreshAppList()
 }
 
 class FreezeAppUseCase @Inject constructor(
@@ -24,7 +23,7 @@ class UninstallAppUseCase @Inject constructor(
     private val appRepository: AppRepository
 ) {
     suspend operator fun invoke(packageName: String, keepData: Boolean = false): Boolean =
-        appRepository.uninstallApp(packageName, keepData)
+        appRepository.uninstallForUser(packageName)
 }
 
 class ToggleComponentUseCase @Inject constructor(
@@ -34,7 +33,8 @@ class ToggleComponentUseCase @Inject constructor(
         packageName: String,
         componentName: String,
         enable: Boolean
-    ): Boolean = appRepository.setComponentEnabled(packageName, componentName, enable)
+    ): Boolean = if (enable) appRepository.enableComponent(packageName, componentName)
+                 else appRepository.disableComponent(packageName, componentName, "")
 }
 
 class GrantRevokePermissionUseCase @Inject constructor(
@@ -49,22 +49,22 @@ class GrantRevokePermissionUseCase @Inject constructor(
 }
 
 class ExecuteShellCommandUseCase @Inject constructor(
-    private val shellRepository: ShellRepository
+    private val shizukuUtils: ShizukuUtils
 ) {
     suspend operator fun invoke(command: String): String =
-        shellRepository.execute(command)
+        shizukuUtils.execShizuku(command).combinedOutput
 }
 
 class ClearAppDataUseCase @Inject constructor(
     private val appRepository: AppRepository
 ) {
     suspend operator fun invoke(packageName: String): Boolean =
-        appRepository.clearAppData(packageName)
+        appRepository.clearData(packageName)
 }
 
 class ForceStopAppUseCase @Inject constructor(
     private val appRepository: AppRepository
 ) {
     suspend operator fun invoke(packageName: String): Boolean =
-        appRepository.forceStopApp(packageName)
+        appRepository.forceStop(packageName)
 }

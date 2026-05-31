@@ -236,6 +236,8 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
+    fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
+
     fun launchActivity(activityName: String) {
         viewModelScope.launch {
             appRepository.launchActivity(_state.value.packageName, activityName)

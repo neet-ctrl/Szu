@@ -43,7 +43,7 @@ import javax.inject.Inject
 //  Enums & Models
 // ─────────────────────────────────────────────────────────
 
-enum class AppFilter(val label: String, val icon: ImageVector) {
+enum class ExplorerFilter(val label: String, val icon: ImageVector) {
     ALL("All", Icons.Default.Apps),
     USER("User", Icons.Default.PersonOutline),
     SYSTEM("System", Icons.Default.PhoneAndroid),
@@ -101,7 +101,7 @@ data class AppInfo(
 data class AppExplorerUiState(
     val apps: List<AppInfo> = emptyList(),
     val filteredApps: List<AppInfo> = emptyList(),
-    val filter: AppFilter = AppFilter.USER,
+    val filter: ExplorerFilter = ExplorerFilter.USER,
     val sort: AppSort = AppSort.NAME,
     val searchQuery: String = "",
     val isLoading: Boolean = true,
@@ -130,7 +130,7 @@ fun buildAppCommands(pkg: String): List<AppCommand> = listOf(
     AppCommand("Process List",        "ps -A | grep $pkg",                                   "Running processes for this app",               Icons.Default.Terminal),
     AppCommand("Freeze (Suspend)",    "pm suspend --user 0 $pkg",                            "Suspend app like Hail (freeze)",               Icons.Default.AcUnit),
     AppCommand("Unfreeze (Resume)",   "pm unsuspend --user 0 $pkg",                          "Unsuspend / unfreeze the app",                 Icons.Default.Whatshot),
-    AppCommand("Disable App",         "pm disable-user --user 0 $pkg",                       "Disable app without uninstalling",             Icons.Default.BlockFlipped, isDangerous = true),
+    AppCommand("Disable App",         "pm disable-user --user 0 $pkg",                       "Disable app without uninstalling",             Icons.Default.Block, isDangerous = true),
     AppCommand("Enable App",          "pm enable $pkg",                                      "Re-enable a disabled app",                     Icons.Default.CheckCircle),
     AppCommand("Clear All Data",      "pm clear $pkg",                                       "Wipe ALL app data — cannot be undone",         Icons.Default.DeleteForever, isDangerous = true),
     AppCommand("Uninstall (User)",    "pm uninstall --user 0 $pkg",                          "Remove for current user only",                 Icons.Default.DeleteOutline, isDangerous = true),
@@ -231,16 +231,16 @@ class AppExplorerViewModel @Inject constructor(
         }.sortedWith(compareBy({ it.protection.ordinal }, { it.simpleName }))
     }
 
-    fun setFilter(f: AppFilter) = _state.update { applyFilter(it.copy(filter = f)) }
+    fun setFilter(f: ExplorerFilter) = _state.update { applyFilter(it.copy(filter = f)) }
     fun setSort(s: AppSort)     = _state.update { applyFilter(it.copy(sort = s)) }
     fun setSearch(q: String)    = _state.update { applyFilter(it.copy(searchQuery = q)) }
 
     private fun applyFilter(s: AppExplorerUiState): AppExplorerUiState {
         var list = s.apps
         list = when (s.filter) {
-            AppFilter.USER   -> list.filter { !it.isSystemApp }
-            AppFilter.SYSTEM -> list.filter { it.isSystemApp }
-            AppFilter.ALL    -> list
+            ExplorerFilter.USER   -> list.filter { !it.isSystemApp }
+            ExplorerFilter.SYSTEM -> list.filter { it.isSystemApp }
+            ExplorerFilter.ALL    -> list
         }
         if (s.searchQuery.isNotBlank()) list = list.filter {
             it.appName.contains(s.searchQuery, ignoreCase = true) ||
@@ -348,11 +348,11 @@ fun AppExplorerScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(AppFilter.entries) { f ->
+                items(ExplorerFilter.entries) { f ->
                     val count = when (f) {
-                        AppFilter.ALL    -> state.apps.size
-                        AppFilter.USER   -> state.apps.count { !it.isSystemApp }
-                        AppFilter.SYSTEM -> state.apps.count { it.isSystemApp }
+                        ExplorerFilter.ALL    -> state.apps.size
+                        ExplorerFilter.USER   -> state.apps.count { !it.isSystemApp }
+                        ExplorerFilter.SYSTEM -> state.apps.count { it.isSystemApp }
                     }
                     FilterChip(
                         selected = state.filter == f,

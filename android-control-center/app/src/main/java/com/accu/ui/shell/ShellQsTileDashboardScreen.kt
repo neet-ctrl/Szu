@@ -329,7 +329,7 @@ private fun TilesTab(
         }
         return
     }
-    LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp, bottom = 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(tiles, key = { it.id }) { tile ->
             val isSelected = tile.id in selectedIds
             val icon = TILE_ICON_OPTIONS.find { it.first == tile.iconName }?.second ?: Icons.Default.Terminal
@@ -429,7 +429,7 @@ private fun LogsTab(logs: List<TileLog>, onClear: () -> Unit) {
             Text("${logs.size} entries", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick = onClear, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Clear") }
         }
-        LazyColumn(contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(logs, key = { "${it.tileId}_${it.timestamp}" }) { log ->
                 Card(
                     shape = RoundedCornerShape(10.dp),

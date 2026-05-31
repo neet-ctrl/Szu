@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -460,7 +461,7 @@ private val APP_OPS_TEMPLATE = listOf(
     Triple("VIBRATE",                  "Vibrate",             Icons.Outlined.Vibration),
     Triple("WAKE_LOCK",                "Wake Lock",           Icons.Outlined.BatteryChargingFull),
     Triple("CHANGE_NETWORK_STATE",     "Change Network",      Icons.Outlined.Wifi),
-    Triple("REQUEST_INSTALL_PACKAGES", "Install Packages",    Icons.Outlined.Install),
+    Triple("REQUEST_INSTALL_PACKAGES", "Install Packages",    Icons.Outlined.GetApp),
 )
 
 @Composable

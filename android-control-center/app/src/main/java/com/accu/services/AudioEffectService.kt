@@ -33,7 +33,7 @@ data class AudioDspState(
     val reverbPreset: Short = PresetReverb.PRESET_NONE,
     val loudnessGainMb: Int = 0,
     val equalizerBands: List<EqualizerBand> = emptyList(),
-    val activePreset: Short = Equalizer.ERROR_BAD_VALUE
+    val activePreset: Short = Equalizer.ERROR_BAD_VALUE.toShort()
 )
 
 @AndroidEntryPoint

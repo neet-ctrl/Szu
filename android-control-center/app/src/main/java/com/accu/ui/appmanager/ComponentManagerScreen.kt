@@ -74,9 +74,8 @@ fun ComponentManagerScreen(
                     else      -> if (sortAsc) list.sortedBy { it.componentName.substringAfterLast('.') } else list.sortedByDescending { it.componentName.substringAfterLast('.') }
                 }
                 when (priorityMode) {
-                    "disabled_first" -> sorted.sortedBy { !it.isBlocked }
-                    "enabled_first"  -> sorted.sortedBy { it.isBlocked }
-                    else             -> sorted
+                    "disabled_first", "enabled_first" -> sorted
+                    else                              -> sorted
                 }
             }
     }

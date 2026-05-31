@@ -30,6 +30,7 @@ data class MusicTrack(
     val durationSecs: Int,
     val path: String,
     val albumColor: Color,
+    val isFavorite: Boolean = false,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

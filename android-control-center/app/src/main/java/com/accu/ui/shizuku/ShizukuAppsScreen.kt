@@ -72,7 +72,7 @@ fun ShizukuAppsScreen(onBack: () -> Unit = {}) {
                 title = "Authorized Apps",
                 onBack = onBack,
                 actions = {
-                    IconButton(onClick = { showRevokeAll = true }) { Icon(Icons.Default.BlockFlipped, "Revoke all") }
+                    IconButton(onClick = { showRevokeAll = true }) { Icon(Icons.Default.Block, "Revoke all") }
                 }
             )
         }

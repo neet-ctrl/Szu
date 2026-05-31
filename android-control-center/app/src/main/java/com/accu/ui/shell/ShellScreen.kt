@@ -735,16 +735,15 @@ private fun BookmarksSheet(
     }
 }
 
-data class CommandExample(val command: String, val description: String, val category: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CommandExamplesSheet(examples: List<CommandExample>, onSelectExample: (String) -> Unit) {
-    val categories = (listOf("All") + examples.map { it.category }.distinct())
+    val categories = (listOf("All") + examples.flatMap { it.labels }.distinct())
     var selectedCategory by remember { mutableStateOf("All") }
     var searchQuery by remember { mutableStateOf("") }
     val filtered = examples.filter {
-        (selectedCategory == "All" || it.category == selectedCategory) &&
+        (selectedCategory == "All" || it.labels.contains(selectedCategory)) &&
                 (searchQuery.isBlank() || it.command.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true))
     }
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -773,7 +772,7 @@ private fun CommandExamplesSheet(examples: List<CommandExample>, onSelectExample
                         Text(example.command, fontFamily = FontFamily.Monospace, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                         Text(example.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(2.dp))
-                        AssistChip(onClick = {}, label = { Text(example.category, style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.height(20.dp))
+                        AssistChip(onClick = {}, label = { Text(example.labels.firstOrNull() ?: "General", style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.height(20.dp))
                     }
                 }
             }

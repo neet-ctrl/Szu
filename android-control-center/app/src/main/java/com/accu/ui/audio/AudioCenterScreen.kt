@@ -42,6 +42,34 @@ fun AudioCenterScreen(
         state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() }
     }
 
+    val irFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.lastPathSegment?.let { viewModel.updateConvolverIrPath(it) }
+        }
+    }
+    var showAutoEqPicker by remember { mutableStateOf(false) }
+    val autoEqProfiles = listOf(
+        "Harman In-Ear 2019", "Harman Over-Ear 2018", "JBL Tune 760NC",
+        "Sony WH-1000XM4", "Sennheiser HD 650", "Bose QuietComfort 45",
+    )
+    if (showAutoEqPicker) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showAutoEqPicker = false }) {
+            Card {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("AutoEQ Profiles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    autoEqProfiles.forEach { profile ->
+                        TextButton(
+                            onClick = { viewModel.updateAutoEqProfile(profile); showAutoEqPicker = false },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(profile) }
+                    }
+                    TextButton(onClick = { showAutoEqPicker = false }, Modifier.fillMaxWidth()) { Text("Cancel") }
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             ACCTopBar(
@@ -194,11 +222,6 @@ fun AudioCenterScreen(
             }
 
             // Convolver
-            val irFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                if (result.resultCode == Activity.RESULT_OK) {
-                    result.data?.data?.lastPathSegment?.let { viewModel.updateConvolverIrPath(it) }
-                }
-            }
             item {
                 ConvolverCard(
                     enabled = state.convolverEnabled,
@@ -229,28 +252,6 @@ fun AudioCenterScreen(
             }
 
             // AutoEQ
-            var showAutoEqPicker by remember { mutableStateOf(false) }
-            val autoEqProfiles = listOf(
-                "Harman In-Ear 2019", "Harman Over-Ear 2018", "JBL Tune 760NC",
-                "Sony WH-1000XM4", "Sennheiser HD 650", "Bose QuietComfort 45",
-            )
-            if (showAutoEqPicker) {
-                androidx.compose.ui.window.Dialog(onDismissRequest = { showAutoEqPicker = false }) {
-                    Card {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("AutoEQ Profiles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(4.dp))
-                            autoEqProfiles.forEach { profile ->
-                                TextButton(
-                                    onClick = { viewModel.updateAutoEqProfile(profile); showAutoEqPicker = false },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) { Text(profile) }
-                            }
-                            TextButton(onClick = { showAutoEqPicker = false }, Modifier.fillMaxWidth()) { Text("Cancel") }
-                        }
-                    }
-                }
-            }
             item {
                 AutoEqCard(
                     enabled = state.autoEqEnabled,

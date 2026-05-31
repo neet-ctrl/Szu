@@ -29,7 +29,7 @@ val BATCH_OPERATIONS = listOf(
     BatchOperation("unfreeze", "Unfreeze Apps", "Re-enable frozen/suspended apps", Icons.Default.PlayArrow),
     BatchOperation("clear_cache", "Clear Cache", "Clear cache for all selected apps", Icons.Default.CleaningServices),
     BatchOperation("clear_data", "Clear Data", "Clear all app data — USE WITH CAUTION", Icons.Default.DeleteForever, danger = true),
-    BatchOperation("disable", "Disable Apps", "Disable selected apps (they remain installed)", Icons.Default.BlockFlipped),
+    BatchOperation("disable", "Disable Apps", "Disable selected apps (they remain installed)", Icons.Default.Block),
     BatchOperation("enable", "Enable Apps", "Re-enable disabled apps", Icons.Default.CheckCircle),
     BatchOperation("uninstall", "Uninstall Apps", "Remove selected apps from device", Icons.Default.Delete, danger = true),
     BatchOperation("revoke_perms", "Revoke Permissions", "Revoke all dangerous permissions", Icons.Default.AdminPanelSettings, danger = true),

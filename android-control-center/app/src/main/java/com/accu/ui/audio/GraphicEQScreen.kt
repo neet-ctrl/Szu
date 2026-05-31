@@ -155,7 +155,7 @@ fun GraphicEQScreen(onBack: () -> Unit = {}) {
                     }
                     lineTo(pts.last().x, pts.last().y)
                 }
-                drawPath(path, primaryColor.copy(alpha = if (isEnabled) 0.8f else 0.3f), style = androidx.compose.ui.graphics.drawscope.Stroke(strokeWidth = 3f))
+                drawPath(path, primaryColor.copy(alpha = if (isEnabled) 0.8f else 0.3f), style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f))
                 // Fill under curve
                 val fillPath = Path().apply { addPath(path); lineTo(pts.last().x, h); lineTo(pts.first().x, h); close() }
                 drawPath(fillPath, Brush.verticalGradient(listOf(primaryColor.copy(alpha = if (isEnabled) 0.3f else 0.1f), Color.Transparent)))
