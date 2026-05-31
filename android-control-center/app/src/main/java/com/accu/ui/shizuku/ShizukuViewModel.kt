@@ -104,6 +104,7 @@ class ShizukuViewModel @Inject constructor(
             connectionManager.state.collect { connState ->
                 val isConnected = connState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
                         || connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
+                        || connState == AccuConnectionManager.ConnectionState.CONNECTED_OTG
                 _state.update {
                     it.copy(
                         connectionState = connState,
@@ -129,6 +130,7 @@ class ShizukuViewModel @Inject constructor(
             val isRoot = shizukuUtils.isRootAvailable()
             val isConnected = connState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
                     || connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
+                    || connState == AccuConnectionManager.ConnectionState.CONNECTED_OTG
             val deviceIp = connectionManager.getDeviceIp()
             val lastIp = connectionManager.getLastConnectedIp()
 
@@ -153,7 +155,8 @@ class ShizukuViewModel @Inject constructor(
                     isWirelessAdbEnabled = wirelessEnabled,
                     serverStartMethod = when {
                         isRoot -> "Root"
-                        connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS -> "Wireless ADB (${lastIp})"
+                        connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS -> "Wireless ADB ($lastIp)"
+                        connState == AccuConnectionManager.ConnectionState.CONNECTED_OTG      -> "OTG / USB ADB"
                         else -> "Not connected"
                     },
                     authorizedApps = apps,
@@ -203,6 +206,23 @@ class ShizukuViewModel @Inject constructor(
             addLog("ACCU disconnected", LogLevel.INFO)
             delay(300)
             withContext(Dispatchers.Main) { refresh() }
+        }
+    }
+
+    /**
+     * Connect via OTG / USB ADB.
+     * Detects a USB-connected Android device and routes all feature commands through it.
+     */
+    fun connectOtg() {
+        viewModelScope.launch(Dispatchers.IO) {
+            addLog("Checking for OTG/USB ADB device…", LogLevel.INFO)
+            val ok = connectionManager.connectOtg()
+            if (ok) {
+                addLog("OTG device detected — ACCU connected via USB ADB ✓", LogLevel.SUCCESS)
+                withContext(Dispatchers.Main) { refresh() }
+            } else {
+                addLog("No USB ADB device found. Ensure: USB Debugging enabled on target, cable connected.", LogLevel.ERROR)
+            }
         }
     }
 

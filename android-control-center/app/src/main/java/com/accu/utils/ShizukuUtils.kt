@@ -13,8 +13,9 @@ import javax.inject.Singleton
  *
  * Execution priority (managed by AccuConnectionManager):
  *   1. Root (LibSU)
- *   2. Wireless ADB (auto-paired via mDNS, Shizuku-like flow)
- *   3. Plain shell (unprivileged fallback)
+ *   2. Wireless ADB (auto-paired via mDNS — commands routed via `adb -s ip:port shell`)
+ *   3. OTG/USB ADB  (commands routed via `adb shell`)
+ *   4. Plain shell  (unprivileged fallback)
  */
 @Singleton
 class ShizukuUtils @Inject constructor(

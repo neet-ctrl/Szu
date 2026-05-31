@@ -1,6 +1,5 @@
 package com.accu.connection
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -9,7 +8,6 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
-import android.os.Build
 import com.accu.MainActivity
 import com.topjohnwu.superuser.Shell
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -33,7 +31,8 @@ import javax.inject.Singleton
  * ║  Privilege priority:                                                     ║
  * ║    1. Root (LibSU)        — preferred, no setup needed on rooted devices ║
  * ║    2. Wireless ADB        — auto-discovered via mDNS, standard ADB flow  ║
- * ║    3. Plain shell         — unprivileged fallback                        ║
+ * ║    3. OTG (USB) ADB       — device connected via USB to another device   ║
+ * ║    4. Plain shell         — unprivileged fallback                        ║
  * ╚══════════════════════════════════════════════════════════════════════════╝
  */
 @Singleton
@@ -43,7 +42,7 @@ class AccuConnectionManager @Inject constructor(
     companion object {
         private const val TAG = "AccuConnectionManager"
         private const val PREFS_NAME = "accu_connection_prefs"
-        private const val KEY_LAST_IP = "last_adb_ip"
+        private const val KEY_LAST_IP   = "last_adb_ip"
         private const val KEY_LAST_PORT = "last_adb_port"
 
         // Android Wireless Debugging mDNS service types
@@ -51,10 +50,10 @@ class AccuConnectionManager @Inject constructor(
         private const val MDNS_CONNECT = "_adb-tls-connect._tcp"
 
         // Notification
-        const val CHANNEL_ID = "accu_connection"
+        const val CHANNEL_ID   = "accu_connection"
         const val CHANNEL_NAME = "ACCU Privileged Connection"
-        const val NOTIF_ID_PAIRING = 7001
-        const val NOTIF_ID_CONNECTED = 7002
+        const val NOTIF_ID_PAIRING      = 7001
+        const val NOTIF_ID_CONNECTED    = 7002
         const val NOTIF_ID_DISCONNECTED = 7003
     }
 
@@ -67,10 +66,12 @@ class AccuConnectionManager @Inject constructor(
         AWAITING_CODE,
         /** Executing `adb pair` + `adb connect` */
         CONNECTING,
-        /** ADB wireless session active */
+        /** ADB wireless session active — commands route through `adb -s ip:port shell` */
         CONNECTED_WIRELESS,
         /** LibSU root available — full privilege without ADB */
         CONNECTED_ROOT,
+        /** OTG / USB ADB — device connected via USB, commands route through `adb shell` */
+        CONNECTED_OTG,
     }
 
     private val _state = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -78,7 +79,10 @@ class AccuConnectionManager @Inject constructor(
 
     /** Discovered pairing host + port (auto-filled via mDNS, no manual entry) */
     private var pairingHost: String = ""
-    private var pairingPort: Int = 0
+    private var pairingPort: Int    = 0
+
+    /** Discovered ADB session port (from _adb-tls-connect._tcp mDNS) */
+    private var sessionPort: Int = 5555
 
     private val prefs: SharedPreferences
         get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -92,9 +96,11 @@ class AccuConnectionManager @Inject constructor(
 
     // ─── Public API ────────────────────────────────────────────────────────────
 
-    /** true if root or wireless ADB is available */
+    /** true if root, wireless ADB, or OTG ADB is available */
     fun isPrivilegeAvailable(): Boolean = when (_state.value) {
-        ConnectionState.CONNECTED_ROOT, ConnectionState.CONNECTED_WIRELESS -> true
+        ConnectionState.CONNECTED_ROOT,
+        ConnectionState.CONNECTED_WIRELESS,
+        ConnectionState.CONNECTED_OTG -> true
         else -> Shell.getShell().isRoot.also { if (it) _state.value = ConnectionState.CONNECTED_ROOT }
     }
 
@@ -105,22 +111,24 @@ class AccuConnectionManager @Inject constructor(
             ?.firstOrNull()?.hostAddress ?: ""
     } catch (_: Exception) { "" }
 
-    fun getLastConnectedIp(): String = prefs.getString(KEY_LAST_IP, "") ?: ""
-    fun getLastConnectedPort(): Int = prefs.getInt(KEY_LAST_PORT, 5555)
+    fun getLastConnectedIp(): String   = prefs.getString(KEY_LAST_IP, "") ?: ""
+    fun getLastConnectedPort(): Int    = prefs.getInt(KEY_LAST_PORT, 5555)
+    fun getConnectionState(): ConnectionState = _state.value
 
     /**
      * Execute a shell command using the best available privilege source.
-     * Priority: root → wireless ADB → plain shell
+     * Priority: root → wireless ADB (`adb -s ip:port shell`) → OTG ADB (`adb shell`) → plain shell
      */
     suspend fun exec(command: String): ShellResult = withContext(Dispatchers.IO) {
         try {
             when {
                 Shell.getShell().isRoot -> execRoot(command)
-                _state.value == ConnectionState.CONNECTED_WIRELESS -> execPlainShell(command)
+                _state.value == ConnectionState.CONNECTED_WIRELESS -> execWirelessAdb(command)
+                _state.value == ConnectionState.CONNECTED_OTG      -> execOtgAdb(command)
                 else -> execPlainShell(command)
             }
         } catch (e: Exception) {
-            Timber.e(e, "AccuConnection exec failed: $command")
+            Timber.e(e, "$TAG exec failed: $command")
             ShellResult("", e.message ?: "error", -1)
         }
     }
@@ -128,19 +136,44 @@ class AccuConnectionManager @Inject constructor(
     fun execRoot(command: String): ShellResult = try {
         val result = Shell.cmd(command).exec()
         ShellResult(
-            output = result.out.joinToString("\n"),
-            error = result.err.joinToString("\n"),
+            output   = result.out.joinToString("\n"),
+            error    = result.err.joinToString("\n"),
             exitCode = if (result.isSuccess) 0 else 1,
         )
     } catch (e: Exception) {
         ShellResult("", e.message ?: "error", -1)
     }
 
+    /**
+     * Execute via the active wireless ADB session.
+     * Routes through `adb -s <ip>:<port> shell <command>` so commands run with
+     * ADB shell uid=2000 privileges — equivalent to what Shizuku provided.
+     */
+    private fun execWirelessAdb(command: String): ShellResult {
+        val ip   = getLastConnectedIp()
+        val port = getLastConnectedPort()
+        if (ip.isBlank()) {
+            Timber.w("$TAG execWirelessAdb: no IP saved, falling back to plain shell")
+            return execPlainShell(command)
+        }
+        Timber.d("$TAG execWirelessAdb: adb -s $ip:$port shell $command")
+        return execPlainShell("adb -s $ip:$port shell $command")
+    }
+
+    /**
+     * Execute via OTG / USB ADB.
+     * Routes through `adb shell <command>` — adb picks up the USB-connected device automatically.
+     */
+    private fun execOtgAdb(command: String): ShellResult {
+        Timber.d("$TAG execOtgAdb: adb shell $command")
+        return execPlainShell("adb shell $command")
+    }
+
     fun execPlainShell(command: String): ShellResult = try {
         val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
-        val stdout = process.inputStream.bufferedReader().readText()
-        val stderr = process.errorStream.bufferedReader().readText()
-        val exit = process.waitFor()
+        val stdout  = process.inputStream.bufferedReader().readText()
+        val stderr  = process.errorStream.bufferedReader().readText()
+        val exit    = process.waitFor()
         ShellResult(stdout, stderr, exit)
     } catch (e: Exception) {
         ShellResult("", e.message ?: "error", -1)
@@ -149,37 +182,35 @@ class AccuConnectionManager @Inject constructor(
     // ─── Pairing flow (wireless ADB setup) ────────────────────────────────────
 
     /**
-     * Step 1 — Start auto-discovery of Android Wireless Debugging pairing service.
+     * Step 1a — Start auto-discovery of the Android Wireless Debugging *pairing* service.
      * Shows a notification once the device broadcasts its pairing port via mDNS.
-     * User only needs to enter the 6-digit code shown on their Developer Settings screen.
+     * The user only needs to enter the 6-digit code shown in Developer Settings.
      */
     fun startPairingDiscovery() {
-        if (_state.value == ConnectionState.DISCOVERING || _state.value == ConnectionState.AWAITING_CODE) return
-        Timber.i("AccuConnection: starting mDNS discovery for $MDNS_PAIRING")
+        if (_state.value == ConnectionState.DISCOVERING ||
+            _state.value == ConnectionState.AWAITING_CODE) return
+        Timber.i("$TAG: starting mDNS pairing discovery ($MDNS_PAIRING)")
         _state.value = ConnectionState.DISCOVERING
-
         ensureNotificationChannel()
 
         pairingListener = object : NsdManager.DiscoveryListener {
             override fun onStartDiscoveryFailed(type: String, code: Int) {
-                Timber.w("mDNS discovery start failed: $code")
+                Timber.w("$TAG mDNS pairing discovery start failed: $code")
                 _state.value = ConnectionState.DISCONNECTED
             }
             override fun onStopDiscoveryFailed(type: String, code: Int) {}
-            override fun onDiscoveryStarted(type: String) {
-                Timber.d("mDNS discovery started for $type")
-            }
-            override fun onDiscoveryStopped(type: String) {}
+            override fun onDiscoveryStarted(type: String)  { Timber.d("$TAG mDNS pairing discovery started") }
+            override fun onDiscoveryStopped(type: String)  {}
             override fun onServiceFound(info: NsdServiceInfo) {
-                Timber.i("mDNS pairing service found: ${info.serviceName}")
+                Timber.i("$TAG mDNS pairing service found: ${info.serviceName}")
                 nm.resolveService(info, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(s: NsdServiceInfo, code: Int) {
-                        Timber.w("mDNS resolve failed: $code")
+                        Timber.w("$TAG mDNS pairing resolve failed: $code")
                     }
                     override fun onServiceResolved(resolved: NsdServiceInfo) {
                         val host = resolved.host?.hostAddress ?: getDeviceIp()
                         val port = resolved.port
-                        Timber.i("Pairing service resolved: $host:$port")
+                        Timber.i("$TAG pairing service resolved: $host:$port")
                         pairingHost = host
                         pairingPort = port
                         _state.value = ConnectionState.AWAITING_CODE
@@ -188,18 +219,54 @@ class AccuConnectionManager @Inject constructor(
                 })
             }
             override fun onServiceLost(info: NsdServiceInfo) {
-                Timber.d("mDNS pairing service lost")
+                Timber.d("$TAG mDNS pairing service lost")
                 if (_state.value == ConnectionState.AWAITING_CODE) {
                     _state.value = ConnectionState.DISCOVERING
                 }
             }
         }
-
         try {
             nm.discoverServices(MDNS_PAIRING, NsdManager.PROTOCOL_DNS_SD, pairingListener)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to start mDNS discovery")
+            Timber.e(e, "$TAG failed to start mDNS pairing discovery")
             _state.value = ConnectionState.DISCONNECTED
+        }
+
+        // Also start discovering the ADB session service so we get the real connection port
+        startSessionDiscovery()
+    }
+
+    /**
+     * Step 1b — Discovers the `_adb-tls-connect._tcp` mDNS service to learn the
+     * active ADB session port. This is the port used for `adb -s ip:port shell`.
+     */
+    private fun startSessionDiscovery() {
+        connectListener = object : NsdManager.DiscoveryListener {
+            override fun onStartDiscoveryFailed(type: String, code: Int) {}
+            override fun onStopDiscoveryFailed(type: String, code: Int) {}
+            override fun onDiscoveryStarted(type: String) { Timber.d("$TAG ADB session discovery started") }
+            override fun onDiscoveryStopped(type: String) {}
+            override fun onServiceFound(info: NsdServiceInfo) {
+                nm.resolveService(info, object : NsdManager.ResolveListener {
+                    override fun onResolveFailed(s: NsdServiceInfo, code: Int) {}
+                    override fun onServiceResolved(resolved: NsdServiceInfo) {
+                        val port = resolved.port
+                        Timber.i("$TAG ADB session service resolved on port $port")
+                        sessionPort = port
+                        // Update saved port so exec() uses the correct one
+                        val ip = pairingHost.ifBlank { getDeviceIp() }
+                        if (ip.isNotBlank()) {
+                            prefs.edit().putString(KEY_LAST_IP, ip).putInt(KEY_LAST_PORT, port).apply()
+                        }
+                    }
+                })
+            }
+            override fun onServiceLost(info: NsdServiceInfo) {}
+        }
+        try {
+            nm.discoverServices(MDNS_CONNECT, NsdManager.PROTOCOL_DNS_SD, connectListener)
+        } catch (e: Exception) {
+            Timber.w(e, "$TAG session discovery failed (non-fatal, will use port 5555)")
         }
     }
 
@@ -207,8 +274,13 @@ class AccuConnectionManager @Inject constructor(
         pairingListener?.let {
             try { nm.stopServiceDiscovery(it) } catch (_: Exception) {}
         }
+        connectListener?.let {
+            try { nm.stopServiceDiscovery(it) } catch (_: Exception) {}
+        }
         pairingListener = null
-        if (_state.value == ConnectionState.DISCOVERING || _state.value == ConnectionState.AWAITING_CODE) {
+        connectListener = null
+        if (_state.value == ConnectionState.DISCOVERING ||
+            _state.value == ConnectionState.AWAITING_CODE) {
             _state.value = ConnectionState.DISCONNECTED
         }
     }
@@ -220,38 +292,66 @@ class AccuConnectionManager @Inject constructor(
     suspend fun completePairing(code: String): Boolean = withContext(Dispatchers.IO) {
         val host = pairingHost.ifBlank { getDeviceIp() }
         val port = if (pairingPort > 0) pairingPort else return@withContext false
-        Timber.i("AccuConnection: pairing with $host:$port using code $code")
+        Timber.i("$TAG: pairing with $host:$port using code $code")
         _state.value = ConnectionState.CONNECTING
 
         val pairResult = execPlainShell("adb pair $host:$port $code")
-        val pairOk = pairResult.output.contains("Successfully", ignoreCase = true) || pairResult.exitCode == 0
+        val pairOk = pairResult.output.contains("Successfully", ignoreCase = true) ||
+                     pairResult.exitCode == 0
 
         if (pairOk) {
-            // Now discover and connect to the ongoing ADB service
-            val connectOk = connectToWirelessAdb(host)
+            // Use session port discovered from _adb-tls-connect._tcp if available, else 5555
+            val connectPort = if (sessionPort > 0) sessionPort else 5555
+            val connectOk   = connectToWirelessAdb(host, connectPort)
             if (connectOk) {
                 _state.value = ConnectionState.CONNECTED_WIRELESS
-                prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, 5555).apply()
-                showConnectedNotification(host)
+                prefs.edit()
+                    .putString(KEY_LAST_IP, host)
+                    .putInt(KEY_LAST_PORT, connectPort)
+                    .apply()
+                showConnectedNotification(host, connectPort)
                 stopPairingDiscovery()
                 return@withContext true
             }
         }
 
-        Timber.w("AccuConnection: pairing failed — ${pairResult.combinedOutput}")
+        Timber.w("$TAG pairing failed — ${pairResult.combinedOutput}")
         _state.value = ConnectionState.AWAITING_CODE
         false
     }
 
     /** Reconnect to the last known wireless ADB session (e.g. after app restart) */
     suspend fun reconnect(): Boolean = withContext(Dispatchers.IO) {
-        val ip = getLastConnectedIp()
+        val ip   = getLastConnectedIp()
         if (ip.isBlank()) return@withContext false
         val port = getLastConnectedPort()
         val result = execPlainShell("adb connect $ip:$port")
         val ok = result.combinedOutput.contains("connected", ignoreCase = true)
-        if (ok) _state.value = ConnectionState.CONNECTED_WIRELESS
+        if (ok) {
+            _state.value = ConnectionState.CONNECTED_WIRELESS
+            Timber.i("$TAG reconnected to $ip:$port")
+        }
         ok
+    }
+
+    /**
+     * Connect via OTG (USB ADB).
+     * Checks whether `adb devices` sees a USB-connected device and marks state accordingly.
+     */
+    suspend fun connectOtg(): Boolean = withContext(Dispatchers.IO) {
+        val result  = execPlainShell("adb devices")
+        val devices = result.output.lines()
+            .drop(1)                                        // skip "List of devices attached"
+            .filter { it.isNotBlank() && !it.startsWith("*") }
+            .filter { it.contains("device") && !it.contains("offline") }
+        val hasUsb = devices.any { it.contains("\t") && !it.startsWith("localhost") && !it.contains(":") }
+        if (hasUsb) {
+            _state.value = ConnectionState.CONNECTED_OTG
+            Timber.i("$TAG OTG/USB ADB device detected")
+        } else {
+            Timber.w("$TAG no USB ADB device found: ${result.output.trim()}")
+        }
+        hasUsb
     }
 
     fun disconnect() {
@@ -266,25 +366,29 @@ class AccuConnectionManager @Inject constructor(
 
     fun checkAndUpdateState() {
         _state.value = when {
-            Shell.getShell().isRoot -> ConnectionState.CONNECTED_ROOT
+            Shell.getShell().isRoot          -> ConnectionState.CONNECTED_ROOT
             getLastConnectedIp().isNotBlank() -> ConnectionState.CONNECTED_WIRELESS
-            else -> ConnectionState.DISCONNECTED
+            else                             -> ConnectionState.DISCONNECTED
         }
     }
 
     // ─── Private helpers ───────────────────────────────────────────────────────
 
-    private fun connectToWirelessAdb(host: String): Boolean {
-        val result = execPlainShell("adb connect $host:5555")
-        return result.combinedOutput.contains("connected", ignoreCase = true)
+    private fun connectToWirelessAdb(host: String, port: Int): Boolean {
+        val result = execPlainShell("adb connect $host:$port")
+        val ok = result.combinedOutput.contains("connected", ignoreCase = true)
+        if (!ok) {
+            // Fallback: try default port 5555
+            val fallback = execPlainShell("adb connect $host:5555")
+            return fallback.combinedOutput.contains("connected", ignoreCase = true)
+        }
+        return true
     }
 
     private fun ensureNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "ACCU wireless ADB connection status and pairing codes"
-        }
+        ).apply { description = "ACCU wireless ADB connection status and pairing codes" }
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
             .createNotificationChannel(channel)
     }
@@ -294,7 +398,7 @@ class AccuConnectionManager @Inject constructor(
             context, 0,
             Intent(context, MainActivity::class.java).apply {
                 action = "com.accu.OPEN_CONNECTION"
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags  = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
@@ -313,13 +417,13 @@ class AccuConnectionManager @Inject constructor(
             .notify(NOTIF_ID_PAIRING, notif)
     }
 
-    private fun showConnectedNotification(ip: String) {
+    private fun showConnectedNotification(ip: String, port: Int) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(NOTIF_ID_PAIRING)
         val notif = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_lock_lock)
             .setContentTitle("ACCU Connected")
-            .setContentText("Wireless ADB active — all privileged features enabled ($ip)")
+            .setContentText("Wireless ADB active on $ip:$port — all privileged features enabled")
             .setAutoCancel(true)
             .build()
         nm.notify(NOTIF_ID_CONNECTED, notif)
@@ -338,8 +442,8 @@ class AccuConnectionManager @Inject constructor(
 }
 
 data class ShellResult(
-    val output: String,
-    val error: String,
+    val output:   String,
+    val error:    String,
     val exitCode: Int,
 ) {
     val isSuccess get() = exitCode == 0

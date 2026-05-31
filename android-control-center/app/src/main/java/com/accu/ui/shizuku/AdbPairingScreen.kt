@@ -45,7 +45,8 @@ fun AdbPairingScreen(
             step = 3
         }
         if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
-            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT) {
+            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
+            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG) {
             step = 4
         }
     }
@@ -212,7 +213,8 @@ fun AdbPairingScreen(
             item {
                 AnimatedVisibility(
                     visible = state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
-                            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT,
+                            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
+                            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG,
                 ) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),

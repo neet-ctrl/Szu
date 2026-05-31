@@ -183,7 +183,12 @@ private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel) {
                     OutlinedButton(onClick = vm::startWithAdb, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Outlined.Wifi, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Setup Wireless")
+                        Text("Wireless ADB")
+                    }
+                    OutlinedButton(onClick = vm::connectOtg, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Outlined.Usb, null, Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("OTG / USB")
                     }
                     if (state.isRootAvailable) {
                         OutlinedButton(onClick = vm::startWithRoot, modifier = Modifier.weight(1f)) {

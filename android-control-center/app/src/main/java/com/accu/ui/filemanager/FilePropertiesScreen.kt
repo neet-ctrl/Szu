@@ -7,12 +7,33 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.ui.components.ACCTopBar
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class FilePropertiesViewModel @Inject constructor(
+    private val connectionManager: AccuConnectionManager,
+) : ViewModel() {
+    fun chmod(path: String, modeStr: String, onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            val result = connectionManager.exec("chmod $modeStr \"$path\"")
+            onResult(
+                if (result.isSuccess) "Permissions applied: $modeStr"
+                else "Failed — ACCU connection required: ${result.error.take(80)}"
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,7 +106,7 @@ private fun BasicTab(name: String, path: String, ext: String) {
 }
 
 @Composable
-private fun PermissionsTab(path: String) {
+private fun PermissionsTab(path: String, vm: FilePropertiesViewModel = hiltViewModel()) {
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item { PropRow("Owner", "media_rw (1023)") }
         item { PropRow("Group", "sdcard_rw (1015)") }
@@ -100,13 +121,14 @@ private fun PermissionsTab(path: String) {
         item { PropRow("Others write", "No") }
         item { PropRow("Others exec", "No") }
         item {
-            val context = LocalContext.current
             var snackMsg by remember { mutableStateOf<String?>(null) }
             Spacer(Modifier.height(12.dp))
             Text("Change Permissions", fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Text("Owner", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-            var oR by remember { mutableStateOf(true) }; var oW by remember { mutableStateOf(true) }; var oX by remember { mutableStateOf(false) }
+            var oR by remember { mutableStateOf(true) }
+            var oW by remember { mutableStateOf(true) }
+            var oX by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(selected = oR, onClick = { oR = !oR }, label = { Text("Read") })
                 FilterChip(selected = oW, onClick = { oW = !oW }, label = { Text("Write") })
@@ -116,18 +138,12 @@ private fun PermissionsTab(path: String) {
             snackMsg?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp) }
             Button(
                 onClick = {
-                    val mode = (if (oR) 4 else 0) + (if (oW) 2 else 0) + (if (oX) 1 else 0)
+                    val mode    = (if (oR) 4 else 0) + (if (oW) 2 else 0) + (if (oX) 1 else 0)
                     val modeStr = "$mode${mode}${mode}"
-                    try {
-                        val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", "chmod $modeStr \"$path\""))
-                        val exitCode = proc.waitFor()
-                        snackMsg = if (exitCode == 0) "Permissions applied: $modeStr" else "Root required to change permissions"
-                    } catch (e: Exception) {
-                        snackMsg = "Error: ${e.message}"
-                    }
+                    vm.chmod(path, modeStr) { msg -> snackMsg = msg }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Apply (requires root)") }
+            ) { Text("Apply via ACCU") }
         }
     }
 }
