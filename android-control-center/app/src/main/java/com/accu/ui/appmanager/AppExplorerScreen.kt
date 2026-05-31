@@ -139,7 +139,7 @@ fun buildAppCommands(pkg: String): List<AppCommand> = listOf(
     AppCommand("Unhide App",          "pm unhide --user 0 $pkg",                             "Restore hidden app to launcher",               Icons.Default.Visibility),
     AppCommand("Grant All Perms",     "pm list permissions -d -g | grep permission | sed 's/.*permission://' | while read p; do pm grant $pkg \$p 2>/dev/null; done; echo Done", "Grant all dangerous permissions declared", Icons.Default.LockOpen),
     AppCommand("Revoke All Perms",    "pm reset-permissions $pkg",                           "Reset all permissions to install defaults",    Icons.Default.Lock, isDangerous = true),
-    AppCommand("Backup Data",         "adb backup -noapk $pkg",                              "Backup app data (requires ADB backup enabled)","Backup Data".let { Icons.Default.Backup }),
+    AppCommand("Backup Data",         "mkdir -p /sdcard/ACCUBackup && tar -czf /sdcard/ACCUBackup/${pkg}_\$(date +%Y%m%d_%H%M%S).tar.gz /data/data/$pkg 2>&1 && echo 'Saved to /sdcard/ACCUBackup/' || echo 'Failed — root required'", "Backup app data dir to /sdcard/ACCUBackup/ (root required)", Icons.Default.Backup),
     AppCommand("Storage Stats",       "stat /data/data/$pkg/ 2>/dev/null || echo 'Root required'", "Data directory stats",                  Icons.Default.Storage),
     AppCommand("Startup Time",        "am start-activity -W -n $(pm dump $pkg | grep 'android.intent.action.MAIN' | head -1 | awk '{print \$2}')", "Measure cold startup time", Icons.Default.Timer),
 )

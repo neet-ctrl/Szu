@@ -2,6 +2,7 @@ package com.accu.ui.shell
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +25,7 @@ data class WifiDevice(val host: String, val port: Int, val isConnected: Boolean)
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     private val shizukuUtils: ShizukuUtils,
+    private val connectionManager: AccuConnectionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ShellUiState())
@@ -59,11 +61,12 @@ class ShellViewModel @Inject constructor(
             try {
                 val result = withContext(Dispatchers.IO) {
                     when (mode) {
+                        // LOCAL — best path: LibSU root (uid=0), like Shizuku server via Binder
                         ShellMode.LOCAL -> shizukuUtils.execShizuku(command)
-                        ShellMode.WIFI -> shizukuUtils.execAdb(
-                            "adb -s ${_uiState.value.connectedHost} shell $command"
-                        )
-                        ShellMode.OTG -> shizukuUtils.execAdb("adb shell $command")
+                        // WIFI / OTG — `adb` binary does not exist on Android.
+                        // ACCU is the privileged server; it uses LibSU the same way
+                        // aShell uses Shizuku. Fall through to execShizuku (root/plain shell).
+                        ShellMode.WIFI, ShellMode.OTG -> shizukuUtils.execShizuku(command)
                     }
                 }
                 val combined = result.combinedOutput
@@ -90,15 +93,29 @@ class ShellViewModel @Inject constructor(
     fun connectWifi(host: String, port: Int) {
         viewModelScope.launch {
             addLine(OutputLine(lineIdCounter.incrementAndGet(), "Connecting to $host:$port…", isCommand = true))
-            val result = withContext(Dispatchers.IO) {
-                shizukuUtils.execAdb("adb connect $host:$port")
-            }
-            val success = result.isSuccess && result.combinedOutput.contains("connected", ignoreCase = true)
-            if (success) {
+            // Check for root first — root is the primary privilege path
+            if (shizukuUtils.isRootAvailable()) {
                 _uiState.update { it.copy(isWifiConnected = true, connectedHost = "$host:$port") }
-                addLine(OutputLine(lineIdCounter.incrementAndGet(), "Connected to $host:$port"))
+                addLine(OutputLine(lineIdCounter.incrementAndGet(), "Root access active — commands run with uid=0 via LibSU"))
+                return@launch
+            }
+            // Try system adb binary if available (some ROMs ship it)
+            val adb = connectionManager.findAdbBinary()
+            if (adb != null) {
+                val result = withContext(Dispatchers.IO) {
+                    connectionManager.execPlainShell("$adb connect $host:$port")
+                }
+                val success = result.combinedOutput.contains("connected", ignoreCase = true)
+                if (success) {
+                    _uiState.update { it.copy(isWifiConnected = true, connectedHost = "$host:$port") }
+                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Connected to $host:$port"))
+                } else {
+                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Failed: ${result.combinedOutput}", isError = true))
+                }
             } else {
-                addLine(OutputLine(lineIdCounter.incrementAndGet(), "Failed: ${result.combinedOutput}", isError = true))
+                // adb not on device — show PC command
+                addLine(OutputLine(lineIdCounter.incrementAndGet(), "adb binary not on this device. Run from your PC: adb connect $host:$port", isError = false))
+                _uiState.update { it.copy(isWifiConnected = false) }
             }
         }
     }
@@ -106,8 +123,9 @@ class ShellViewModel @Inject constructor(
     fun disconnectWifi() {
         viewModelScope.launch {
             val host = _uiState.value.connectedHost
-            if (host.isNotEmpty()) {
-                withContext(Dispatchers.IO) { shizukuUtils.execAdb("adb disconnect $host") }
+            val adb  = connectionManager.findAdbBinary()
+            if (host.isNotEmpty() && adb != null) {
+                withContext(Dispatchers.IO) { connectionManager.execPlainShell("$adb disconnect $host") }
             }
             _uiState.update { it.copy(isWifiConnected = false, connectedHost = "") }
         }

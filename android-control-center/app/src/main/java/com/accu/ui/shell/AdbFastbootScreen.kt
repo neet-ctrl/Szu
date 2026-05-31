@@ -20,12 +20,92 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentRed
-import kotlinx.coroutines.delay
+import com.accu.utils.ShizukuUtils
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ViewModel — real execution via LibSU / execShizuku
+// ─────────────────────────────────────────────────────────────────────────────
+
+data class FastbootUiState(
+    val outputLines: List<String> = emptyList(),
+    val isRunning: Boolean = false,
+)
+
+@HiltViewModel
+class AdbFastbootViewModel @Inject constructor(
+    private val shizukuUtils: ShizukuUtils,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(FastbootUiState())
+    val state: StateFlow<FastbootUiState> = _state.asStateFlow()
+
+    /**
+     * Translate an `adb` command into the equivalent device-side shell command.
+     *
+     * On Android (the target device) there is no `adb` binary.
+     * - `adb shell <cmd>` → `<cmd>` (strip the prefix; run via LibSU root)
+     * - `adb reboot <mode>` → `reboot <mode>`
+     * - `fastboot *`, `adb install *`, `adb pull *`, `adb push *`,
+     *   `adb sideload *` → null (PC-only; can't run on device)
+     */
+    private fun toDeviceCmd(adbCmd: String): String? = when {
+        adbCmd.startsWith("adb shell ") -> adbCmd.removePrefix("adb shell ")
+        adbCmd == "adb reboot"           -> "reboot"
+        adbCmd.startsWith("adb reboot ") -> "reboot ${adbCmd.removePrefix("adb reboot ")}"
+        adbCmd.startsWith("fastboot ")   -> null
+        adbCmd.startsWith("adb sideload")-> null
+        adbCmd.startsWith("adb install") -> null
+        adbCmd.startsWith("adb pull")    -> null
+        adbCmd.startsWith("adb push")    -> null
+        else -> adbCmd
+    }
+
+    fun runCmd(adbCommand: String) = viewModelScope.launch(Dispatchers.IO) {
+        _state.update { it.copy(isRunning = true, outputLines = it.outputLines + "> $adbCommand") }
+        val deviceCmd = toDeviceCmd(adbCommand)
+        if (deviceCmd == null) {
+            _state.update { it.copy(
+                isRunning = false,
+                outputLines = it.outputLines + "[ PC ] This command runs on your PC, not on the device.\nCopy it and run from a terminal connected to this phone.",
+            )}
+            return@launch
+        }
+        val result = shizukuUtils.execShizuku(deviceCmd)
+        val output = when {
+            result.output.isNotBlank() && result.error.isNotBlank() ->
+                result.output.trimEnd() + "\n[stderr] " + result.error.trimEnd()
+            result.output.isNotBlank() -> result.output.trimEnd()
+            result.error.isNotBlank()  -> "[stderr] " + result.error.trimEnd()
+            result.exitCode == 0       -> "[ OK ] Done (no output)"
+            else                       -> "[ FAIL ] Exit code ${result.exitCode}"
+        }
+        _state.update { it.copy(
+            isRunning = false,
+            outputLines = it.outputLines + output,
+        )}
+    }
+
+    fun clearOutput() = _state.update { it.copy(outputLines = emptyList()) }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Command definitions
+// ─────────────────────────────────────────────────────────────────────────────
 
 private data class FastbootCommand(
     val title: String,
@@ -82,36 +162,19 @@ private val CATEGORIES = FASTBOOT_COMMANDS.map { it.category }.distinct()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdbFastbootScreen(onBack: () -> Unit = {}) {
+fun AdbFastbootScreen(
+    onBack: () -> Unit = {},
+    vm: AdbFastbootViewModel = hiltViewModel(),
+) {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val uiState by vm.state.collectAsState()
     var selectedCategory by remember { mutableStateOf("Reboot") }
-    var outputLines by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isRunning by remember { mutableStateOf(false) }
     var confirmCmd by remember { mutableStateOf<FastbootCommand?>(null) }
     var customCmd by remember { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
 
     val visibleCommands = FASTBOOT_COMMANDS.filter { it.category == selectedCategory }
-
-    suspend fun runCmd(cmd: FastbootCommand) {
-        isRunning = true
-        outputLines = outputLines + "> ${cmd.command}"
-        delay(800)
-        outputLines = outputLines + when {
-            cmd.command.contains("reboot bootloader") -> "[ OK ] Entering fastboot mode…\nTo exit: fastboot reboot"
-            cmd.command.contains("reboot recovery")   -> "[ OK ] Entering recovery mode…"
-            cmd.command.contains("reboot")            -> "[ OK ] Device is rebooting…"
-            cmd.command.contains("wake up")           -> "[ OK ] Screen woken"
-            cmd.command.contains("fastboot devices")  -> "1234567890ABCDEF\tfastboot"
-            cmd.command.contains("getvar all")        -> "version: 0.5\nproduct: generic\nkernel: Samsung kernel 5.10\nsecure: no\nunlocked: yes"
-            cmd.command.contains("install")           -> "Performing Streamed Install\nSuccess"
-            cmd.command.contains("pull")              -> "[100%] /sdcard/file.txt  →  file.txt\n1 file pulled, 0 skipped."
-            cmd.command.contains("push")              -> "[100%] local.txt  →  /sdcard/local.txt\n1 file pushed, 0 skipped."
-            else -> "[ OK ] Command executed"
-        }
-        isRunning = false
-    }
 
     // Dangerous command confirmation
     confirmCmd?.let { cmd ->
@@ -129,7 +192,7 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
                 }
             },
             confirmButton = {
-                Button(onClick = { val c = cmd; confirmCmd = null; scope.launch { runCmd(c) } }, colors = ButtonDefaults.buttonColors(containerColor = AccentRed)) { Text("Run Anyway", color = Color.White) }
+                Button(onClick = { val c = cmd; confirmCmd = null; vm.runCmd(c.command) }, colors = ButtonDefaults.buttonColors(containerColor = AccentRed)) { Text("Run Anyway", color = Color.White) }
             },
             dismissButton = { TextButton(onClick = { confirmCmd = null }) { Text("Cancel") } }
         )
@@ -143,7 +206,7 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
                     title = "Fastboot & Device Control",
                     onBack = onBack,
                     actions = {
-                        IconButton(onClick = { outputLines = emptyList() }) { Icon(Icons.Outlined.DeleteSweep, "Clear output") }
+                        IconButton(onClick = { vm.clearOutput() }) { Icon(Icons.Outlined.DeleteSweep, "Clear output") }
                     },
                 )
                 // Warning banner
@@ -172,7 +235,7 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
             items(visibleCommands) { cmd ->
                 FastbootCommandCard(cmd, clipboard, onRun = {
                     if (cmd.danger) confirmCmd = cmd
-                    else scope.launch { runCmd(cmd) }
+                    else vm.runCmd(cmd.command)
                 })
             }
 
@@ -186,7 +249,7 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
                         }
                         OutlinedTextField(
                             value = customCmd, onValueChange = { customCmd = it },
-                            placeholder = { Text("adb shell …") },
+                            placeholder = { Text("shell command or adb shell …") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -196,12 +259,9 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
                                 Icon(Icons.Outlined.ContentCopy, null, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("Copy")
                             }
                             Button(onClick = {
-                                if (customCmd.isNotBlank()) {
-                                    val fake = FastbootCommand(title = "Custom", command = customCmd, description = "", icon = Icons.Default.Terminal, false, "Custom")
-                                    scope.launch { runCmd(fake) }
-                                }
-                            }, modifier = Modifier.weight(1f), enabled = customCmd.isNotBlank() && !isRunning) {
-                                if (isRunning) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                                if (customCmd.isNotBlank()) vm.runCmd(customCmd)
+                            }, modifier = Modifier.weight(1f), enabled = customCmd.isNotBlank() && !uiState.isRunning) {
+                                if (uiState.isRunning) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                 else { Icon(Icons.Default.PlayArrow, null, Modifier.size(14.dp)); Spacer(Modifier.width(4.dp)); Text("Run") }
                             }
                         }
@@ -210,26 +270,26 @@ fun AdbFastbootScreen(onBack: () -> Unit = {}) {
             }
 
             // Output terminal
-            if (outputLines.isNotEmpty()) {
+            if (uiState.outputLines.isNotEmpty()) {
                 item {
                     Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text("Output", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                IconButton(onClick = { clipboard.setText(AnnotatedString(outputLines.joinToString("\n"))) }, modifier = Modifier.size(28.dp)) {
+                                IconButton(onClick = { clipboard.setText(AnnotatedString(uiState.outputLines.joinToString("\n"))) }, modifier = Modifier.size(28.dp)) {
                                     Icon(Icons.Outlined.ContentCopy, null, Modifier.size(14.dp))
                                 }
                             }
                             HorizontalDivider()
-                            outputLines.forEach { line ->
+                            uiState.outputLines.forEach { line ->
                                 Text(
                                     line,
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 11.sp,
                                     color = when {
-                                        line.startsWith(">") -> MaterialTheme.colorScheme.primary
+                                        line.startsWith(">")   -> MaterialTheme.colorScheme.primary
                                         line.startsWith("[ OK ]") || line.contains("Success") -> AccentGreen
-                                        line.startsWith("[ FAIL ]") || line.contains("error", true) -> AccentRed
+                                        line.startsWith("[ FAIL ]") || line.startsWith("[ PC ]") || line.contains("error", true) -> AccentRed
                                         else -> MaterialTheme.colorScheme.onSurface
                                     },
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.accu.connection.AccuConnectionManager
 import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentRed
@@ -416,50 +417,92 @@ private fun AuthorizedAppCard(app: AuthorizedApp, onGrant: () -> Unit, onRevoke:
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WirelessAdbTab(state: ShizukuUiState, vm: ShizukuViewModel) {
+    // Dialog for manually entering pairing details (IP+port+code)
+    // These map to `adb pair <ip>:<port> <code>` — must be run from PC if no root/adb on device
     var showPairDialog by remember { mutableStateOf(false) }
-    var showConnectDialog by remember { mutableStateOf(false) }
     var pairHost by remember { mutableStateOf("") }
     var pairPort by remember { mutableStateOf("") }
     var pairCode by remember { mutableStateOf("") }
-    var connectHost by remember { mutableStateOf(state.deviceIp) }
-    var connectPort by remember { mutableStateOf("5555") }
+
+    val isRoot = state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
+    val isConnected = isRoot || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
 
     if (showPairDialog) {
         Dialog(onDismissRequest = { showPairDialog = false }) {
             Card(shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Pair via Code", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Go to Settings → Developer Options → Wireless debugging → Pair device with pairing code", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(pairHost, { pairHost = it }, label = { Text("Pairing IP address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(pairPort, { pairPort = it }, label = { Text("Pairing port") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(pairCode, { pairCode = it }, label = { Text("6-digit pairing code") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { showPairDialog = false }, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                        Button(onClick = {
-                            if (pairHost.isNotBlank() && pairPort.isNotBlank() && pairCode.isNotBlank()) {
-                                vm.pairWithCode(pairHost, pairPort, pairCode)
-                                showPairDialog = false
-                            }
-                        }, modifier = Modifier.weight(1f)) { Text("Pair") }
-                    }
-                }
-            }
-        }
-    }
 
-    if (showConnectDialog) {
-        Dialog(onDismissRequest = { showConnectDialog = false }) {
-            Card(shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Connect to Device", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    OutlinedTextField(connectHost, { connectHost = it }, label = { Text("IP address") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(connectPort, { connectPort = it }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { showConnectDialog = false }, modifier = Modifier.weight(1f)) { Text("Cancel") }
-                        Button(onClick = {
-                            vm.connectWirelessAdb(connectHost, connectPort)
-                            showConnectDialog = false
-                        }, modifier = Modifier.weight(1f)) { Text("Connect") }
+                    if (isRoot) {
+                        // Root is already the privilege path — no ADB pairing needed
+                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(8.dp)) {
+                            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.CheckCircle, null, tint = AccentGreen, modifier = Modifier.size(18.dp))
+                                Text("Root access is already active — all features enabled. No ADB pairing required.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                        }
+                        OutlinedButton(onClick = { showPairDialog = false }, modifier = Modifier.fillMaxWidth()) { Text("Close") }
+                    } else {
+                        // Show what to fill in + the PC command to run
+                        Text(
+                            "If this device has no root, the `adb pair` command must be run from a PC/Mac terminal. " +
+                            "Fill in the details from Developer Options → Wireless debugging → Pair device with pairing code, " +
+                            "then tap 'Copy PC Command'.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            pairHost, { pairHost = it },
+                            label = { Text("Pairing IP address") },
+                            placeholder = { Text(state.deviceIp.ifBlank { "192.168.x.x" }) },
+                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        OutlinedTextField(
+                            pairPort, { pairPort = it },
+                            label = { Text("Pairing port (shown on device)") },
+                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+                        OutlinedTextField(
+                            pairCode, { pairCode = it },
+                            label = { Text("6-digit pairing code") },
+                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        )
+
+                        val clipboard = LocalClipboardManager.current
+                        val effectiveHost = pairHost.ifBlank { state.deviceIp }
+                        val pcCmd = "adb pair $effectiveHost:$pairPort $pairCode"
+
+                        if (effectiveHost.isNotBlank() && pairPort.isNotBlank() && pairCode.isNotBlank()) {
+                            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(8.dp)) {
+                                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Run on your PC:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(0.7f))
+                                    Text(pcCmd, fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                }
+                            }
+                        }
+
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showPairDialog = false }, modifier = Modifier.weight(1f)) { Text("Cancel") }
+                            Button(
+                                onClick = {
+                                    if (effectiveHost.isNotBlank() && pairPort.isNotBlank() && pairCode.isNotBlank()) {
+                                        clipboard.setText(AnnotatedString(pcCmd))
+                                        // Also try via ViewModel (succeeds with root or if adb binary found on device)
+                                        vm.pairWithCode(effectiveHost, pairPort, pairCode)
+                                        showPairDialog = false
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                enabled = pairPort.isNotBlank() && pairCode.isNotBlank(),
+                            ) {
+                                Icon(Icons.Outlined.ContentCopy, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Copy & Try")
+                            }
+                        }
                     }
                 }
             }
@@ -467,25 +510,152 @@ private fun WirelessAdbTab(state: ShizukuUiState, vm: ShizukuViewModel) {
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Wireless ADB status
+
+        // ── Privilege status banner ───────────────────────────────────────────
+        item {
+            Card(
+                Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isRoot) AccentGreen.copy(alpha = 0.12f)
+                    else if (isConnected) AccentCyan.copy(alpha = 0.10f)
+                    else MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                ),
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(
+                        if (isRoot) Icons.Filled.AdminPanelSettings
+                        else if (isConnected) Icons.Outlined.Wifi
+                        else Icons.Outlined.WifiOff,
+                        null,
+                        tint = if (isRoot) AccentGreen else if (isConnected) AccentCyan else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (isRoot) "Root Access Active" else if (isConnected) "Wireless ADB Active" else "No Privilege",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            if (isRoot) "All privileged features enabled via LibSU — no ADB pairing needed"
+                            else if (isConnected) "Connected via Wireless ADB session"
+                            else "Root not available. Enable root or use the ADB pairing guide below.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Wireless ADB daemon toggle (enable adbd on TCP) ───────────────────
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Icon(Icons.Outlined.Wifi, null, tint = if (state.isWirelessAdbEnabled) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Wireless ADB", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                        Switch(checked = state.isWirelessAdbEnabled, onCheckedChange = { if (it) vm.enableWirelessAdb() else vm.disableWirelessAdb() })
+                        Column(Modifier.weight(1f)) {
+                            Text("Wireless ADB Daemon", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text("Enables adbd on TCP so a PC can connect to this device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = state.isWirelessAdbEnabled,
+                            onCheckedChange = { if (it) vm.enableWirelessAdb() else vm.disableWirelessAdb() },
+                            enabled = isRoot,
+                        )
                     }
+                    // Copyable PC connect command — this is for the PC, not the device itself
                     if (state.isWirelessAdbEnabled && state.deviceIp.isNotEmpty()) {
+                        val clipboard = LocalClipboardManager.current
                         Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(8.dp)) {
-                            Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("Connect with:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.7f))
-                                    Text("adb connect ${state.deviceIp}:${state.wirelessAdbPort}", fontFamily = FontFamily.Monospace, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Column(Modifier.padding(12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Run on your PC to connect:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.7f))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        "adb connect ${state.deviceIp}:${state.wirelessAdbPort}",
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb connect ${state.deviceIp}:${state.wirelessAdbPort}")) }) {
+                                        Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(18.dp))
+                                    }
                                 }
-                                val clipboard = LocalClipboardManager.current
-                                IconButton(onClick = { clipboard.setText(AnnotatedString("adb connect ${state.deviceIp}:${state.wirelessAdbPort}")) }) {
-                                    Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(18.dp))
+                            }
+                        }
+                        if (!isRoot) {
+                            Text(
+                                "Requires root to toggle. Enable root access first.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Actions ────────────────────────────────────────────────────────────
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // "Pair with Pairing Code" — uses mDNS auto-detection
+                Button(onClick = { showPairDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.QrCodeScanner, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (isRoot) "Pair with Code (not needed — root active)" else "Pair with Pairing Code")
+                }
+            }
+        }
+
+        // ── Pairing result / status ────────────────────────────────────────────
+        if (state.isPairing || state.pairingStatus.isNotEmpty()) {
+            item {
+                val isOk = state.pairingStatus.contains("✓") || state.pairingStatus.contains("active") || state.pairingStatus.contains("Paired")
+                val isPcGuide = state.pairingStatus.startsWith("Run on your PC:")
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            isPcGuide -> MaterialTheme.colorScheme.secondaryContainer
+                            isOk      -> AccentGreen.copy(alpha = 0.10f)
+                            else      -> MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    )
+                ) {
+                    Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (state.isPairing) {
+                            CircularProgressIndicator(Modifier.size(18.dp).padding(top = 2.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(
+                                when {
+                                    isPcGuide -> Icons.Outlined.Computer
+                                    isOk      -> Icons.Filled.CheckCircle
+                                    else      -> Icons.Outlined.Info
+                                },
+                                null,
+                                tint = when { isPcGuide -> MaterialTheme.colorScheme.onSecondaryContainer; isOk -> AccentGreen; else -> MaterialTheme.colorScheme.onSurfaceVariant },
+                                modifier = Modifier.size(18.dp).padding(top = 2.dp),
+                            )
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isPcGuide) {
+                                Text("Run from PC / Mac / Linux terminal:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                            state.pairingStatus.split("\n").forEach { line ->
+                                val isCmd = line.startsWith("adb ")
+                                if (isCmd) {
+                                    val clipboard = LocalClipboardManager.current
+                                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(4.dp)) {
+                                        Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                                            IconButton(onClick = { clipboard.setText(AnnotatedString(line)) }, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text(line, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
@@ -494,38 +664,11 @@ private fun WirelessAdbTab(state: ShizukuUiState, vm: ShizukuViewModel) {
             }
         }
 
-        // Actions
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showPairDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.QrCodeScanner, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Pair with Pairing Code")
-                }
-                OutlinedButton(onClick = { showConnectDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Outlined.Link, null, Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Connect Manually")
-                }
-            }
-        }
-
-        // Pairing status
-        if (state.isPairing || state.pairingStatus.isNotEmpty()) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (state.isPairing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Icon(if (state.pairingStatus.contains("✓") || state.pairingStatus.contains("Paired")) Icons.Filled.CheckCircle else Icons.Outlined.ErrorOutline, null, tint = if (state.pairingStatus.contains("✓")) AccentGreen else AccentRed, modifier = Modifier.size(18.dp))
-                        Text(state.pairingStatus, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
-
-        // Connected devices
+        // ── Connected ADB devices (only shown when adb binary available on device) ─
         if (state.connectedAdbDevices.isNotEmpty()) {
-            item { Text("Connected Devices", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+                Text("Connected Devices", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             items(state.connectedAdbDevices) { device ->
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -542,20 +685,16 @@ private fun WirelessAdbTab(state: ShizukuUiState, vm: ShizukuViewModel) {
             }
         }
 
-        // Setup guide
+        // ── How privilege works — honest explanation ────────────────────────────
         item {
-            Text("Setup Guide", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("How ACCU Privilege Works", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(6.dp))
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    listOf(
-                        "Enable Developer Options" to "Settings → About Phone → tap Build Number 7 times",
-                        "Enable Wireless Debugging" to "Settings → Developer Options → Wireless debugging → ON",
-                        "Pair this device" to "Tap 'Pair device with pairing code' → enter the 6-digit code here",
-                        "Connect & use Shizuku" to "Tap 'Start via ADB' on the Status tab after pairing",
-                    ).forEachIndexed { i, (title, desc) ->
-                        HowToStep(i + 1, title, desc)
-                    }
+                    HowToStep(1, "Root (Primary Path)", "ACCU uses LibSU — the same privilege engine as Magisk. Commands run as uid=0. This is stronger than ADB shell.")
+                    HowToStep(2, "Like aShell / Shizuku", "aShell doesn't run the `adb` binary. It uses Shizuku's Binder IPC to run commands through a privileged server. ACCU IS that server via LibSU.")
+                    HowToStep(3, "Wireless ADB (Secondary)", "Without root, enable Developer Options → Wireless Debugging, then run `adb pair` from your PC once to set up the session.")
+                    HowToStep(4, "Enable adbd on TCP", "Toggle 'Wireless ADB Daemon' above (requires root). Copy the connect command and run it from your PC terminal.")
                 }
             }
         }

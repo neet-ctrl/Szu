@@ -267,15 +267,63 @@ class ShizukuViewModel @Inject constructor(
 
     // ── Legacy pair-with-code (keeps call site in AccuCenterScreen working) ─
 
+    /**
+     * Pair via code.
+     *
+     * ACCU is the Shizuku equivalent — it uses LibSU (root) as its privilege
+     * source, exactly like aShell uses Shizuku's Binder IPC.  The `adb`
+     * CLI tool does NOT exist on Android; it runs on the PC side.
+     *
+     * Priority:
+     *   1. Root available → already privileged, no pairing needed ✓
+     *   2. System adb binary found (/system/bin/adb etc.) → run adb pair
+     *   3. Otherwise → guide user to run command from their PC
+     */
     fun pairWithCode(host: String, port: String, code: String) {
-        viewModelScope.launch {
-            _state.update { it.copy(isPairing = true, pairingStatus = "Pairing with $host:$port…") }
-            addLog("Pairing with $host:$port using code $code", LogLevel.INFO)
-            val result = withContext(Dispatchers.IO) { shizukuUtils.execAdb("adb pair $host:$port $code") }
-            val success = result.combinedOutput.contains("Successfully", ignoreCase = true) || result.isSuccess
-            val status = if (success) "Paired ✓" else "Pairing failed: ${result.combinedOutput.take(100)}"
-            _state.update { it.copy(isPairing = false, pairingStatus = status) }
-            addLog(status, if (success) LogLevel.SUCCESS else LogLevel.ERROR)
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.update { it.copy(isPairing = true, pairingStatus = "Checking privilege…") }
+
+            // Path 1: root already available
+            if (shizukuUtils.isRootAvailable()) {
+                addLog("Root access confirmed — no ADB pairing required", LogLevel.SUCCESS)
+                _state.update { it.copy(isPairing = false, pairingStatus = "Root access active — all features enabled ✓") }
+                withContext(Dispatchers.Main) { refresh() }
+                return@launch
+            }
+
+            // Path 2: system adb binary (some ROMs / rooted devices)
+            val adb = connectionManager.findAdbBinary()
+            if (adb != null) {
+                addLog("System adb found at $adb — running pair…", LogLevel.INFO)
+                val result = shizukuUtils.execAdb("$adb pair $host:$port $code")
+                val success = result.output.contains("Successfully", ignoreCase = true) || result.isSuccess
+                if (success) {
+                    val connectResult = shizukuUtils.execAdb("$adb connect $host:5555")
+                    val connected = connectResult.combinedOutput.contains("connected", ignoreCase = true)
+                    val status = if (connected) "Paired and connected to $host ✓"
+                                 else "Paired — connect with: $adb connect $host:5555"
+                    addLog(status, if (connected) LogLevel.SUCCESS else LogLevel.INFO)
+                    _state.update { it.copy(isPairing = false, pairingStatus = status) }
+                    if (connected) withContext(Dispatchers.Main) { refresh() }
+                } else {
+                    val errMsg = "Pairing failed: ${result.combinedOutput.take(120)}"
+                    addLog(errMsg, LogLevel.ERROR)
+                    _state.update { it.copy(isPairing = false, pairingStatus = errMsg) }
+                }
+                return@launch
+            }
+
+            // Path 3: no adb on device — guide user to PC
+            val deviceIp = connectionManager.getDeviceIp()
+            val pcPairCmd    = "adb pair $host:$port $code"
+            val pcConnectCmd = "adb connect $deviceIp:5555"
+            addLog("adb binary not on device — run from PC: $pcPairCmd", LogLevel.WARNING)
+            _state.update {
+                it.copy(
+                    isPairing = false,
+                    pairingStatus = "Run on your PC:\n$pcPairCmd\nThen: $pcConnectCmd",
+                )
+            }
         }
     }
 
@@ -306,43 +354,66 @@ class ShizukuViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Connect via Wireless ADB.
+     * Since `adb` does not exist on Android, this tries:
+     *   1. Root → already privileged, nothing to do
+     *   2. System adb binary → run adb connect
+     *   3. Otherwise → show PC command for copy-paste
+     */
     fun connectWirelessAdb(host: String, port: String) {
-        viewModelScope.launch {
-            addLog("Connecting to $host:$port…", LogLevel.INFO)
-            val result = withContext(Dispatchers.IO) { shizukuUtils.execAdb("adb connect $host:$port") }
-            val success = result.combinedOutput.contains("connected", ignoreCase = true)
-            addLog(
-                if (success) "Connected ✓" else "Failed: ${result.combinedOutput.take(100)}",
-                if (success) LogLevel.SUCCESS else LogLevel.ERROR
-            )
-            if (success) { delay(500); withContext(Dispatchers.IO) { refresh() } }
+        viewModelScope.launch(Dispatchers.IO) {
+            if (shizukuUtils.isRootAvailable()) {
+                addLog("Root access already active — no external ADB connection needed", LogLevel.SUCCESS)
+                return@launch
+            }
+            val adb = connectionManager.findAdbBinary()
+            if (adb != null) {
+                addLog("System adb found — connecting to $host:$port…", LogLevel.INFO)
+                val result = shizukuUtils.execAdb("$adb connect $host:$port")
+                val success = result.combinedOutput.contains("connected", ignoreCase = true)
+                addLog(
+                    if (success) "Connected to $host:$port ✓" else "Connect failed: ${result.combinedOutput.take(100)}",
+                    if (success) LogLevel.SUCCESS else LogLevel.ERROR,
+                )
+                if (success) { delay(300); withContext(Dispatchers.Main) { refresh() } }
+            } else {
+                val pcCmd = "adb connect $host:$port"
+                addLog("adb binary not on this device — run from PC: $pcCmd", LogLevel.WARNING)
+                _state.update { it.copy(pairingStatus = "Run on your PC:\n$pcCmd") }
+            }
         }
     }
 
     fun disconnectAdbDevice(serial: String) {
         viewModelScope.launch(Dispatchers.IO) {
             addLog("Disconnecting $serial…", LogLevel.INFO)
-            val result = shizukuUtils.execAdb("adb disconnect $serial")
-            addLog(result.combinedOutput.take(100), if (result.isSuccess) LogLevel.INFO else LogLevel.ERROR)
+            val adb = connectionManager.findAdbBinary()
+            if (adb != null) {
+                val result = shizukuUtils.execAdb("$adb disconnect $serial")
+                addLog(result.combinedOutput.take(100), if (result.isSuccess) LogLevel.INFO else LogLevel.ERROR)
+            } else {
+                addLog("adb not on device — run from PC: adb disconnect $serial", LogLevel.WARNING)
+            }
             withContext(Dispatchers.Main) { refresh() }
         }
     }
 
     // ── mDNS ─────────────────────────────────────────────────────────────────
 
+    /**
+     * Start mDNS discovery via NsdManager — no `adb mdns services` call.
+     * ACCU's AccuConnectionManager uses Android's NsdManager API directly.
+     */
     fun startMdnsScan() {
         viewModelScope.launch {
             _state.update { it.copy(isScanning = true, mdnsServices = emptyList()) }
-            addLog("Scanning for Wireless Debugging services via mDNS…", LogLevel.INFO)
-            val result = withContext(Dispatchers.IO) { shizukuUtils.execAdb("adb mdns check") }
-            addLog(result.combinedOutput.ifBlank { "mDNS daemon running" }, LogLevel.DEBUG)
-            val servicesResult = withContext(Dispatchers.IO) {
-                delay(2000)
-                shizukuUtils.execAdb("adb mdns services")
-            }
-            val services = parseMdnsServices(servicesResult.output)
-            _state.update { it.copy(isScanning = false, mdnsServices = services) }
-            addLog("Scan complete — ${services.size} service(s) found", if (services.isNotEmpty()) LogLevel.SUCCESS else LogLevel.INFO)
+            addLog("Starting NsdManager mDNS discovery for Wireless Debugging services…", LogLevel.INFO)
+            // Delegate to AccuConnectionManager's real NsdManager-based discovery
+            withContext(Dispatchers.IO) { connectionManager.startPairingDiscovery() }
+            delay(3000)
+            _state.update { it.copy(isScanning = false) }
+            addLog("mDNS discovery running — will notify when pairing service is detected", LogLevel.INFO)
         }
     }
 
@@ -352,13 +423,27 @@ class ShizukuViewModel @Inject constructor(
     }
 
     fun connectMdnsService(service: MdnsService) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _state.update { st -> st.copy(mdnsServices = st.mdnsServices.map { if (it == service) it.copy(isConnecting = true) else it }) }
             addLog("Connecting to ${service.serviceName} (${service.host}:${service.port})…", LogLevel.INFO)
-            val result = withContext(Dispatchers.IO) { shizukuUtils.execAdb("adb connect ${service.host}:${service.port}") }
-            val ok = result.combinedOutput.contains("connected", ignoreCase = true)
+
+            if (shizukuUtils.isRootAvailable()) {
+                addLog("Root access active — no ADB connection needed ✓", LogLevel.SUCCESS)
+                _state.update { st -> st.copy(mdnsServices = st.mdnsServices.map { if (it == service) it.copy(isConnecting = false) else it }) }
+                return@launch
+            }
+
+            val adb = connectionManager.findAdbBinary()
+            if (adb != null) {
+                val result = connectionManager.execPlainShell("$adb connect ${service.host}:${service.port}")
+                val ok = result.combinedOutput.contains("connected", ignoreCase = true)
+                addLog(if (ok) "Connected ✓" else "Failed: ${result.combinedOutput.take(80)}", if (ok) LogLevel.SUCCESS else LogLevel.ERROR)
+            } else {
+                val pcCmd = "adb connect ${service.host}:${service.port}"
+                addLog("adb not on device — run from PC: $pcCmd", LogLevel.WARNING)
+                _state.update { it.copy(pairingStatus = "Run on your PC:\n$pcCmd") }
+            }
             _state.update { st -> st.copy(mdnsServices = st.mdnsServices.map { if (it == service) it.copy(isConnecting = false) else it }) }
-            addLog(if (ok) "Connected ✓" else "Failed: ${result.combinedOutput.take(80)}", if (ok) LogLevel.SUCCESS else LogLevel.ERROR)
         }
     }
 
@@ -494,8 +579,14 @@ class ShizukuViewModel @Inject constructor(
             } else null
         }
 
+    /**
+     * Get connected ADB devices.
+     * Uses system adb binary if present (some ROMs have it).
+     * Returns empty list silently if adb is not on device — no error toast.
+     */
     private suspend fun getConnectedAdbDevices(): List<AdbDevice> = try {
-        val result = shizukuUtils.execAdb("adb devices")
+        val adb = connectionManager.findAdbBinary() ?: return emptyList()
+        val result = withContext(Dispatchers.IO) { connectionManager.execPlainShell("$adb devices") }
         result.output.lines()
             .drop(1)
             .filter { it.isNotBlank() && it.contains("\t") }
