@@ -77,6 +77,10 @@ class AdbWifiConnectClient private constructor(
             .createSocket(raw, host, port, /*autoClose=*/ true) as SSLSocket
         ssl.soTimeout = SO_TIMEOUT_MS
         ssl.useClientMode = true
+        // adbd requires TLS 1.3 on the session port (Android 11+).
+        // Explicitly restrict to TLS 1.3 to prevent a downgrade negotiation that
+        // adbd would reject, which also causes "connection closed" / EOF.
+        ssl.enabledProtocols = arrayOf("TLSv1.3")
 
         try {
             ssl.startHandshake()

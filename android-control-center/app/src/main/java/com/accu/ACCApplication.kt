@@ -14,7 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.conscrypt.Conscrypt
 import timber.log.Timber
+import java.security.Security
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -34,6 +36,19 @@ class ACCApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        // Install Conscrypt as the top-priority security provider globally.
+        // This ensures that every JCA operation (KeyFactory, KeyPairGenerator, Signature,
+        // SSLContext) uses the same OpenSSL-backed implementation.  Without this, the
+        // platform's default provider may be chosen for some operations, leading to
+        // key-type mismatches where Conscrypt's TLS engine cannot perform RSA-PSS signing
+        // on the private key during TLS 1.3 CertificateVerify.
+        try {
+            Security.insertProviderAt(Conscrypt.newProvider(), 1)
+            Timber.d("ACCApplication: Conscrypt installed as provider #1")
+        } catch (e: Exception) {
+            Timber.w(e, "ACCApplication: Conscrypt provider install failed (non-fatal)")
+        }
+
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
         createNotificationChannels()
 

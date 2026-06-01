@@ -715,7 +715,18 @@ class AccuConnectionManager @Inject constructor(
         // ── Path B: AdbWifiPairingClient — BoringSSL SPAKE2 + Conscrypt TLS ────────────────
         Timber.i("$TAG completePairing (SPAKE2): pairing $host:$port ***")
         _state.value = ConnectionState.CONNECTING
-        val pairingOk = AdbWifiPairingClient.pair(host, port, code, adbKey)
+        // Pass dadb's .pub file bytes as the PeerInfo public key.
+        // dadb generates this file using the same android_pubkey_encode algorithm that
+        // adbd uses internally (BoringSSL).  When adbd verifies the TLS session cert it
+        // runs android_pubkey_encode on the cert's public key and looks for a match in
+        // its trusted-key database — that match only succeeds if the PeerInfo key we
+        // sent during pairing was encoded with the identical algorithm.
+        // Using adbKeyPair.publicKey (the .pub file) guarantees byte-for-byte identity.
+        val dadbPubKeyBytes: ByteArray? = runCatching { adbKeyPair.publicKey }.getOrNull()
+        Timber.d("$TAG dadbPubKeyBytes size=${dadbPubKeyBytes?.size} " +
+            "first8=${dadbPubKeyBytes?.take(8)?.joinToString(",") { it.toInt().and(0xFF).toString(16) }}")
+
+        val pairingOk = AdbWifiPairingClient.pair(host, port, code, adbKey, dadbPubKeyBytes)
         if (!pairingOk) {
             Timber.w("$TAG SPAKE2 pairing failed — likely wrong code")
             _state.value = ConnectionState.AWAITING_CODE
@@ -723,10 +734,11 @@ class AccuConnectionManager @Inject constructor(
         }
         Timber.i("$TAG SPAKE2 pairing succeeded ✓")
 
-        // Give adbd ~1.5 s to flush the new key into adb_keys before we attempt
-        // the TLS session connection.  Without this pause the connect can arrive
-        // before adbd has written the authorised-key file and we get rejected.
-        kotlinx.coroutines.delay(1_500)
+        // Give adbd 3 s to flush the new key into its trusted-key database before we
+        // attempt the TLS session connection.  adbd persists keys asynchronously; if the
+        // connect arrives before the write completes we get rejected even though the
+        // pairing SPAKE2 handshake was successful.
+        kotlinx.coroutines.delay(3_000)
 
         // Pairing succeeded — wait for session port then connect
         val deadline = System.currentTimeMillis() + 8_000L

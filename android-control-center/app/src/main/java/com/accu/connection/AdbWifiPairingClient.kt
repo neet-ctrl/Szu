@@ -42,22 +42,39 @@ object AdbWifiPairingClient {
     /**
      * Pair with an Android device's wireless ADB pairing service.
      *
-     * @param host       IP address discovered via mDNS (_adb-tls-pairing._tcp)
-     * @param port       Pairing port from mDNS
-     * @param pairingCode 6-digit code shown in Settings → Developer options → Wireless debugging
-     * @param adbKey     Our RSA identity (must be the same key used for subsequent adb connect)
-     * @return true if pairing succeeded and the device now trusts [adbKey] for future connections.
+     * @param host          IP address discovered via mDNS (_adb-tls-pairing._tcp)
+     * @param port          Pairing port from mDNS
+     * @param pairingCode   6-digit code shown in Settings → Developer options → Wireless debugging
+     * @param adbKey        Our RSA identity (must be the same key used for subsequent adb connect)
+     * @param pubKeyBytes   Raw bytes of the ADB-format public key to register with adbd.
+     *                      Pass [dadb.AdbKeyPair.publicKey] (the `.pub` file bytes) so the key
+     *                      registered here is IDENTICAL to what adbd will compute from our TLS
+     *                      certificate via android_pubkey_encode.  Falls back to
+     *                      [AdbKey.adbPublicKey] if null.
+     * @return true if pairing succeeded and the device now trusts our key for future connections.
      */
-    fun pair(host: String, port: Int, pairingCode: String, adbKey: AdbKey): Boolean {
+    fun pair(
+        host: String,
+        port: Int,
+        pairingCode: String,
+        adbKey: AdbKey,
+        pubKeyBytes: ByteArray? = null,
+    ): Boolean {
         return try {
-            doPair(host, port, pairingCode, adbKey)
+            doPair(host, port, pairingCode, adbKey, pubKeyBytes)
         } catch (e: Exception) {
             Timber.e(e, "$TAG pair($host:$port) FAILED: ${e.message?.take(200)}")
             false
         }
     }
 
-    private fun doPair(host: String, port: Int, pairingCode: String, adbKey: AdbKey): Boolean {
+    private fun doPair(
+        host: String,
+        port: Int,
+        pairingCode: String,
+        adbKey: AdbKey,
+        pubKeyBytes: ByteArray? = null,
+    ): Boolean {
         // ── 1. TLSv1.3 handshake (Conscrypt, our cert in key manager) ─────────
         val rawSocket  = Socket(host, port).also { it.tcpNoDelay = true }
         val sslSocket  = adbKey.sslContext.socketFactory
@@ -94,17 +111,28 @@ object AdbWifiPairingClient {
                 Timber.d("$TAG SPAKE2 cipher initialised (AES-128-GCM)")
 
                 // ── 5. Exchange PeerInfo — CLIENT SENDS FIRST ────────────────
-                // Our PeerInfo: [type=0][adbPublicKey bytes][zero-pad to 8192 total]
+                // Our PeerInfo: [type=0][ADB-format public key][zero-pad to 8192 total]
+                //
+                // CRITICAL: use the caller-supplied pubKeyBytes (dadb's .pub file bytes)
+                // rather than adbKey.adbPublicKey (our hand-rolled android_pubkey_encode).
+                // dadb writes the .pub file via the same algorithm that adbd uses internally
+                // (android_pubkey_encode from BoringSSL). When adbd later computes the key
+                // from our TLS certificate it uses the same algorithm, so the stored key and
+                // the cert-derived key are guaranteed to match byte-for-byte.
+                // Any discrepancy between our Kotlin re-implementation of android_pubkey_encode
+                // and adbd's BoringSSL version would cause adbd to reject our TLS cert with
+                // SSLHandshakeException("connection closed").
+                val keyToSend = pubKeyBytes ?: adbKey.adbPublicKey
                 val peerInfoBuf = ByteBuffer.allocate(MAX_PEER_INFO_SIZE).order(ByteOrder.BIG_ENDIAN)
                 peerInfoBuf.put(PEER_TYPE_RSA_KEY)
-                val pubKeyBytes = adbKey.adbPublicKey
-                peerInfoBuf.put(pubKeyBytes, 0, pubKeyBytes.size.coerceAtMost(MAX_PEER_INFO_SIZE - 1))
+                peerInfoBuf.put(keyToSend, 0, keyToSend.size.coerceAtMost(MAX_PEER_INFO_SIZE - 1))
 
                 val encrypted = checkNotNull(pairingCtx.encrypt(peerInfoBuf.array())) {
                     "Failed to encrypt PeerInfo"
                 }
                 writePacket(dout, TYPE_PEER_INFO, encrypted)
-                Timber.d("$TAG sent encrypted PeerInfo (${pubKeyBytes.size} key bytes)")
+                Timber.d("$TAG sent encrypted PeerInfo (${keyToSend.size} key bytes, " +
+                    "source=${if (pubKeyBytes != null) "dadb .pub" else "toAdbEncoded"})")
 
                 // ── 6. Read server's PeerInfo — decrypt to verify code ───────
                 val theirEncPeerInfo = readPacket(din, TYPE_PEER_INFO)
