@@ -763,9 +763,9 @@ class AccuConnectionManager @Inject constructor(
                     "TLS ADB connected but echo check returned unexpected output")
             }
         } catch (e: Exception) {
-            Timber.w("$TAG TLS ADB connect failed: ${e.message?.take(200)}")
+            Timber.w(e, "$TAG TLS ADB connect failed: ${e.message?.take(200)}")
             _state.value = ConnectionState.AWAITING_CODE
-            PairingResult.ConnectionFailed(host, connectPort, e.message.orEmpty())
+            PairingResult.ConnectionFailed(host, connectPort, e.stackTraceToString())
         }
     }
 
@@ -811,9 +811,9 @@ class AccuConnectionManager @Inject constructor(
                 PairingResult.ConnectionFailed(host, port, "TLS connected but echo check failed")
             }
         } catch (e: Exception) {
-            Timber.w("$TAG retryConnectionOnly failed: ${e.message?.take(200)}")
+            Timber.w(e, "$TAG retryConnectionOnly failed: ${e.message?.take(200)}")
             _state.value = ConnectionState.AWAITING_CODE
-            PairingResult.ConnectionFailed(host, port, e.message.orEmpty())
+            PairingResult.ConnectionFailed(host, port, e.stackTraceToString())
         }
     }
 

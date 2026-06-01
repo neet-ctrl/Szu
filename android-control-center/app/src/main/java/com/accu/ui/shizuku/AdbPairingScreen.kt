@@ -205,19 +205,10 @@ fun AdbPairingScreen(
                                 host       = state.connectionFailedHost,
                                 port       = state.connectionFailedPort,
                                 rawError   = state.connectionFailedRaw,
+                                debugLog   = state.connectionDebugLog,
                                 isRetrying = state.isRetryingConnection,
-                                onCopy     = {
-                                    clipboardManager.setText(
-                                        AnnotatedString(
-                                            buildString {
-                                                appendLine("=== ACCU Connection Failure Log ===")
-                                                if (state.connectionFailedHost.isNotBlank())
-                                                    appendLine("Target: ${state.connectionFailedHost}:${state.connectionFailedPort}")
-                                                appendLine()
-                                                append(state.connectionFailedRaw)
-                                            }
-                                        )
-                                    )
+                                onCopyDebugLog = {
+                                    clipboardManager.setText(AnnotatedString(state.connectionDebugLog))
                                 },
                                 onRetry    = { viewModel.retryConnection() },
                             )
@@ -392,8 +383,10 @@ private fun StepCard(step: Int, currentStep: Int, title: String, content: @Compo
  * Shows:
  *  - "Pairing succeeded ✓" header so the user knows the code was correct
  *  - Target host:port that was tried
- *  - Full raw error log in monospace, selectable
- *  - Copy button — copies a formatted bug report to clipboard
+ *  - Inline diagnosis line extracted from the first error line
+ *  - Expandable raw stack trace for the developer
+ *  - "Copy Debug Log" button — copies a comprehensive self-contained report that
+ *    includes host/device info, diagnosis, stack trace, and 100 session log entries
  *  - Retry Connection button — re-attempts TLS connect without a new pairing code
  */
 @Composable
@@ -401,11 +394,34 @@ private fun ConnectionFailedCard(
     host: String,
     port: Int,
     rawError: String,
+    debugLog: String,
     isRetrying: Boolean,
-    onCopy: () -> Unit,
+    onCopyDebugLog: () -> Unit,
     onRetry: () -> Unit,
 ) {
     var showFullLog by remember { mutableStateOf(false) }
+    var copied by remember { mutableStateOf(false) }
+
+    // Reset "Copied!" indicator after 2.5 s
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(2500)
+            copied = false
+        }
+    }
+
+    // Inline one-liner diagnosis from first error line
+    val firstLine = rawError.lines().firstOrNull().orEmpty()
+    val quickDiag = when {
+        "connection closed" in firstLine  -> "adbd rejected our TLS cert — key mismatch or session expired"
+        "Handshake failed"  in firstLine  -> "TLS cipher mismatch — check Android version compatibility"
+        "Connection refused" in firstLine -> "Session port is stale — re-discover via 'Wireless ADB' button"
+        "timed out" in firstLine          -> "Network timeout — confirm both devices are on the same Wi-Fi"
+        "ECONNRESET" in rawError          -> "Connection reset — wireless debugging may have restarted"
+        "echo check" in firstLine         -> "TLS OK but ADB CNXN echo verification failed"
+        firstLine.isNotBlank()            -> firstLine.take(80)
+        else                              -> "Unknown — see full trace below"
+    }
 
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -437,19 +453,39 @@ private fun ConnectionFailedCard(
                         )
                     }
                 }
-                // Copy button
-                IconButton(onClick = onCopy, modifier = Modifier.size(32.dp)) {
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            // ── Inline diagnosis ──────────────────────────────────────────────
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
                     Icon(
-                        Icons.Default.ContentCopy, "Copy error log",
-                        Modifier.size(16.dp),
+                        Icons.Default.Info, null,
+                        Modifier.size(14.dp).padding(top = 1.dp),
                         tint = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        quickDiag,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // ── Expand / collapse log ─────────────────────────────────────────
+            // ── Expand / collapse raw stack trace ─────────────────────────────
             TextButton(
                 onClick = { showFullLog = !showFullLog },
                 contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
@@ -460,7 +496,7 @@ private fun ConnectionFailedCard(
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    if (showFullLog) "Hide error log" else "Show full error log",
+                    if (showFullLog) "Hide stack trace" else "Show raw stack trace",
                     fontSize = 12.sp,
                 )
             }
@@ -487,7 +523,43 @@ private fun ConnectionFailedCard(
 
             Spacer(Modifier.height(10.dp))
 
-            // ── Action row ────────────────────────────────────────────────────
+            // ── Copy Debug Log button ─────────────────────────────────────────
+            // Copies a complete self-contained report: device info, diagnosis,
+            // full stack trace, and last 100 ACCU session log entries.
+            // Paste it into a bug report or send it to the ACCU developer.
+            OutlinedButton(
+                onClick = {
+                    onCopyDebugLog()
+                    copied = true
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (copied) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Icon(
+                    if (copied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
+                    null, Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(
+                        if (copied) "Copied to clipboard!" else "Copy Full Debug Log",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        "Device info · diagnosis · stack trace · 100 session logs",
+                        fontSize = 10.sp,
+                        lineHeight = 13.sp,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Retry ─────────────────────────────────────────────────────────
             Text(
                 "The pairing code worked — your device already trusts ACCU. " +
                 "Just tap Retry; no new code is needed.",

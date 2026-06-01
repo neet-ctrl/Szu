@@ -1,6 +1,7 @@
 package com.accu.ui.shizuku
 
 import android.content.Context
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
@@ -9,6 +10,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class ShizukuUiState(
@@ -34,6 +38,12 @@ data class ShizukuUiState(
     /** Port that was tried when connection failed — shown in the error card. */
     val connectionFailedPort: Int = 0,
     val isRetryingConnection: Boolean = false,
+    /**
+     * Comprehensive debug snapshot built at the moment of connection failure.
+     * Contains host/port, host-device info, all session log entries, and the full
+     * exception stack trace. Copied to clipboard by the "Copy Debug Log" button.
+     */
+    val connectionDebugLog: String = "",
     val serverPid: Int = -1,
     val serverStartMethod: String = "",
     val logs: List<ShizukuLogEntry> = emptyList(),
@@ -287,6 +297,7 @@ class ShizukuViewModel @Inject constructor(
                 is AccuConnectionManager.PairingResult.ConnectionFailed -> {
                     val portInfo = if (result.sessionPort > 0) " (port ${result.sessionPort})" else ""
                     val status = "Pairing succeeded ✓ but connection to ${result.host}$portInfo failed.\nTap \"Retry Connection\" — no new code needed."
+                    val debugLog = buildConnectionDebugLog(result.host, result.sessionPort, result.rawOutput)
                     _state.update {
                         it.copy(
                             isPairing = false,
@@ -295,9 +306,10 @@ class ShizukuViewModel @Inject constructor(
                             connectionFailedRaw = result.rawOutput,
                             connectionFailedHost = result.host,
                             connectionFailedPort = result.sessionPort,
+                            connectionDebugLog = debugLog,
                         )
                     }
-                    addLog("Connection failed — ${result.rawOutput.take(200)}", LogLevel.ERROR)
+                    addLog("Connection failed — ${result.rawOutput.lines().firstOrNull()?.take(200).orEmpty()}", LogLevel.ERROR)
                 }
                 is AccuConnectionManager.PairingResult.NoPairingService -> {
                     val status = "No pairing service found yet.\nGo to: Developer Options → Wireless debugging → Pair device with pairing code"
@@ -332,6 +344,7 @@ class ShizukuViewModel @Inject constructor(
                 is AccuConnectionManager.PairingResult.ConnectionFailed -> {
                     val portInfo = if (result.sessionPort > 0) " (port ${result.sessionPort})" else ""
                     val status = "Pairing succeeded ✓ but connection to ${result.host}$portInfo failed.\nTap \"Retry Connection\" — no new code needed."
+                    val debugLog = buildConnectionDebugLog(result.host, result.sessionPort, result.rawOutput)
                     _state.update {
                         it.copy(
                             isRetryingConnection = false,
@@ -340,9 +353,10 @@ class ShizukuViewModel @Inject constructor(
                             connectionFailedRaw = result.rawOutput,
                             connectionFailedHost = result.host,
                             connectionFailedPort = result.sessionPort,
+                            connectionDebugLog = debugLog,
                         )
                     }
-                    addLog("Retry failed — ${result.rawOutput.take(200)}", LogLevel.ERROR)
+                    addLog("Retry failed — ${result.rawOutput.lines().firstOrNull()?.take(200).orEmpty()}", LogLevel.ERROR)
                 }
                 else -> {
                     _state.update { it.copy(isRetryingConnection = false, pairingStatus = "Retry failed — please re-pair from the pairing screen") }
@@ -459,10 +473,98 @@ class ShizukuViewModel @Inject constructor(
     fun setLogFilter(level: LogLevel?) { _state.update { it.copy(logFilter = level) } }
     fun clearLogs() { _state.update { it.copy(logs = emptyList()) }; addLog("Logs cleared", LogLevel.DEBUG) }
     fun exportLogs(): String = _state.value.logs.joinToString("\n") { entry ->
-        val time = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(java.util.Date(entry.timestamp))
+        val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date(entry.timestamp))
         "[$time][${entry.level}] ${entry.message}"
     }
     fun filteredLogs() = _state.value.logFilter?.let { f -> _state.value.logs.filter { it.level == f } } ?: _state.value.logs
+
+    /**
+     * Builds a self-contained debug report at the moment of TLS connection failure.
+     *
+     * Includes host/port, host-device info (Make/Model/Android version), all current
+     * ACCU session log entries, and the full Java exception stack trace from [rawError].
+     * The report is designed so a developer can diagnose *any* future TLS failure without
+     * needing a Logcat session — paste the clipboard contents and the cause is visible.
+     *
+     * Checklist section maps common error strings to their root cause so the user (or
+     * the developer reading their paste) can immediately identify the fix path.
+     */
+    fun buildConnectionDebugLog(host: String, port: Int, rawError: String): String {
+        val ts = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS z", Locale.US).format(Date())
+        val allLogs = _state.value.logs
+        val logText = allLogs.takeLast(100).joinToString("\n") { entry ->
+            val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date(entry.timestamp))
+            "[${entry.level.name.padEnd(7)}] $time  ${entry.message}"
+        }
+        val connState = _state.value.connectionState
+        val pairingIp  = _state.value.discoveredPairingIp
+        val pairingPort = _state.value.discoveredPairingPort
+
+        // Map the raw error's first line to an actionable checklist note
+        val firstLine = rawError.lines().firstOrNull().orEmpty()
+        val diagnosis = when {
+            "connection closed" in firstLine ->
+                "adbd sent close_notify — TLS cert was rejected.\n" +
+                "  Most likely cause: client cert not sent or RSA-PSS signing failed.\n" +
+                "  Fix: rebuild with Conscrypt-provider key fix. If already done, re-pair\n" +
+                "  (target may have revoked the key in Developer Options)."
+            "Handshake failed" in firstLine ->
+                "TLS cipher/protocol mismatch — check Android version on both devices.\n" +
+                "  adbd may require rsa_pss_rsae_sha256 only; confirm key type is RSA-2048."
+            "Connection refused" in firstLine ->
+                "Session port is stale or wireless debugging was restarted.\n" +
+                "  Tap 'Wireless ADB' again to re-discover the new session port via mDNS."
+            "SocketTimeoutException" in rawError || "connect timed out" in firstLine ->
+                "Network timeout — devices may be on different Wi-Fi subnets or isolated.\n" +
+                "  Both devices must be on the SAME Wi-Fi network/SSID."
+            "ECONNRESET" in rawError ->
+                "Connection reset by peer — adbd restarted or wireless debugging was toggled."
+            "echo check" in firstLine ->
+                "TLS handshake succeeded but ADB CNXN echo verification returned wrong output.\n" +
+                "  Check 'adb shell echo ACCU_OK' manually to confirm shell access."
+            else -> "Unknown failure — read full stack trace below."
+        }
+
+        return buildString {
+            appendLine("╔════════════════════════════════════════════════════════════════╗")
+            appendLine("║              ACCU TLS Connection Debug Report                  ║")
+            appendLine("╚════════════════════════════════════════════════════════════════╝")
+            appendLine()
+            appendLine("Generated  : $ts")
+            appendLine("Target     : ${if (host.isNotBlank()) "$host:$port" else "(unknown)"}")
+            appendLine("Conn state : $connState")
+            appendLine("Pairing IP : ${if (pairingIp.isNotBlank()) "$pairingIp:$pairingPort" else "(mDNS not discovered)"}")
+            appendLine()
+            appendLine("── Host Device (running ACCU) ───────────────────────────────────")
+            appendLine("Manufacturer : ${Build.MANUFACTURER}")
+            appendLine("Model        : ${Build.MODEL}")
+            appendLine("Android      : ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
+            appendLine("Build        : ${Build.DISPLAY}")
+            appendLine("ABI          : ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}")
+            appendLine()
+            appendLine("── Target Device (from last successful refresh) ─────────────────")
+            appendLine("Model   : ${_state.value.deviceModel.ifBlank { "(not queried — connection failed)" }}")
+            appendLine("Android : ${_state.value.androidVersion.ifBlank { "(not queried)" }} " +
+                       "(SDK ${_state.value.sdkLevel.ifBlank { "?" }})")
+            appendLine()
+            appendLine("── Diagnosis ────────────────────────────────────────────────────")
+            appendLine(diagnosis)
+            appendLine()
+            appendLine("── Full Exception / Stack Trace ─────────────────────────────────")
+            appendLine(rawError.ifBlank { "(no error detail captured)" })
+            appendLine()
+            appendLine("── ACCU Session Log (last ${allLogs.size.coerceAtMost(100)} of ${allLogs.size} entries) ────")
+            appendLine(logText.ifBlank { "(no log entries)" })
+            appendLine()
+            appendLine("── TLS Fix Checklist ────────────────────────────────────────────")
+            appendLine("[✓] AdbKey uses Conscrypt provider for KeyFactory + KeyPairGenerator")
+            appendLine("[✓] SSLContext uses the same shared conscryptProvider instance")
+            appendLine("[✓] chooseClientAlias returns alias unconditionally (RSASSA-PSS fix)")
+            appendLine("[✓] Timber.w(e, ...) logs full stack on failure")
+            appendLine()
+            appendLine("Send the full contents of this report to the ACCU developer.")
+        }.trimEnd()
+    }
 
     fun addLog(message: String, level: LogLevel = LogLevel.INFO) {
         _state.update { s -> s.copy(logs = (s.logs + ShizukuLogEntry(message = message, level = level)).takeLast(1000)) }
