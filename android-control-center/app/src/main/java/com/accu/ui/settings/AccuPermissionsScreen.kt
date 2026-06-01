@@ -121,7 +121,7 @@ private fun permGrantTier(perm: AccuPerm): GrantTier = when (perm.grantMethod) {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  FULL PERMISSION CATALOGUE  (55 permissions)
+//  FULL PERMISSION CATALOGUE  (manifest-declared + ADB-grantable only)
 // ═══════════════════════════════════════════════════════════
 
 private val ALL_ACCU_PERMISSIONS = listOf(
@@ -133,8 +133,8 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         AccuPermCategory.CORE, PermImportance.CRITICAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("foreground_svc", "Foreground Service", Manifest.permission.FOREGROUND_SERVICE,
-        "Keeps Call Recorder, Freeze Scheduler, DSP audio engine, and Key Mapper trigger service alive.",
-        "Call Recorder · Freeze Scheduler · DSP · Key Mapper",
+        "Keeps Call Recorder, Freeze Scheduler, Sound Master audio engine, and Key Mapper trigger service alive.",
+        "Call Recorder · Freeze Scheduler · Sound Master · Key Mapper",
         AccuPermCategory.CORE, PermImportance.CRITICAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("foreground_svc_mic", "Foreground Service – Microphone",
@@ -146,26 +146,39 @@ private val ALL_ACCU_PERMISSIONS = listOf(
 
     AccuPerm("foreground_svc_media", "Foreground Service – Media Playback",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-        "Required on Android 14+ so the DSP audio service can run in a media-playback foreground context.",
-        "DSP / JamesDSP Audio Engine",
+        "Required on Android 14+ for the Sound Master audio service to run in a media-playback foreground context.",
+        "Sound Master · Mixed Audio",
         AccuPermCategory.CORE, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC,
         minSdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, canRevoke = false),
 
+    AccuPerm("foreground_svc_phone", "Foreground Service – Phone Call",
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+        "Required on Android 14+ for the Call Recorder foreground service to stay active during calls.",
+        "Call Recorder",
+        AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC,
+        minSdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, canRevoke = false),
+
+    AccuPerm("foreground_svc_special", "Foreground Service – Special Use",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+        "Fallback foreground service type for ACCU services that don't fit a specific Android 14 category.",
+        "ACCU Service Hub",
+        AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
+
     AccuPerm("foreground_svc_bt", "Foreground Service – Connected Device",
         "android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE",
-        "Required on Android 14+ for the Key Mapper service to maintain a Bluetooth device connection.",
-        "Key Mapper · Bluetooth Triggers",
+        "Required on Android 14+ for the Key Mapper service to maintain a connected-device session.",
+        "Key Mapper · Connected Device Triggers",
         AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC,
         minSdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE, canRevoke = false),
 
     AccuPerm("boot_completed", "Start on Boot", Manifest.permission.RECEIVE_BOOT_COMPLETED,
-        "Restores Freeze Scheduler, Key Mapper triggers, and DSP engine after device restarts automatically.",
-        "Freeze Scheduler · Key Mapper · DSP",
+        "Restores Freeze Scheduler, Key Mapper triggers, and Sound Master after device restarts automatically.",
+        "Freeze Scheduler · Key Mapper · Sound Master",
         AccuPermCategory.CORE, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("wake_lock", "Wake Lock", Manifest.permission.WAKE_LOCK,
-        "Prevents CPU from sleeping during batch app operations, cache scanning, and file transfers.",
-        "App Cleaner · Batch Ops · File Transfer",
+        "Prevents CPU from sleeping during batch app operations and file transfers.",
+        "Batch Ops · File Transfer",
         AccuPermCategory.CORE, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("request_install", "Request Install Packages", Manifest.permission.REQUEST_INSTALL_PACKAGES,
@@ -173,9 +186,14 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "Installer · App Explorer · File Manager",
         AccuPermCategory.CORE, PermImportance.CRITICAL, GrantMethod.NORMAL),
 
+    AccuPerm("request_delete", "Request Delete Packages", Manifest.permission.REQUEST_DELETE_PACKAGES,
+        "Allows ACCU to trigger the system uninstall dialog for user-app removal from App Manager.",
+        "App Manager · Debloat",
+        AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.NORMAL),
+
     AccuPerm("post_notif", "Post Notifications", Manifest.permission.POST_NOTIFICATIONS,
-        "Required on Android 13+ to show call-recording status, freeze-schedule alerts, and DSP notifications.",
-        "Call Recorder · Freeze Scheduler · DSP",
+        "Required on Android 13+ to show call-recording status, freeze-schedule alerts, and Sound Master notifications.",
+        "Call Recorder · Freeze Scheduler · Sound Master",
         AccuPermCategory.CORE, PermImportance.CRITICAL, GrantMethod.NORMAL,
         minSdk = Build.VERSION_CODES.TIRAMISU),
 
@@ -184,40 +202,15 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "Key Mapper · UI Feedback",
         AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
-    AccuPerm("exact_alarm", "Schedule Exact Alarm",
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.SCHEDULE_EXACT_ALARM
-        else "android.permission.SCHEDULE_EXACT_ALARM",
-        "Lets the Freeze Scheduler trigger precisely at user-specified times, even in Doze mode.",
-        "Freeze Scheduler · Timed Automations",
-        AccuPermCategory.CORE, PermImportance.IMPORTANT, GrantMethod.SETTINGS_APP,
-        minSdk = Build.VERSION_CODES.S),
-
-    AccuPerm("use_exact_alarm", "Use Exact Alarm",
-        "android.permission.USE_EXACT_ALARM",
-        "Unrestricted exact alarm access for calendar-accurate freeze and automation triggers on Android 13+.",
-        "Freeze Scheduler",
-        AccuPermCategory.CORE, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC,
-        minSdk = Build.VERSION_CODES.TIRAMISU, canRevoke = false),
-
     // ── APP MANAGEMENT ──────────────────────────────────────
-    AccuPerm("install_packages", "Install Packages (Silent)", "android.permission.INSTALL_PACKAGES",
-        "Silent APK installation without system prompt — powers Installer Center, Blocker rule restore, and batch installs.",
-        "Installer · Debloat restore · Batch install",
-        AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("delete_packages", "Delete Packages (Silent)", "android.permission.DELETE_PACKAGES",
-        "Silent app removal without confirmation dialogs. Powers the Debloat screen and one-tap system-app removal.",
-        "Debloat · App Manager · Canta",
-        AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
-
     AccuPerm("write_secure_settings", "Write Secure Settings", Manifest.permission.WRITE_SECURE_SETTINGS,
-        "Sets system-level secure settings: per-app dark mode (DarQ), animation scales, gesture nav, and more.",
+        "Sets system-level secure settings: per-app dark mode (DarQ), animation scales, gesture nav, and more. Declared in manifest; granted via ACCU ADB.",
         "DarQ · Dark Mode · Developer Options · Language Selector",
         AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
 
     AccuPerm("pkg_usage_stats", "Usage Stats Access", Manifest.permission.PACKAGE_USAGE_STATS,
-        "Reads per-app battery, screen time, and launch counts for Inure analytics and the dashboard.",
-        "Inure Analytics · Dashboard · Battery Opt",
+        "Reads per-app battery, screen time, and launch counts for analytics and the dashboard.",
+        "Analytics · Dashboard · Battery Opt",
         AccuPermCategory.APP_MGMT, PermImportance.IMPORTANT, GrantMethod.SETTINGS_APP),
 
     AccuPerm("query_all_packages", "Query All Packages", Manifest.permission.QUERY_ALL_PACKAGES,
@@ -226,58 +219,16 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.AUTOMATIC,
         minSdk = Build.VERSION_CODES.R, canRevoke = false),
 
+    AccuPerm("get_pkg_size", "Get Package Size",
+        "android.permission.GET_PACKAGE_SIZE",
+        "Reads the disk size of installed packages for the Storage Analyzer and App Manager detail view.",
+        "App Manager · Storage Analyzer",
+        AccuPermCategory.APP_MGMT, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
+
     AccuPerm("get_app_ops", "App Ops Stats", "android.permission.GET_APP_OPS_STATS",
-        "Reads granular per-app permission usage logs for Privacy Center and Inure tracker screens.",
-        "Privacy Center · Inure Trackers · App Detail",
+        "Reads granular per-app permission usage logs for Privacy Center and tracker screens. Granted via ACCU ADB.",
+        "Privacy Center · Trackers · App Detail",
         AccuPermCategory.APP_MGMT, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
-
-    AccuPerm("change_component_state", "Change Component State",
-        "android.permission.CHANGE_COMPONENT_ENABLED_STATE",
-        "Enables and disables individual activities, services, and broadcast receivers inside other apps.",
-        "Component Manager · Blocker",
-        AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("interact_across_users", "Interact Across Users",
-        "android.permission.INTERACT_ACROSS_USERS",
-        "Manages apps in work profiles and secondary user accounts from Hail's freeze engine.",
-        "Freeze Scheduler · Work Profile · Hail",
-        AccuPermCategory.APP_MGMT, PermImportance.OPTIONAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("force_stop", "Force Stop Packages",
-        "android.permission.FORCE_STOP_PACKAGES",
-        "Force-stops background processes of any app. Used by Freeze Scheduler and App Manager.",
-        "Freeze Scheduler · App Manager",
-        AccuPermCategory.APP_MGMT, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
-
-    AccuPerm("suspend_apps", "Suspend / Hide Apps",
-        "android.permission.SUSPEND_APPS",
-        "Suspends apps so they cannot be launched — the core of Hail freeze functionality via ACCU.",
-        "Hail / Freeze Apps · Debloat",
-        AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("clear_app_cache", "Clear App Cache",
-        "android.permission.CLEAR_APP_CACHE",
-        "Clears individual app cache dirs without user interaction, used by SD Maid App Cleaner.",
-        "SD Maid · App Cleaner",
-        AccuPermCategory.APP_MGMT, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
-
-    AccuPerm("kill_bg_processes", "Kill Background Processes",
-        Manifest.permission.KILL_BACKGROUND_PROCESSES,
-        "Terminates background processes for any app. Used by App Manager's force-stop and batch-kill actions.",
-        "App Manager · Batch Ops",
-        AccuPermCategory.APP_MGMT, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
-    AccuPerm("manage_app_ops", "Manage App Ops Modes",
-        "android.permission.MANAGE_APP_OPS_MODES",
-        "Grants and revokes individual app-ops flags (camera, mic, location) for any app via ACCU.",
-        "Privacy Center · App Ops Manager",
-        AccuPermCategory.APP_MGMT, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("set_preferred_apps", "Set Preferred Applications",
-        "android.permission.SET_PREFERRED_APPLICATIONS",
-        "Sets the default app for intents — used by Language Selector and advanced app routing.",
-        "Language Selector · Default Apps",
-        AccuPermCategory.APP_MGMT, PermImportance.OPTIONAL, GrantMethod.SHIZUKU),
 
     // ── SYSTEM ──────────────────────────────────────────────
     AccuPerm("write_settings", "Write System Settings", Manifest.permission.WRITE_SETTINGS,
@@ -285,26 +236,31 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "Dark Mode · System Tweaks · Key Mapper",
         AccuPermCategory.SYSTEM, PermImportance.IMPORTANT, GrantMethod.SETTINGS_APP),
 
-    AccuPerm("change_config", "Change Configuration",
-        "android.permission.CHANGE_CONFIGURATION",
-        "Applies locale/language changes per-app without a device restart.",
+    AccuPerm("change_config", "Change Configuration", Manifest.permission.CHANGE_CONFIGURATION,
+        "Applies locale/language changes per-app without a device restart. Declared in manifest; granted via ACCU ADB.",
         "Language Center · Locale Switcher",
         AccuPermCategory.SYSTEM, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
 
     AccuPerm("dump", "System Dump", Manifest.permission.DUMP,
-        "Reads system state dumps for diagnostics, Key Mapper log capture, and bug report generation.",
+        "Reads system state dumps for diagnostics, Key Mapper log capture, and bug report generation. Granted via ACCU ADB.",
         "Key Mapper · Bug Report · Shell Diagnostics",
         AccuPermCategory.SYSTEM, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
 
     AccuPerm("read_logs", "Read System Logs", Manifest.permission.READ_LOGS,
-        "Captures logcat for the ADB Shell, Key Mapper event log, and bug report attachment.",
+        "Captures logcat for the ADB Shell, Key Mapper event log, and bug report attachment. Granted via ACCU ADB.",
         "Shell · Key Mapper Log · Bug Report",
         AccuPermCategory.SYSTEM, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
 
     AccuPerm("modify_audio", "Modify Audio Settings", Manifest.permission.MODIFY_AUDIO_SETTINGS,
-        "Adjusts audio routing, sample rate, and output device for the DSP audio engine.",
-        "DSP Controls · JamesDSP · EQ",
+        "Adjusts audio routing, sample rate, and output device for Sound Master and Mixed Audio.",
+        "Sound Master · Mixed Audio · Audio Routing",
         AccuPermCategory.SYSTEM, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC, canRevoke = false),
+
+    AccuPerm("bind_audio_effect", "Bind Audio Effect Service",
+        "android.permission.BIND_AUDIO_EFFECT",
+        "Allows ACCU to bind to audio effect services for per-app EQ and routing via Sound Master.",
+        "Sound Master · EQ",
+        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("accessibility_svc", "Accessibility Service",
         "android.permission.BIND_ACCESSIBILITY_SERVICE",
@@ -312,66 +268,47 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "Key Mapper · Gesture Triggers",
         AccuPermCategory.SYSTEM, PermImportance.CRITICAL, GrantMethod.SETTINGS_APP),
 
-    AccuPerm("notification_policy", "Do Not Disturb Access",
-        Manifest.permission.ACCESS_NOTIFICATION_POLICY,
-        "Allows Key Mapper actions to toggle DND mode and manage notification filters.",
-        "Key Mapper · DND Action",
-        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.SETTINGS_APP),
+    AccuPerm("bind_input_method", "Bind Input Method",
+        "android.permission.BIND_INPUT_METHOD",
+        "Allows ACCU to bind to input method services for Key Mapper keyboard trigger support.",
+        "Key Mapper · IME Triggers",
+        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
-    AccuPerm("device_power", "Device Power Control",
-        "android.permission.DEVICE_POWER",
-        "Grants screen-on/off and reboot control for advanced Key Mapper power button mappings.",
-        "Key Mapper · Power Actions",
-        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.ROOT_ONLY),
-
-    AccuPerm("status_bar", "Control Status Bar",
-        "android.permission.STATUS_BAR",
-        "Expands/collapses the status bar and quick settings from Key Mapper actions.",
-        "Key Mapper · QS Actions",
-        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.SHIZUKU),
-
-    AccuPerm("expand_status_bar", "Expand Status Bar",
-        Manifest.permission.EXPAND_STATUS_BAR,
-        "Opens the notification shade from Key Mapper trigger actions.",
-        "Key Mapper",
-        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
-    AccuPerm("manage_media", "Manage Media",
-        "android.permission.MANAGE_MEDIA",
-        "Allows File Manager to delete and modify media files without per-item confirmation on Android 12+.",
-        "File Manager · Storage Cleaner",
-        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.SETTINGS_APP,
-        minSdk = Build.VERSION_CODES.S),
+    AccuPerm("change_wifi_multicast", "Wi-Fi Multicast",
+        Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
+        "Enables multicast/mDNS for the File Manager's SMB server discovery and FTP client.",
+        "File Manager · SMB · FTP",
+        AccuPermCategory.SYSTEM, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
     // ── MEDIA & STORAGE ─────────────────────────────────────
     AccuPerm("record_audio", "Record Audio", Manifest.permission.RECORD_AUDIO,
-        "Captures the microphone stream for call recording. Core requirement of ShizuCallRecorder.",
-        "Call Recorder · Audio Capture",
+        "Captures the microphone stream for call recording and Sound Master audio capture.",
+        "Call Recorder · Sound Master",
         AccuPermCategory.MEDIA, PermImportance.CRITICAL, GrantMethod.NORMAL),
 
     AccuPerm("capture_audio_output", "Capture Audio Output",
         "android.permission.CAPTURE_AUDIO_OUTPUT",
-        "Captures the device speaker output for call recording both sides. Requires ACCU.",
-        "Call Recorder (full duplex)",
-        AccuPermCategory.MEDIA, PermImportance.CRITICAL, GrantMethod.SHIZUKU),
+        "Captures the device speaker output for full-duplex call recording. Granted via ACCU ADB.",
+        "Call Recorder (full duplex) · Mixed Audio",
+        AccuPermCategory.MEDIA, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
 
-    AccuPerm("read_media_images", "Read Images / Video",
+    AccuPerm("read_media_images", "Read Images",
         Manifest.permission.READ_MEDIA_IMAGES,
-        "Reads image and video files for File Manager previews and storage analysis.",
+        "Reads image files for File Manager previews and storage analysis.",
         "File Manager · Storage Analyzer",
         AccuPermCategory.MEDIA, PermImportance.IMPORTANT, GrantMethod.NORMAL,
         minSdk = Build.VERSION_CODES.TIRAMISU),
 
     AccuPerm("read_media_video", "Read Video Files",
         Manifest.permission.READ_MEDIA_VIDEO,
-        "Reads video files for File Manager previews and the deduplicator's video scanning.",
+        "Reads video files for File Manager previews and deduplicator scanning.",
         "File Manager · Deduplicator",
         AccuPermCategory.MEDIA, PermImportance.OPTIONAL, GrantMethod.NORMAL,
         minSdk = Build.VERSION_CODES.TIRAMISU),
 
     AccuPerm("read_media_audio", "Read Audio Files", Manifest.permission.READ_MEDIA_AUDIO,
-        "Reads audio files for Inure Music player and convolution IR file selection in DSP.",
-        "Inure Music · DSP Convolution",
+        "Reads audio files for music playback and Sound Master IR convolution file selection.",
+        "Sound Master · Music Player",
         AccuPermCategory.MEDIA, PermImportance.OPTIONAL, GrantMethod.NORMAL,
         minSdk = Build.VERSION_CODES.TIRAMISU),
 
@@ -389,11 +326,18 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         AccuPermCategory.MEDIA, PermImportance.IMPORTANT, GrantMethod.NORMAL,
         maxSdk = Build.VERSION_CODES.S_V2),
 
+    AccuPerm("write_ext_storage", "Write External Storage (Legacy)",
+        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        "Legacy write access for devices on Android 9 and below. Not needed on Android 10+.",
+        "File Manager",
+        AccuPermCategory.MEDIA, PermImportance.OPTIONAL, GrantMethod.NORMAL,
+        maxSdk = Build.VERSION_CODES.P),
+
     // ── NETWORK ─────────────────────────────────────────────
     AccuPerm("access_net_state", "Access Network State",
         Manifest.permission.ACCESS_NETWORK_STATE,
         "Reads current connectivity (Wi-Fi / mobile data) for status tiles and ACCU connection checks.",
-        "Better Internet Tiles · Dashboard · ACCU Center",
+        "Dashboard · ACCU Center · Connectivity Tiles",
         AccuPermCategory.NETWORK, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC, canRevoke = false),
 
     AccuPerm("access_wifi_state", "Access Wi-Fi State",
@@ -414,69 +358,18 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "Network Center · Better Internet Tiles",
         AccuPermCategory.NETWORK, PermImportance.IMPORTANT, GrantMethod.AUTOMATIC, canRevoke = false),
 
-    AccuPerm("change_wifi_multicast", "Wi-Fi Multicast",
-        Manifest.permission.CHANGE_WIFI_MULTICAST_STATE,
-        "Enables multicast/mDNS for the File Manager's SMB server discovery and FTP client.",
-        "File Manager · SMB · FTP",
-        AccuPermCategory.NETWORK, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
-
-    AccuPerm("nfc", "NFC Access", Manifest.permission.NFC,
-        "Optional — used for NFC-tag triggered Key Mapper automations and tag scanning.",
-        "Key Mapper · NFC Trigger",
-        AccuPermCategory.NETWORK, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
-    // ── BLUETOOTH ───────────────────────────────────────────
-    AccuPerm("bt_connect", "Bluetooth Connect",
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_CONNECT
-        else Manifest.permission.BLUETOOTH,
-        "Connects to paired BT devices for Key Mapper BT-button trigger mappings.",
-        "Key Mapper · BT Triggers",
-        AccuPermCategory.BLUETOOTH, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
-    AccuPerm("bt_scan", "Bluetooth Scan",
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) Manifest.permission.BLUETOOTH_SCAN
-        else Manifest.permission.BLUETOOTH_ADMIN,
-        "Scans for nearby BT devices so Key Mapper can list available trigger sources.",
-        "Key Mapper · BT Device Picker",
-        AccuPermCategory.BLUETOOTH, PermImportance.OPTIONAL, GrantMethod.NORMAL,
-        minSdk = Build.VERSION_CODES.S),
-
     // ── PRIVACY ─────────────────────────────────────────────
-    AccuPerm("read_phone_state", "Read Phone State",
-        Manifest.permission.READ_PHONE_STATE,
-        "Detects call start/end events so the Call Recorder triggers automatically.",
-        "Call Recorder · Call State Detection",
-        AccuPermCategory.PRIVACY, PermImportance.CRITICAL, GrantMethod.NORMAL),
-
-    AccuPerm("modify_phone_state", "Modify Phone State",
-        "android.permission.MODIFY_PHONE_STATE",
-        "Required for advanced call management features in ShizuCallRecorder (hold, mute, routing).",
-        "Call Recorder · Call Control",
-        AccuPermCategory.PRIVACY, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
-
-    AccuPerm("process_outgoing_calls", "Process Outgoing Calls",
-        Manifest.permission.PROCESS_OUTGOING_CALLS,
-        "Lets the Call Recorder intercept outgoing calls to start recording automatically.",
-        "Call Recorder",
-        AccuPermCategory.PRIVACY, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
-    AccuPerm("read_contacts", "Read Contacts",
-        Manifest.permission.READ_CONTACTS,
-        "Resolves phone numbers to contact names in the Call Recorder list and contact-exclusion filter.",
-        "Call Recorder · Contact Filter",
-        AccuPermCategory.PRIVACY, PermImportance.OPTIONAL, GrantMethod.NORMAL),
-
     AccuPerm("read_call_log", "Read Call Log",
         Manifest.permission.READ_CALL_LOG,
         "Reads call history to pre-populate recording metadata and display call durations.",
         "Call Recorder · Call History",
         AccuPermCategory.PRIVACY, PermImportance.OPTIONAL, GrantMethod.NORMAL),
 
-    AccuPerm("read_priv_phone_state", "Privileged Phone State",
-        "android.permission.READ_PRIVILEGED_PHONE_STATE",
-        "Reads IMEI, SIM state, and carrier info for advanced diagnostics in the Shell and ACCU Center.",
-        "Shell · Diagnostics · ACCU Center",
-        AccuPermCategory.PRIVACY, PermImportance.OPTIONAL, GrantMethod.SHIZUKU),
+    AccuPerm("process_outgoing_calls", "Process Outgoing Calls",
+        Manifest.permission.PROCESS_OUTGOING_CALLS,
+        "Lets the Call Recorder intercept outgoing calls to start recording automatically.",
+        "Call Recorder",
+        AccuPermCategory.PRIVACY, PermImportance.OPTIONAL, GrantMethod.NORMAL),
 
     // ── ADVANCED ────────────────────────────────────────────
     AccuPerm("accu_binding", "ACCU Service Binding",
@@ -485,48 +378,30 @@ private val ALL_ACCU_PERMISSIONS = listOf(
         "ACCU Service Hub · All privileged features",
         AccuPermCategory.ADVANCED, PermImportance.CRITICAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
-    AccuPerm("device_owner", "Device Owner / MDM",
-        "android.permission.MANAGE_DEVICE_POLICY_PACKAGES",
-        "Used by Hail's Device Owner freeze mode (DPM.setPackagesSuspended). Requires Device Owner setup via ADB.",
-        "Freeze Scheduler · Device Owner Mode",
-        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.ADB_ONLY,
-        minSdk = Build.VERSION_CODES.TIRAMISU),
-
     AccuPerm("battery_stats", "Battery Stats",
         Manifest.permission.BATTERY_STATS,
-        "Reads detailed per-app battery consumption for Inure Battery Optimization and Dashboard charts.",
-        "Inure · Battery Opt · Dashboard",
+        "Reads detailed per-app battery consumption for Battery Optimization and Dashboard charts. Granted via ACCU ADB.",
+        "Battery Opt · Dashboard",
         AccuPermCategory.ADVANCED, PermImportance.IMPORTANT, GrantMethod.SHIZUKU),
 
-    AccuPerm("manage_overlay", "Display Over Other Apps",
-        Manifest.permission.SYSTEM_ALERT_WINDOW,
-        "Draws Key Mapper floating button and DSP status overlay on top of all other apps.",
-        "Key Mapper · Floating Button · DSP Overlay",
-        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.SETTINGS_APP),
-
-    AccuPerm("hide_overlay_windows", "Hide Overlay Windows",
-        "android.permission.HIDE_OVERLAY_WINDOWS",
-        "Hides all third-party overlay windows when ACCU's security dialogs are displayed.",
-        "Security Dialogs · Install Prompt",
-        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.NORMAL,
-        minSdk = Build.VERSION_CODES.S),
-
-    AccuPerm("use_biometric", "Use Biometric / Fingerprint",
+    AccuPerm("use_biometric", "Use Biometric",
         Manifest.permission.USE_BIOMETRIC,
-        "Triggers Key Mapper actions from fingerprint gestures on supported devices.",
-        "Key Mapper · Fingerprint Trigger",
+        "Enables biometric (fingerprint/face) authentication for ACCU lock screen and Key Mapper triggers.",
+        "Key Mapper · Biometric Auth",
         AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 
-    AccuPerm("manage_users", "Manage Users",
-        "android.permission.MANAGE_USERS",
-        "Creates and manages secondary user accounts for Hail work-profile freeze functionality.",
-        "Hail · Work Profile · Multi-User",
-        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.SHIZUKU),
+    AccuPerm("use_fingerprint", "Use Fingerprint (Legacy)",
+        Manifest.permission.USE_FINGERPRINT,
+        "Legacy fingerprint API support for devices on Android 9 and below.",
+        "Key Mapper · Legacy Auth",
+        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC,
+        maxSdk = Build.VERSION_CODES.P, canRevoke = false),
 
-    AccuPerm("camera", "Camera", Manifest.permission.CAMERA,
-        "Used for QR-code scanning during ACCU wireless-ADB pairing setup.",
-        "ACCU Setup · QR Pairing",
-        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.NORMAL),
+    AccuPerm("bind_quick_settings_tile", "Quick Settings Tile",
+        "android.permission.BIND_QUICK_SETTINGS_TILE",
+        "Allows ACCU Quick Settings tiles to appear in the notification shade on all Android versions.",
+        "QS Tiles · Quick Actions",
+        AccuPermCategory.ADVANCED, PermImportance.OPTIONAL, GrantMethod.AUTOMATIC, canRevoke = false),
 )
 
 // ═══════════════════════════════════════════════════════════
@@ -544,19 +419,6 @@ private fun checkPermStatus(context: Context, perm: AccuPerm): PermStatus {
 
             "write_settings" -> if (Settings.System.canWrite(context)) PermStatus.GRANTED
                 else PermStatus.NOT_REQUESTED
-
-            "manage_overlay" -> if (Settings.canDrawOverlays(context)) PermStatus.GRANTED
-                else PermStatus.NOT_REQUESTED
-
-            "notification_policy" -> {
-                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                if (nm.isNotificationPolicyAccessGranted) PermStatus.GRANTED else PermStatus.NOT_REQUESTED
-            }
-
-            "exact_alarm" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-                if (am.canScheduleExactAlarms()) PermStatus.GRANTED else PermStatus.NOT_REQUESTED
-            } else PermStatus.GRANTED
 
             "pkg_usage_stats" -> {
                 val ops = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
@@ -688,19 +550,86 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
             icon = {
                 Icon(Icons.Default.Hub, null, tint = MaterialTheme.colorScheme.primary)
             },
-            title = { Text("Grant All via ACCU", fontWeight = FontWeight.Bold) },
+            title = { Text("Grant via ACCU (1 Tap)", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // How ACCU grants
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                    ) {
+                        Column(
+                            Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(Icons.Default.Hub, null, Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "How ACCU grants permissions",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            Text(
+                                "ACCU uses its own wireless ADB connection to run " +
+                                "\"pm grant ${context.packageName} <permission>\" " +
+                                "for each privileged permission. This works for system-level " +
+                                "permissions that would otherwise require root.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    // What ACCU cannot grant
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                    ) {
+                        Column(
+                            Modifier.padding(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(Icons.Default.Info, null, Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.error)
+                                Text(
+                                    "What ACCU cannot grant automatically",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                            Text(
+                                "• \"Grant manually\" permissions — Android requires a user dialog tap.\n" +
+                                "• \"Open Settings\" permissions — must be toggled in Settings → Apps.\n" +
+                                "• Signature-only permissions (SUSPEND_APPS, FORCE_STOP, etc.) — " +
+                                "require platform signing; not shown in this list.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    HorizontalDivider()
                     if (shizukuPending.isEmpty()) {
                         Text(
                             "All ACCU-grantable permissions are already granted!",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color(0xFF43A047),
+                            fontWeight = FontWeight.SemiBold,
                         )
                     } else {
                         Text(
-                            "${shizukuPending.size} permission(s) will be granted automatically:",
-                            style = MaterialTheme.typography.bodySmall,
+                            "${shizukuPending.size} permission(s) will be granted via ADB now:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                         )
                         shizukuPending.forEach { p ->
                             Row(
@@ -737,7 +666,7 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
                         }
                     },
                     enabled = shizukuPending.isNotEmpty(),
-                ) { Text("Grant All") }
+                ) { Text("Grant All via ADB") }
             },
             dismissButton = {
                 TextButton(onClick = { showGrantDialog = false }) { Text("Cancel") }
@@ -922,21 +851,12 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
                                         "pkg_usage_stats"  -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                                         "write_settings"   -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS)
                                             .setData(Uri.parse("package:${context.packageName}"))
-                                        "manage_overlay"   -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                                            .setData(Uri.parse("package:${context.packageName}"))
                                         "manage_ext_storage" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
                                             Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                                                 .setData(Uri.parse("package:${context.packageName}"))
                                             else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                                                 .setData(Uri.parse("package:${context.packageName}"))
                                         "accessibility_svc" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                        "notification_policy" -> Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
-                                        "exact_alarm" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                            else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                                .setData(Uri.parse("package:${context.packageName}"))
-                                        "manage_media" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                            .setData(Uri.parse("package:${context.packageName}"))
                                         else -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                                             .setData(Uri.parse("package:${context.packageName}"))
                                     }
