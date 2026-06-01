@@ -32,6 +32,7 @@ moshi = "1.15.2"
 reorderable = "2.3.1"
 zxing = "3.5.3"
 jsoup = "1.18.3"
+dadb = "1.2.7"
 
 [libraries]
 # Build tools
@@ -123,6 +124,7 @@ libsu-io = { group = "com.github.topjohnwu.libsu", name = "io", version.ref = "l
 # Utils
 apache-commons-io = { group = "org.apache.commons", name = "commons-lang3", version.ref = "apache-commons" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+dadb = { group = "dev.mobile", name = "dadb", version.ref = "dadb" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 moshi = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
 moshi-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshi" }

@@ -203,6 +203,9 @@ dependencies {
     implementation(libs.zxing)
     implementation(libs.jsoup)
 
+    // ADB protocol (pure Kotlin — pairs and connects without any adb binary on device)
+    implementation(libs.dadb)
+
     // Reorderable drag-drop lists
     implementation(libs.reorderable)
 }

@@ -10,6 +10,8 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import com.accu.MainActivity
 import com.topjohnwu.superuser.Shell
+import dadb.AdbKeyPair
+import dadb.Dadb
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.File
 import java.net.NetworkInterface
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -119,7 +122,26 @@ class AccuConnectionManager @Inject constructor(
     /** Discovered pairing host + port via mDNS */
     private var pairingHost: String = ""
     private var pairingPort: Int    = 0
-    private var sessionPort: Int    = 5555
+    private var sessionPort: Int    = 0
+
+    // ─── dadb (pure-Kotlin ADB protocol) ──────────────────────────────────────
+    /** Live dadb connection — non-null when CONNECTED_WIRELESS via dadb (no adb binary). */
+    private var dadbConnection: Dadb? = null
+
+    /**
+     * Persistent ADB RSA key pair stored in app-private storage.
+     * The SAME key must be used for both [completePairing] and [reconnect] — the target
+     * device authorises the public key during pairing, and rejects unknown keys on connect.
+     */
+    private val adbKeyPair: AdbKeyPair by lazy {
+        val keyFile = File(context.filesDir, "accu_adb_key")
+        try {
+            if (keyFile.exists()) AdbKeyPair.read(keyFile)
+            else AdbKeyPair.generate().also { it.write(keyFile) }
+        } catch (_: Exception) {
+            AdbKeyPair.generate().also { try { it.write(keyFile) } catch (_: Exception) {} }
+        }
+    }
 
     private val prefs: SharedPreferences
         get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -198,14 +220,26 @@ class AccuConnectionManager @Inject constructor(
                 // Priority 1: LibSU root — uid=0 on local device
                 Shell.getShell().isRoot -> execRoot(command)
 
-                // Priority 2: CONNECTED_WIRELESS → execute on the TARGET device
+                // Priority 2a: dadb connection (no adb binary — pure-Kotlin ADB protocol)
+                _state.value == ConnectionState.CONNECTED_WIRELESS && dadbConnection != null -> {
+                    try {
+                        val result = dadbConnection!!.shell(command)
+                        ShellResult(result.output, result.errorOutput, result.exitCode)
+                    } catch (e: Exception) {
+                        Timber.w(e, "$TAG dadb exec failed — clearing connection")
+                        dadbConnection = null
+                        _state.value = ConnectionState.DISCONNECTED
+                        ShellResult("", e.message ?: "dadb error", -1)
+                    }
+                }
+
+                // Priority 2b: system adb binary → execute on the TARGET device
                 _state.value == ConnectionState.CONNECTED_WIRELESS -> {
                     val adb = findAdbBinary()
                     val ip  = getLastConnectedIp()
                     if (adb != null && ip.isNotBlank()) {
                         execPlainShell("$adb -s $ip:${getLastConnectedPort()} shell $command")
                     } else {
-                        // No system adb binary — fall through to local shell
                         execPlainShell(command)
                     }
                 }
@@ -332,7 +366,7 @@ class AccuConnectionManager @Inject constructor(
     /**
      * Check real privilege availability and update state.
      * CONNECTED_ROOT requires LibSU root to actually work.
-     * CONNECTED_WIRELESS requires a saved session AND the adb binary (rare).
+     * CONNECTED_WIRELESS works via dadb (preferred) or system adb binary.
      */
     fun checkAndUpdateState() {
         val isRoot = try { Shell.getShell().isRoot } catch (_: Exception) { false }
@@ -340,7 +374,20 @@ class AccuConnectionManager @Inject constructor(
             _state.value = ConnectionState.CONNECTED_ROOT
             return
         }
-        // Check if we have a saved wireless session and the adb binary to verify it
+        // If dadb connection is live, verify it quickly
+        val existingDadb = dadbConnection
+        if (existingDadb != null) {
+            try {
+                val result = existingDadb.shell("echo ok")
+                if (result.output.trim() == "ok") {
+                    _state.value = ConnectionState.CONNECTED_WIRELESS
+                    return
+                }
+            } catch (_: Exception) {
+                dadbConnection = null
+            }
+        }
+        // Check system adb binary path (rare — only on some ROMs)
         val savedIp = getLastConnectedIp()
         val adb = findAdbBinary()
         if (savedIp.isNotBlank() && adb != null) {
@@ -356,40 +403,61 @@ class AccuConnectionManager @Inject constructor(
     /**
      * Reconnect to last known session. Returns true if privilege is actually verified.
      *
-     * IMPORTANT: `adb connect` can return "already connected" from ADB's stale cache
-     * even when the device is offline. We ALWAYS verify with an actual `echo ok` shell
-     * command after connecting — never trust the connect output alone.
+     * Priority:
+     *   1. Root (LibSU) — always works
+     *   2. dadb with persisted key pair — works without any adb binary
+     *   3. System adb binary (rare on consumer devices)
+     *
+     * IMPORTANT: we ALWAYS verify with an actual echo command — never trust connect output alone.
      */
     suspend fun reconnect(): Boolean = withContext(Dispatchers.IO) {
         return@withContext try {
             if (Shell.getShell().isRoot) {
                 _state.value = ConnectionState.CONNECTED_ROOT
                 Timber.i("$TAG reconnect: root verified")
-                true
-            } else {
-                val ip  = getLastConnectedIp()
-                val adb = findAdbBinary()
-                if (ip.isNotBlank() && adb != null) {
-                    val port = getLastConnectedPort()
-                    execPlainShell("$adb connect $ip:$port")
-                    // Verify the connection is actually live — never trust connect output alone
-                    val verify = execPlainShell("$adb -s $ip:$port shell echo ACCU_OK 2>&1")
-                    val verified = verify.output.trim() == "ACCU_OK"
-                    if (verified) {
-                        _state.value = ConnectionState.CONNECTED_WIRELESS
-                        Timber.i("$TAG reconnect: wireless ADB verified at $ip:$port")
-                    } else {
-                        Timber.w("$TAG reconnect: verification failed for $ip:$port — ${verify.combinedOutput.take(80)}")
-                    }
-                    verified
-                } else {
-                    false
-                }
+                return@withContext true
             }
+
+            val ip   = getLastConnectedIp()
+            val port = getLastConnectedPort()
+            if (ip.isBlank()) return@withContext false
+
+            // Priority 2: dadb (no adb binary needed) — uses the same persisted key as pairing
+            try {
+                val conn = Dadb.create(ip, port, adbKeyPair)
+                val verify = conn.shell("echo ACCU_OK")
+                if (verify.output.trim() == "ACCU_OK") {
+                    dadbConnection = conn
+                    _state.value = ConnectionState.CONNECTED_WIRELESS
+                    Timber.i("$TAG reconnect: dadb verified at $ip:$port")
+                    return@withContext true
+                }
+            } catch (e: Exception) {
+                Timber.w("$TAG reconnect: dadb failed ($ip:$port) — ${e.message?.take(80)}")
+            }
+
+            // Priority 3: system adb binary
+            val adb = findAdbBinary()
+            if (adb != null) {
+                execPlainShell("$adb connect $ip:$port")
+                val verify = execPlainShell("$adb -s $ip:$port shell echo ACCU_OK 2>&1")
+                val verified = verify.output.trim() == "ACCU_OK"
+                if (verified) {
+                    _state.value = ConnectionState.CONNECTED_WIRELESS
+                    Timber.i("$TAG reconnect: adb binary verified at $ip:$port")
+                }
+                return@withContext verified
+            }
+
+            false
         } catch (_: Exception) { false }
     }
 
     fun disconnect() {
+        // Close dadb connection first
+        try { dadbConnection?.close() } catch (_: Exception) {}
+        dadbConnection = null
+        // Also try adb disconnect if binary is available
         val adb = findAdbBinary()
         val ip  = getLastConnectedIp()
         if (adb != null && ip.isNotBlank()) {
@@ -555,64 +623,105 @@ class AccuConnectionManager @Inject constructor(
             return@withContext PairingResult.NoPairingService
         }
 
+        // ── Path A: system adb binary (rare — only on some ROMs) ─────────────────
         val adb = findAdbBinary()
-        if (adb == null) {
-            Timber.w("$TAG completePairing: no adb binary on device ($host:$port) — user must pair from PC")
-            return@withContext PairingResult.NoAdbBinary(host, port)
+        if (adb != null) {
+            Timber.i("$TAG completePairing (adb binary): $adb pair $host:$port ***")
+            _state.value = ConnectionState.CONNECTING
+            val pairResult = execPlainShell("$adb pair $host:$port $code", stdinInput = code)
+            Timber.d("$TAG adb pair stdout='${pairResult.output.take(120)}' stderr='${pairResult.error.take(80)}'")
+            val pairOk = pairResult.output.contains("Successfully paired", ignoreCase = true)
+                      || pairResult.error.contains("Successfully paired", ignoreCase = true)
+            if (!pairOk) {
+                _state.value = ConnectionState.AWAITING_CODE
+                return@withContext PairingResult.WrongCode(pairResult.combinedOutput.take(200))
+            }
+            return@withContext connectAfterPair(host, adb)
         }
 
-        Timber.i("$TAG completePairing: running $adb pair $host:$port ***")
+        // ── Path B: dadb — pure-Kotlin ADB TLS protocol (works on all Android phones) ──
+        Timber.i("$TAG completePairing (dadb): pairing $host:$port ***")
         _state.value = ConnectionState.CONNECTING
-
-        // Pass code BOTH as CLI arg AND via stdin — some ROM adb builds only read from stdin
-        val pairResult = execPlainShell("$adb pair $host:$port $code", stdinInput = code)
-        Timber.d("$TAG adb pair stdout='${pairResult.output.take(120)}' stderr='${pairResult.error.take(80)}'")
-        // Only trust explicit "Successfully paired" — exitCode alone is unreliable across ROM adb builds
-        val pairOk = pairResult.output.contains("Successfully paired", ignoreCase = true)
-                  || pairResult.error.contains("Successfully paired", ignoreCase = true)
-
-        if (!pairOk) {
-            Timber.w("$TAG pairing failed — ${pairResult.combinedOutput.take(160)}")
+        try {
+            Dadb.pair(host, port, code, adbKeyPair)
+            Timber.i("$TAG dadb pairing succeeded ✓")
+        } catch (e: Exception) {
+            Timber.w("$TAG dadb pairing failed: ${e.message?.take(120)}")
             _state.value = ConnectionState.AWAITING_CODE
-            return@withContext PairingResult.WrongCode(pairResult.combinedOutput.take(200))
+            // Report as wrong code if the exception message suggests authentication failure
+            val isAuthFail = e.message.orEmpty().let { msg ->
+                msg.contains("auth", ignoreCase = true) ||
+                msg.contains("pair", ignoreCase = true) ||
+                msg.contains("code", ignoreCase = true) ||
+                msg.contains("refused", ignoreCase = true)
+            }
+            return@withContext if (isAuthFail) PairingResult.WrongCode(e.message.orEmpty())
+                               else PairingResult.NoAdbBinary(host, port)
         }
 
-        // Pairing succeeded — now connect via the TLS session port (NOT 5555; wireless ADB TLS uses
-        // a random port discovered via _adb-tls-connect._tcp mDNS).
-        // Wait up to 8 s for the session port to be resolved (it's discovered in parallel).
+        // Pairing succeeded — wait for session port then connect
         val deadline = System.currentTimeMillis() + 8_000L
         while (sessionPort <= 0 && System.currentTimeMillis() < deadline) {
             kotlinx.coroutines.delay(300)
         }
         val connectPort = sessionPort.takeIf { it > 0 }
             ?: run {
-                Timber.w("$TAG sessionPort still 0 after waiting — session mDNS did not resolve")
+                Timber.w("$TAG sessionPort still 0 — session mDNS did not resolve")
                 return@withContext PairingResult.ConnectionFailed(
                     host, 0,
-                    "Pairing succeeded but session port was not discovered via mDNS. " +
-                    "Run from your PC: adb connect $host"
+                    "Pairing succeeded ✓ but session port not discovered.\nTry: adb connect $host"
                 )
             }
 
+        return@withContext try {
+            Timber.i("$TAG dadb connect → $host:$connectPort")
+            val conn = Dadb.create(host, connectPort, adbKeyPair)
+            val verify = conn.shell("echo ACCU_OK")
+            if (verify.output.trim() == "ACCU_OK") {
+                dadbConnection = conn
+                _state.value = ConnectionState.CONNECTED_WIRELESS
+                prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, connectPort).apply()
+                showConnectedNotification(host, connectPort)
+                stopPairingDiscovery()
+                Timber.i("$TAG dadb verified live connection to $host:$connectPort ✓")
+                PairingResult.Success
+            } else {
+                _state.value = ConnectionState.AWAITING_CODE
+                PairingResult.ConnectionFailed(host, connectPort,
+                    "dadb connected but echo check failed — device may be unreachable")
+            }
+        } catch (e: Exception) {
+            Timber.w("$TAG dadb connect failed: ${e.message?.take(100)}")
+            _state.value = ConnectionState.AWAITING_CODE
+            PairingResult.ConnectionFailed(host, connectPort, e.message.orEmpty())
+        }
+    }
+
+    /** Called after a successful [adb pair] to connect + verify. */
+    private suspend fun connectAfterPair(host: String, adb: String): PairingResult {
+        // Wait for session port from mDNS _adb-tls-connect._tcp
+        val deadline = System.currentTimeMillis() + 8_000L
+        while (sessionPort <= 0 && System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(300)
+        }
+        val connectPort = sessionPort.takeIf { it > 0 }
+            ?: return PairingResult.ConnectionFailed(host, 0,
+                "Pairing succeeded ✓ but session port not discovered.\nTry: adb connect $host")
+
         val connectResult = execPlainShell("$adb connect $host:$connectPort")
         Timber.d("$TAG adb connect → '${connectResult.combinedOutput.take(80)}'")
-
-        // Verify the connection is ACTUALLY live — never trust "adb connect" output alone
-        // (it can say "already connected" from stale cache when device is offline)
         val verify = execPlainShell("$adb -s $host:$connectPort shell echo ACCU_OK 2>&1")
-        val verified = verify.output.trim() == "ACCU_OK"
-        if (verified) {
+        return if (verify.output.trim() == "ACCU_OK") {
             _state.value = ConnectionState.CONNECTED_WIRELESS
             prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, connectPort).apply()
             showConnectedNotification(host, connectPort)
             stopPairingDiscovery()
-            Timber.i("$TAG completePairing: verified live connection to $host:$connectPort")
-            return@withContext PairingResult.Success
+            Timber.i("$TAG adb binary: verified live connection to $host:$connectPort ✓")
+            PairingResult.Success
+        } else {
+            _state.value = ConnectionState.AWAITING_CODE
+            PairingResult.ConnectionFailed(host, connectPort, connectResult.combinedOutput.take(200))
         }
-
-        Timber.w("$TAG completePairing: paired but echo verification failed — ${verify.combinedOutput.take(80)}")
-        _state.value = ConnectionState.AWAITING_CODE
-        PairingResult.ConnectionFailed(host, connectPort, connectResult.combinedOutput.take(200))
     }
 
     // ─── Notification helpers ──────────────────────────────────────────────────

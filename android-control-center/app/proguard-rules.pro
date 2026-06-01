@@ -57,6 +57,11 @@
 -keep class android.hardware.input.** { *; }
 -keep class android.view.InputEvent { *; }
 
+# dadb (pure-Kotlin ADB protocol — pairing + connection without adb binary)
+-keep class dadb.** { *; }
+-dontwarn dadb.**
+-keep class com.android.** { *; }
+
 # General
 -keepclassmembers enum * { public static **[] values(); public static ** valueOf(java.lang.String); }
 -keep class * implements android.os.Parcelable { public static final android.os.Parcelable$Creator *; }
