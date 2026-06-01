@@ -54,8 +54,11 @@ class AdbKey private constructor(
     // ── Conscrypt TLSv1.3 context — presents our cert, enables exportKeyingMaterial ──
 
     val sslContext: SSLContext by lazy {
-        val provider = Conscrypt.newProvider()
-        val ctx      = SSLContext.getInstance("TLSv1.3", provider)
+        // Use the shared conscryptProvider (same instance used to parse/generate the key).
+        // All three — key, cert, and SSLContext — MUST use the same Conscrypt provider so
+        // the OpenSSL-backed private key is recognised when Conscrypt performs RSA-PSS
+        // signing for the TLS 1.3 CertificateVerify message.
+        val ctx = SSLContext.getInstance("TLSv1.3", conscryptProvider)
         ctx.init(arrayOf(buildKeyManager()), arrayOf(buildTrustManager()), SecureRandom())
         ctx
     }
@@ -130,6 +133,23 @@ class AdbKey private constructor(
     companion object {
 
         /**
+         * Single shared Conscrypt provider used for ALL key and SSL operations.
+         *
+         * This is the critical piece: when Conscrypt's TLS 1.3 layer creates the
+         * CertificateVerify message it needs to perform RSA-PSS signing on the
+         * private key.  Conscrypt can only do PSS operations on OpenSSL-backed keys
+         * (i.e. keys that were generated or parsed via its own provider).  If we use
+         * the default Java provider the key is a plain-Java RSAPrivateKey — Conscrypt
+         * fails to sign CertificateVerify, sends an empty Certificate message, adbd
+         * enforces SSL_VERIFY_FAIL_IF_NO_PEER_CERT, sends close_notify, and we get:
+         *   "TLS handshake failed (connection closed)"
+         *
+         * Solution: use this shared Conscrypt provider for KeyFactory, KeyPairGenerator
+         * AND SSLContext so every RSA key is OpenSSL-backed end-to-end.
+         */
+        internal val conscryptProvider: Provider by lazy { Conscrypt.newProvider() }
+
+        /**
          * Load from a PKCS8 PEM file written by dadb's [AdbKeyPair.generate].
          * If the file doesn't exist, generates a new 2048-bit RSA key and writes it
          * in PKCS8 PEM format so dadb can also read it.
@@ -147,6 +167,11 @@ class AdbKey private constructor(
             return AdbKey(priv, name)
         }
 
+        /**
+         * Parse the PKCS8 PEM using the **Conscrypt provider** so the resulting
+         * RSAPrivateKey is OpenSSL-backed.  This is required for RSA-PSS signing
+         * in TLS 1.3 CertificateVerify — see [conscryptProvider] doc above.
+         */
         private fun parsePkcs8Pem(file: File): RSAPrivateKey {
             val pem = file.readText()
             val b64 = pem
@@ -154,12 +179,16 @@ class AdbKey private constructor(
                 .replace("-----END PRIVATE KEY-----", "")
                 .replace("\\s".toRegex(), "")
             val der = Base64.decode(b64, Base64.DEFAULT)
-            return KeyFactory.getInstance("RSA")
+            return KeyFactory.getInstance("RSA", conscryptProvider)
                 .generatePrivate(PKCS8EncodedKeySpec(der)) as RSAPrivateKey
         }
 
+        /**
+         * Generate a new key pair using the **Conscrypt provider** for the same
+         * OpenSSL-backed reason described in [conscryptProvider].
+         */
         private fun generateAndSaveToFile(privFile: File): RSAPrivateKey {
-            val kpg  = KeyPairGenerator.getInstance("RSA")
+            val kpg  = KeyPairGenerator.getInstance("RSA", conscryptProvider)
             kpg.initialize(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
             val kp   = kpg.generateKeyPair()
             val priv = kp.private as RSAPrivateKey
