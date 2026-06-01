@@ -1,12 +1,11 @@
 package com.accu.data.repositories
 
+import com.accu.connection.AccuConnectionManager
 import com.accu.data.db.dao.SavedScriptDao
 import com.accu.data.db.dao.ShellCommandDao
 import com.accu.data.db.entities.SavedScriptEntity
 import com.accu.data.db.entities.ShellCommandEntity
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,6 +13,7 @@ import javax.inject.Singleton
 class ShellRepository @Inject constructor(
     private val shellCommandDao: ShellCommandDao,
     private val savedScriptDao: SavedScriptDao,
+    private val connectionManager: AccuConnectionManager,
 ) {
     fun observeCommands(): Flow<List<ShellCommandEntity>> = shellCommandDao.observeAll()
     fun observeFavorites(): Flow<List<ShellCommandEntity>> = shellCommandDao.observeFavorites()
@@ -32,12 +32,6 @@ class ShellRepository @Inject constructor(
     suspend fun deleteScript(script: SavedScriptEntity) = savedScriptDao.delete(script)
     suspend fun incrementScriptRunCount(id: Long) = savedScriptDao.incrementRunCount(id)
 
-    suspend fun execute(cmd: String): String = withContext(Dispatchers.IO) {
-        try {
-            val p = ProcessBuilder("sh", "-c", cmd).redirectErrorStream(true).start()
-            val output = p.inputStream.bufferedReader().readText()
-            p.waitFor()
-            output
-        } catch (_: Exception) { "" }
-    }
+    suspend fun execute(cmd: String): String =
+        connectionManager.exec(cmd).combinedOutput
 }
