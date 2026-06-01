@@ -1,12 +1,15 @@
 package com.accu.ui.shell
 
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,6 +17,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,10 +38,7 @@ import com.accu.ui.components.ACCTopBar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -39,11 +46,23 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
-// ──────────────────────────────────────────────
-//  aShellYou — Shell QS Tile Dashboard
-//  Manage custom QS tiles that execute ADB/shell
-//  commands on tap, with logs, icons, and editor.
-// ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  DATA MODELS
+// ═══════════════════════════════════════════════════════════════
+
+enum class TileCategory(
+    val label: String,
+    val color: Color,
+    val icon: ImageVector,
+) {
+    MEDIA_CAPTURE("Media Capture",  Color(0xFF7C3AED), Icons.Default.Screenshot),
+    SCREEN_CTRL  ("Screen Control", Color(0xFF1D4ED8), Icons.Default.BrightnessHigh),
+    SYSTEM       ("System",         Color(0xFF065F46), Icons.Default.Settings),
+    AUDIO        ("Audio",          Color(0xFF9A3412), Icons.Default.VolumeUp),
+    NETWORK      ("Network",        Color(0xFF0284C7), Icons.Default.Wifi),
+    DIAGNOSTICS  ("Diagnostics",    Color(0xFF374151), Icons.Default.Analytics),
+    CUSTOM       ("Custom",         Color(0xFF6B7280), Icons.Default.Terminal),
+}
 
 data class ShellQsTile(
     val id: String,
@@ -51,6 +70,8 @@ data class ShellQsTile(
     val command: String,
     val description: String = "",
     val iconName: String = "terminal",
+    val category: TileCategory = TileCategory.CUSTOM,
+    val isBuiltIn: Boolean = false,
     val isEnabled: Boolean = true,
     val confirmBeforeRun: Boolean = false,
     val executionCount: Int = 0,
@@ -62,24 +83,294 @@ data class ShellQsTile(
 data class TileLog(
     val tileId: String,
     val tileLabel: String,
+    val category: TileCategory,
     val timestamp: String,
     val command: String,
     val output: String,
     val exitCode: Int,
+    val durationMs: Long = 0L,
 )
 
-// ──────────────────────────────────────────────────────────────────
-//  ViewModel — real ADB execution + SharedPrefs persistence
-// ──────────────────────────────────────────────────────────────────
+data class TileResult(
+    val tileId: String,
+    val tileLabel: String,
+    val category: TileCategory,
+    val command: String,
+    val output: String,
+    val exitCode: Int,
+    val timestamp: String,
+    val durationMs: Long,
+)
 
-private const val PREF_TILES = "qs_tiles_prefs"
-private const val KEY_TILES  = "tiles_json"
-private const val KEY_LOGS   = "logs_json"
-private const val MAX_LOGS   = 200
+// ═══════════════════════════════════════════════════════════════
+//  50 BUILT-IN TILES
+// ═══════════════════════════════════════════════════════════════
+
+val BUILT_IN_TILES: List<ShellQsTile> = listOf(
+
+    // ── Media Capture (12) ──────────────────────────────────
+    ShellQsTile("bi_ss", "Screenshot",
+        "mkdir -p /sdcard/DCIM/ACCU && screencap /sdcard/DCIM/ACCU/screenshot_\$(date +%Y%m%d_%H%M%S).png && echo 'Screenshot saved to /sdcard/DCIM/ACCU/'",
+        "Capture screen to DCIM/ACCU/", "screenshot", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_ss_dl", "Screenshot → Downloads",
+        "screencap /sdcard/Download/screenshot_\$(date +%Y%m%d_%H%M%S).png && echo 'Screenshot saved to Downloads'",
+        "Capture screen to Downloads folder", "screenshot", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec15", "Screen Record 15s",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --time-limit 15 /sdcard/DCIM/ACCU/rec_\$(date +%Y%m%d_%H%M%S).mp4 && echo 'Recording (15s) saved'",
+        "Record 15 seconds of screen to DCIM/ACCU/", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec30", "Screen Record 30s",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --time-limit 30 /sdcard/DCIM/ACCU/rec_\$(date +%Y%m%d_%H%M%S).mp4 && echo 'Recording (30s) saved'",
+        "Record 30 seconds of screen", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec60", "Screen Record 60s",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --time-limit 60 /sdcard/DCIM/ACCU/rec_\$(date +%Y%m%d_%H%M%S).mp4 && echo 'Recording (60s) saved'",
+        "Record 60 seconds of screen", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec3m", "Screen Record 3min",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --time-limit 180 /sdcard/DCIM/ACCU/rec_\$(date +%Y%m%d_%H%M%S).mp4 && echo 'Recording (3min) saved'",
+        "Record 3 minutes of screen", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec_hd", "Screen Record HD",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --bit-rate 8000000 --time-limit 30 /sdcard/DCIM/ACCU/rechd_\$(date +%Y%m%d_%H%M%S).mp4 && echo 'HD Recording (30s) saved'",
+        "High-bitrate 30s recording (8Mbps)", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_rec_720", "Screen Record 720p",
+        "mkdir -p /sdcard/DCIM/ACCU && screenrecord --size 1280x720 --time-limit 30 /sdcard/DCIM/ACCU/rec720_\$(date +%Y%m%d_%H%M%S).mp4 && echo '720p Recording (30s) saved'",
+        "720p resolution 30s recording", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_ss_scan", "Screenshot + Media Scan",
+        "mkdir -p /sdcard/DCIM/ACCU && screencap /sdcard/DCIM/ACCU/ss.png && am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/DCIM/ACCU/ss.png && echo 'Screenshot taken and media-scanned'",
+        "Screenshot then trigger gallery scan", "screenshot", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_list_ss", "List Screenshots",
+        "ls -lh /sdcard/DCIM/ACCU/*.png 2>/dev/null | tail -15 || echo 'No screenshots in /sdcard/DCIM/ACCU/'",
+        "List recent screenshots in ACCU folder", "screenshot", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_list_rec", "List Recordings",
+        "ls -lh /sdcard/DCIM/ACCU/*.mp4 2>/dev/null | tail -10 || echo 'No recordings in /sdcard/DCIM/ACCU/'",
+        "List recent screen recordings", "videocam", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    ShellQsTile("bi_media_size", "ACCU Media Folder Size",
+        "du -sh /sdcard/DCIM/ACCU/ 2>/dev/null && ls /sdcard/DCIM/ACCU/ | wc -l | xargs -I{} echo '{} files total' || echo 'ACCU folder not created yet'",
+        "Show total size and file count of ACCU media folder", "folder", TileCategory.MEDIA_CAPTURE, isBuiltIn = true),
+
+    // ── Screen Control (11) ─────────────────────────────────
+    ShellQsTile("bi_screen_off", "Screen Off",
+        "input keyevent 26 && echo 'Screen turned off'",
+        "Turn the screen off (power keyevent)", "lock", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_screen_on", "Wake Screen",
+        "input keyevent 224 && echo 'Screen woken up'",
+        "Wake the screen (KEYCODE_WAKEUP)", "brightness_high", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_brightness_0", "Brightness Min",
+        "settings put system screen_brightness_mode 0 && settings put system screen_brightness 1 && echo 'Brightness set to minimum'",
+        "Set brightness to near-zero", "brightness_low", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_brightness_50", "Brightness 50%",
+        "settings put system screen_brightness_mode 0 && settings put system screen_brightness 128 && echo 'Brightness set to 50%'",
+        "Set brightness to 50%", "brightness_medium", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_brightness_100", "Brightness Max",
+        "settings put system screen_brightness_mode 0 && settings put system screen_brightness 255 && echo 'Brightness set to maximum'",
+        "Set brightness to maximum", "brightness_high", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_auto_bright_on", "Auto Brightness On",
+        "settings put system screen_brightness_mode 1 && echo 'Auto brightness enabled'",
+        "Enable automatic brightness", "brightness_auto", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_auto_bright_off", "Auto Brightness Off",
+        "settings put system screen_brightness_mode 0 && echo 'Auto brightness disabled'",
+        "Disable automatic brightness", "brightness_low", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_rotation_lock", "Rotation Lock",
+        "settings put system accelerometer_rotation 0 && settings put system user_rotation 0 && echo 'Rotation locked (portrait)'",
+        "Lock screen rotation to portrait", "screen_lock_rotation", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_rotation_auto", "Rotation Auto",
+        "settings put system accelerometer_rotation 1 && echo 'Auto rotation enabled'",
+        "Enable automatic screen rotation", "screen_rotation", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_timeout_5m", "Screen Timeout 5min",
+        "settings put system screen_off_timeout 300000 && echo 'Screen timeout set to 5 minutes'",
+        "Set screen timeout to 5 minutes", "timer", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    ShellQsTile("bi_timeout_never", "Screen Always On",
+        "settings put system screen_off_timeout 2147483647 && echo 'Screen timeout disabled (always on)'",
+        "Disable screen auto-off", "timer_off", TileCategory.SCREEN_CTRL, isBuiltIn = true),
+
+    // ── System (10) ─────────────────────────────────────────
+    ShellQsTile("bi_airplane_on", "Airplane Mode On",
+        "settings put global airplane_mode_on 1 && am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true && echo 'Airplane mode ON'",
+        "Enable airplane mode", "airplanemode_active", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_airplane_off", "Airplane Mode Off",
+        "settings put global airplane_mode_on 0 && am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false && echo 'Airplane mode OFF'",
+        "Disable airplane mode", "airplanemode_inactive", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_lock_screen", "Lock Screen",
+        "input keyevent 26",
+        "Lock the device screen immediately", "lock", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_kill_bg", "Kill Background Apps",
+        "am kill-all && echo 'All background apps killed'",
+        "Force-stop all cached background processes", "cancel", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_force_gc", "Force GC All Apps",
+        "am send-trim-memory all COMPLETE && echo 'Garbage collection triggered on all apps'",
+        "Trigger GC on every running app", "memory", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_battery_saver_on", "Battery Saver On",
+        "settings put global low_power 1 && echo 'Battery saver ENABLED'",
+        "Enable battery saver mode", "battery_saver", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_battery_saver_off", "Battery Saver Off",
+        "settings put global low_power 0 && echo 'Battery saver DISABLED'",
+        "Disable battery saver mode", "battery_full", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_dnd_on", "DND On",
+        "cmd notification set_dnd_mode on && echo 'Do Not Disturb ENABLED'",
+        "Enable Do Not Disturb mode", "do_not_disturb", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_dnd_off", "DND Off",
+        "cmd notification set_dnd_mode off && echo 'Do Not Disturb DISABLED'",
+        "Disable Do Not Disturb mode", "do_not_disturb_off", TileCategory.SYSTEM, isBuiltIn = true),
+
+    ShellQsTile("bi_reboot", "Reboot Device",
+        "reboot",
+        "Immediately reboot the device", "restart_alt", TileCategory.SYSTEM, isBuiltIn = true, confirmBeforeRun = true),
+
+    // ── Audio (8) ───────────────────────────────────────────
+    ShellQsTile("bi_vol_max", "Media Volume Max",
+        "media volume --set 15 --stream 3 && echo 'Media volume → MAX (15)'",
+        "Set media volume to maximum", "volume_up", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_vol_50", "Media Volume 50%",
+        "media volume --set 8 --stream 3 && echo 'Media volume → 50% (8)'",
+        "Set media volume to 50%", "volume_down", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_vol_mute", "Media Mute",
+        "media volume --set 0 --stream 3 && echo 'Media volume → MUTED'",
+        "Mute media/music volume", "volume_off", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_ringer_silent", "Ringer Silent",
+        "cmd audio set-ringer-mode 0 && echo 'Ringer mode → SILENT'",
+        "Set ringer to silent mode", "volume_off", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_ringer_vibrate", "Ringer Vibrate",
+        "cmd audio set-ringer-mode 1 && echo 'Ringer mode → VIBRATE'",
+        "Set ringer to vibrate only mode", "vibration", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_ringer_normal", "Ringer Normal",
+        "cmd audio set-ringer-mode 2 && echo 'Ringer mode → NORMAL'",
+        "Set ringer to normal ring mode", "notifications_active", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_notif_mute", "Mute Notifications",
+        "media volume --set 0 --stream 5 && echo 'Notification volume → MUTED'",
+        "Mute notification alert volume", "notifications_off", TileCategory.AUDIO, isBuiltIn = true),
+
+    ShellQsTile("bi_vol_status", "Volume Status",
+        "media volume --get --stream 3 && media volume --get --stream 5 && media volume --get --stream 2",
+        "Show current volume levels for all streams", "volume_up", TileCategory.AUDIO, isBuiltIn = true),
+
+    // ── Network (9) ─────────────────────────────────────────
+    ShellQsTile("bi_wifi_on", "Wi-Fi On",
+        "svc wifi enable && echo 'Wi-Fi ENABLED'",
+        "Enable Wi-Fi radio", "wifi", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_wifi_off", "Wi-Fi Off",
+        "svc wifi disable && echo 'Wi-Fi DISABLED'",
+        "Disable Wi-Fi radio", "wifi_off", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_data_on", "Mobile Data On",
+        "svc data enable && echo 'Mobile data ENABLED'",
+        "Enable mobile data connection", "cell_tower", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_data_off", "Mobile Data Off",
+        "svc data disable && echo 'Mobile data DISABLED'",
+        "Disable mobile data connection", "cell_tower", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_bt_on", "Bluetooth On",
+        "svc bluetooth enable && echo 'Bluetooth ENABLED'",
+        "Enable Bluetooth radio", "bluetooth", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_bt_off", "Bluetooth Off",
+        "svc bluetooth disable && echo 'Bluetooth DISABLED'",
+        "Disable Bluetooth radio", "bluetooth_disabled", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_hotspot_on", "Hotspot On",
+        "svc wifi startTethering 0 && echo 'Wi-Fi hotspot ENABLED'",
+        "Enable Wi-Fi hotspot/tethering", "wifi_tethering", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_hotspot_off", "Hotspot Off",
+        "svc wifi stopTethering 0 && echo 'Wi-Fi hotspot DISABLED'",
+        "Disable Wi-Fi hotspot/tethering", "wifi_tethering_off", TileCategory.NETWORK, isBuiltIn = true),
+
+    ShellQsTile("bi_net_info", "Network Info",
+        "echo '=== Wi-Fi ===' && dumpsys wifi | grep -E 'mNetworkInfo|SSID|ipAddress|linkSpeed' | head -6 && echo '=== IP ===' && ip addr show wlan0 2>/dev/null | grep 'inet '",
+        "Show Wi-Fi connection and IP info", "info", TileCategory.NETWORK, isBuiltIn = true),
+
+    // ── Diagnostics (10) ────────────────────────────────────
+    ShellQsTile("bi_battery", "Battery Status",
+        "dumpsys battery | grep -E 'level|status|temperature|voltage|plugged|health'",
+        "Full battery level, temp, and health info", "battery_full", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_memory", "RAM Usage",
+        "echo 'Total / Available:' && cat /proc/meminfo | grep -E 'MemTotal|MemAvailable|MemFree|Cached' | head -5",
+        "Show RAM total and available memory", "memory", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_cpu", "CPU Frequency",
+        "for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq; do echo \"\$(basename \$(dirname \$(dirname \$cpu))): \$(awk '{printf \"%.0f MHz\", \$1/1000}' \$cpu 2>/dev/null)\"; done 2>/dev/null || cat /proc/cpuinfo | grep 'cpu MHz' | head -4",
+        "Show current frequency for each CPU core", "speed", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_uptime", "Uptime",
+        "uptime && cat /proc/uptime | awk '{s=\$1; h=int(s/3600); m=int((s%3600)/60); printf \"Uptime: %d hours %d minutes\\n\", h, m}'",
+        "Show how long device has been running", "timer", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_disk", "Storage Usage",
+        "echo '=== Internal ===' && df -h /data | tail -1 && echo '=== SD Card ===' && df -h /sdcard | tail -1",
+        "Show internal and SD card storage usage", "storage", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_apps_count", "App Count",
+        "echo 'User apps:' && pm list packages -3 | wc -l && echo 'System apps:' && pm list packages -s | wc -l && echo 'Disabled apps:' && pm list packages -d | wc -l",
+        "Count user, system and disabled apps", "apps", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_temp", "Device Temperature",
+        "echo '=== Thermal Zones ===' && for f in /sys/class/thermal/thermal_zone*/temp; do zone=\$(echo \$f | grep -o 'thermal_zone[0-9]*'); temp=\$(cat \$f 2>/dev/null); echo \"\$zone: \$(awk \"BEGIN{printf \\\"%.1f°C\\\", \$temp/1000}\")\" 2>/dev/null; done | head -8",
+        "Read all thermal sensor temperatures", "thermostat", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_procs", "Process Count",
+        "echo 'Total processes:' && ps -A | wc -l && echo 'Foreground:' && ps -A | grep -c ' S ' && echo 'Running:' && ps -A | grep -c ' R '",
+        "Count total and running processes", "list", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_drop_cache", "Drop Memory Cache",
+        "sync && echo 3 > /proc/sys/vm/drop_caches 2>/dev/null && echo 'Page/slab/inode caches dropped' || echo 'Root required for drop_caches'",
+        "Free page, slab, and inode caches", "memory", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+
+    ShellQsTile("bi_battery_reset", "Reset Battery Stats",
+        "dumpsys batterystats --reset && echo 'Battery statistics history cleared'",
+        "Reset accumulated battery statistics", "battery_unknown", TileCategory.DIAGNOSTICS, isBuiltIn = true),
+)
+
+// ═══════════════════════════════════════════════════════════════
+//  VIEW MODEL
+// ═══════════════════════════════════════════════════════════════
+
+private const val PREF_TILES        = "qs_tiles_prefs"
+private const val KEY_TILES         = "tiles_json"
+private const val KEY_LOGS          = "logs_json"
+private const val KEY_RESULTS       = "results_json"
+private const val KEY_MEDIA_FOLDER  = "media_output_folder"
+private const val MAX_LOGS          = 500
 
 data class QsTilesUiState(
-    val tiles: List<ShellQsTile> = emptyList(),
-    val logs:  List<TileLog>    = emptyList(),
+    val customTiles:   List<ShellQsTile> = emptyList(),
+    val logs:          List<TileLog>     = emptyList(),
+    val results:       List<TileResult>  = emptyList(),
+    val mediaFolder:   String            = "/sdcard/DCIM/ACCU",
 )
 
 @HiltViewModel
@@ -96,63 +387,138 @@ class ShellQsTileDashboardViewModel @Inject constructor(
     init { load() }
 
     private fun load() {
-        val tiles = parseTiles(prefs.getString(KEY_TILES, "[]") ?: "[]")
-        val logs  = parseLogs(prefs.getString(KEY_LOGS,  "[]") ?: "[]")
-        _state.update { it.copy(tiles = tiles, logs = logs) }
+        val tiles   = parseTiles(prefs.getString(KEY_TILES,   "[]") ?: "[]")
+        val logs    = parseLogs(prefs.getString(KEY_LOGS,     "[]") ?: "[]")
+        val results = parseResults(prefs.getString(KEY_RESULTS,"[]") ?: "[]")
+        val folder  = prefs.getString(KEY_MEDIA_FOLDER, "/sdcard/DCIM/ACCU") ?: "/sdcard/DCIM/ACCU"
+        _state.update { it.copy(customTiles = tiles, logs = logs, results = results, mediaFolder = folder) }
+    }
+
+    fun setMediaFolder(path: String) {
+        prefs.edit().putString(KEY_MEDIA_FOLDER, path).apply()
+        _state.update { it.copy(mediaFolder = path) }
     }
 
     fun runTile(tile: ShellQsTile) {
         if (!tile.isEnabled) return
         viewModelScope.launch(Dispatchers.IO) {
-            _state.update { s -> s.copy(tiles = s.tiles.map { if (it.id == tile.id) it.copy(isRunning = true) else it }) }
-            val result = try { connectionManager.exec(tile.command) } catch (e: Exception) {
+            // Mark running
+            updateRunning(tile.id, tile.isBuiltIn, true)
+            val startMs = System.currentTimeMillis()
+            val result = try {
+                connectionManager.exec(tile.command)
+            } catch (e: Exception) {
                 com.accu.connection.ShellResult(output = "", error = e.message ?: "Error", exitCode = 1)
             }
-            val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val durationMs = System.currentTimeMillis() - startMs
+            val ts = SimpleDateFormat("dd MMM HH:mm:ss", Locale.getDefault()).format(Date())
+            val outputText = result.output.trim().take(800).ifBlank { result.error.take(400) }
             val log = TileLog(
-                tileId    = tile.id, tileLabel = tile.label, timestamp = ts,
+                tileId    = tile.id,
+                tileLabel = tile.label,
+                category  = tile.category,
+                timestamp = ts,
                 command   = tile.command,
-                output    = result.output.trim().take(500).ifBlank { result.error.take(200) },
+                output    = outputText,
                 exitCode  = if (result.isSuccess) 0 else 1,
+                durationMs = durationMs,
+            )
+            val tileResult = TileResult(
+                tileId    = tile.id,
+                tileLabel = tile.label,
+                category  = tile.category,
+                command   = tile.command,
+                output    = outputText,
+                exitCode  = if (result.isSuccess) 0 else 1,
+                timestamp = ts,
+                durationMs = durationMs,
             )
             _state.update { s ->
-                val updated = s.tiles.map { t ->
-                    if (t.id == tile.id) t.copy(
-                        isRunning      = false,
-                        executionCount = t.executionCount + 1,
-                        lastRun        = ts,
-                        lastOutput     = log.output.take(80),
-                    ) else t
-                }
-                val newLogs = (listOf(log) + s.logs).take(MAX_LOGS)
-                s.copy(tiles = updated, logs = newLogs)
+                val newLogs    = (listOf(log) + s.logs).take(MAX_LOGS)
+                val newResults = (listOf(tileResult) + s.results.filter { it.tileId != tile.id }).take(200)
+                s.copy(logs = newLogs, results = newResults)
             }
+            updateRunning(tile.id, tile.isBuiltIn, false, outputText.take(100), ts)
             persistAll()
         }
     }
 
-    fun addTile(tile: ShellQsTile) { _state.update { it.copy(tiles = it.tiles + tile) }; persistAll() }
-    fun updateTile(tile: ShellQsTile) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id == tile.id) tile else t }) }; persistAll() }
-    fun deleteTile(id: String) { _state.update { it.copy(tiles = it.tiles.filter { t -> t.id != id }) }; persistAll() }
-    fun enableTiles(ids: Set<String>) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id in ids) t.copy(isEnabled = true)  else t }) }; persistAll() }
-    fun disableTiles(ids: Set<String>) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id in ids) t.copy(isEnabled = false) else t }) }; persistAll() }
-    fun clearLogs() { _state.update { it.copy(logs = emptyList()) }; prefs.edit().putString(KEY_LOGS, "[]").apply() }
-    fun toggleEnabled(id: String) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id == id) t.copy(isEnabled = !t.isEnabled) else t }) }; persistAll() }
+    private fun updateRunning(id: String, isBuiltIn: Boolean, running: Boolean, lastOutput: String = "", lastRun: String = "") {
+        if (!isBuiltIn) {
+            _state.update { s ->
+                s.copy(customTiles = s.customTiles.map { t ->
+                    if (t.id == id) t.copy(
+                        isRunning      = running,
+                        executionCount = if (!running) t.executionCount + 1 else t.executionCount,
+                        lastRun        = if (!running && lastRun.isNotEmpty()) lastRun else t.lastRun,
+                        lastOutput     = if (!running && lastOutput.isNotEmpty()) lastOutput else t.lastOutput,
+                    ) else t
+                })
+            }
+        }
+    }
+
+    fun addTile(tile: ShellQsTile) {
+        _state.update { it.copy(customTiles = it.customTiles + tile) }
+        persistAll()
+    }
+
+    fun updateTile(tile: ShellQsTile) {
+        _state.update { it.copy(customTiles = it.customTiles.map { t -> if (t.id == tile.id) tile else t }) }
+        persistAll()
+    }
+
+    fun deleteTile(id: String) {
+        _state.update { it.copy(customTiles = it.customTiles.filter { t -> t.id != id }) }
+        persistAll()
+    }
+
+    fun enableTiles(ids: Set<String>) {
+        _state.update { it.copy(customTiles = it.customTiles.map { t -> if (t.id in ids) t.copy(isEnabled = true) else t }) }
+        persistAll()
+    }
+
+    fun disableTiles(ids: Set<String>) {
+        _state.update { it.copy(customTiles = it.customTiles.map { t -> if (t.id in ids) t.copy(isEnabled = false) else t }) }
+        persistAll()
+    }
+
+    fun toggleEnabled(id: String) {
+        _state.update { it.copy(customTiles = it.customTiles.map { t -> if (t.id == id) t.copy(isEnabled = !t.isEnabled) else t }) }
+        persistAll()
+    }
+
+    fun clearLogs() {
+        _state.update { it.copy(logs = emptyList()) }
+        prefs.edit().putString(KEY_LOGS, "[]").apply()
+    }
+
+    fun clearResults() {
+        _state.update { it.copy(results = emptyList()) }
+        prefs.edit().putString(KEY_RESULTS, "[]").apply()
+    }
+
+    fun deleteResult(tileId: String) {
+        _state.update { it.copy(results = it.results.filter { r -> r.tileId != tileId }) }
+        persistAll()
+    }
 
     private fun persistAll() {
         prefs.edit()
-            .putString(KEY_TILES, serializeTiles(_state.value.tiles))
-            .putString(KEY_LOGS,  serializeLogs(_state.value.logs))
+            .putString(KEY_TILES,   serializeTiles(_state.value.customTiles))
+            .putString(KEY_LOGS,    serializeLogs(_state.value.logs))
+            .putString(KEY_RESULTS, serializeResults(_state.value.results))
             .apply()
     }
 
-    // ── Serialization ──────────────────────────────────────────────────────
+    // ── Serialization ──────────────────────────────────────
     private fun serializeTiles(tiles: List<ShellQsTile>) = JSONArray().apply {
-        tiles.forEach { t ->
+        tiles.filter { !it.isBuiltIn }.forEach { t ->
             put(JSONObject().apply {
                 put("id", t.id); put("label", t.label); put("command", t.command)
                 put("description", t.description); put("iconName", t.iconName)
-                put("isEnabled", t.isEnabled); put("confirmBeforeRun", t.confirmBeforeRun)
+                put("category", t.category.name); put("isEnabled", t.isEnabled)
+                put("confirmBeforeRun", t.confirmBeforeRun)
                 put("executionCount", t.executionCount); put("lastRun", t.lastRun)
                 put("lastOutput", t.lastOutput)
             })
@@ -163,8 +529,20 @@ class ShellQsTileDashboardViewModel @Inject constructor(
         logs.forEach { l ->
             put(JSONObject().apply {
                 put("tileId", l.tileId); put("tileLabel", l.tileLabel)
-                put("timestamp", l.timestamp); put("command", l.command)
-                put("output", l.output); put("exitCode", l.exitCode)
+                put("category", l.category.name); put("timestamp", l.timestamp)
+                put("command", l.command); put("output", l.output)
+                put("exitCode", l.exitCode); put("durationMs", l.durationMs)
+            })
+        }
+    }.toString()
+
+    private fun serializeResults(results: List<TileResult>) = JSONArray().apply {
+        results.forEach { r ->
+            put(JSONObject().apply {
+                put("tileId", r.tileId); put("tileLabel", r.tileLabel)
+                put("category", r.category.name); put("command", r.command)
+                put("output", r.output); put("exitCode", r.exitCode)
+                put("timestamp", r.timestamp); put("durationMs", r.durationMs)
             })
         }
     }.toString()
@@ -176,7 +554,9 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             ShellQsTile(
                 id = o.getString("id"), label = o.getString("label"), command = o.getString("command"),
                 description = o.optString("description"), iconName = o.optString("iconName", "terminal"),
-                isEnabled = o.optBoolean("isEnabled", true), confirmBeforeRun = o.optBoolean("confirmBeforeRun", false),
+                category = runCatching { TileCategory.valueOf(o.optString("category", "CUSTOM")) }.getOrDefault(TileCategory.CUSTOM),
+                isEnabled = o.optBoolean("isEnabled", true),
+                confirmBeforeRun = o.optBoolean("confirmBeforeRun", false),
                 executionCount = o.optInt("executionCount", 0), lastRun = o.optString("lastRun", "Never"),
                 lastOutput = o.optString("lastOutput"),
             )
@@ -187,23 +567,56 @@ class ShellQsTileDashboardViewModel @Inject constructor(
         val arr = JSONArray(json)
         (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)
-            TileLog(o.getString("tileId"), o.getString("tileLabel"), o.getString("timestamp"),
-                    o.getString("command"), o.optString("output"), o.optInt("exitCode", 0))
+            TileLog(
+                tileId    = o.getString("tileId"), tileLabel = o.getString("tileLabel"),
+                category  = runCatching { TileCategory.valueOf(o.optString("category", "CUSTOM")) }.getOrDefault(TileCategory.CUSTOM),
+                timestamp = o.getString("timestamp"), command = o.getString("command"),
+                output    = o.optString("output"), exitCode = o.optInt("exitCode", 0),
+                durationMs = o.optLong("durationMs", 0L),
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+
+    private fun parseResults(json: String): List<TileResult> = try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            TileResult(
+                tileId    = o.getString("tileId"), tileLabel = o.getString("tileLabel"),
+                category  = runCatching { TileCategory.valueOf(o.optString("category", "CUSTOM")) }.getOrDefault(TileCategory.CUSTOM),
+                command   = o.getString("command"), output = o.optString("output"),
+                exitCode  = o.optInt("exitCode", 0), timestamp = o.getString("timestamp"),
+                durationMs = o.optLong("durationMs", 0L),
+            )
         }
     } catch (_: Exception) { emptyList() }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  SCREEN
+// ═══════════════════════════════════════════════════════════════
+
 private val TILE_ICON_OPTIONS = listOf(
     "terminal" to Icons.Default.Terminal,
-    "wifi" to Icons.Default.Wifi,
-    "flashlight" to Icons.Default.FlashlightOn,
-    "volume" to Icons.Default.VolumeUp,
-    "battery" to Icons.Default.BatteryChargingFull,
     "screenshot" to Icons.Default.Screenshot,
-    "restart" to Icons.Default.RestartAlt,
+    "videocam" to Icons.Default.Videocam,
+    "wifi" to Icons.Default.Wifi,
+    "volume_up" to Icons.Default.VolumeUp,
+    "battery_full" to Icons.Default.BatteryFull,
+    "settings" to Icons.Default.Settings,
     "lock" to Icons.Default.Lock,
-    "network" to Icons.Default.NetworkCell,
     "bluetooth" to Icons.Default.Bluetooth,
+    "brightness_high" to Icons.Default.BrightnessHigh,
+    "memory" to Icons.Default.Memory,
+    "speed" to Icons.Default.Speed,
+    "timer" to Icons.Default.Timer,
+    "restart_alt" to Icons.Default.RestartAlt,
+    "volume_off" to Icons.Default.VolumeOff,
+    "network_cell" to Icons.Default.NetworkCell,
+    "storage" to Icons.Default.Storage,
+    "info" to Icons.Default.Info,
+    "analytics" to Icons.Default.Analytics,
+    "notifications" to Icons.Default.Notifications,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -212,40 +625,45 @@ fun ShellQsTileDashboardScreen(
     onBack: () -> Unit = {},
     viewModel: ShellQsTileDashboardViewModel = hiltViewModel(),
 ) {
-    val vmState by viewModel.state.collectAsStateWithLifecycle()
-    val tiles = vmState.tiles
-    val logs  = vmState.logs
+    val vmState     by viewModel.state.collectAsStateWithLifecycle()
+    val customTiles = vmState.customTiles
+    val allTiles    = BUILT_IN_TILES + customTiles
+    val logs        = vmState.logs
+    val results     = vmState.results
+    val mediaFolder = vmState.mediaFolder
+    val clipboard   = LocalClipboardManager.current
+    val context     = LocalContext.current
 
-    var showCreateSheet by remember { mutableStateOf(false) }
-    var editingTile by remember { mutableStateOf<ShellQsTile?>(null) }
+    var showCreateSheet  by remember { mutableStateOf(false) }
+    var editingTile      by remember { mutableStateOf<ShellQsTile?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<ShellQsTile?>(null) }
-    var showLogsForTile by remember { mutableStateOf<String?>(null) }
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var selectedIds by remember { mutableStateOf(setOf<String>()) }
-    var snackbar by remember { mutableStateOf<String?>(null) }
-    val snackbarHost = remember { SnackbarHostState() }
+    var selectedTab      by remember { mutableIntStateOf(0) }
+    var selectedIds      by remember { mutableStateOf(setOf<String>()) }
+    var showFolderDialog by remember { mutableStateOf(false) }
+    var snackbar         by remember { mutableStateOf<String?>(null) }
+    var catFilter        by remember { mutableStateOf<TileCategory?>(null) }
+    var builtInSearch    by remember { mutableStateOf("") }
+    val snackbarHost     = remember { SnackbarHostState() }
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
 
     val isSelecting = selectedIds.isNotEmpty()
 
     // Editor state
-    var editLabel by remember { mutableStateOf("") }
-    var editCommand by remember { mutableStateOf("") }
+    var editLabel       by remember { mutableStateOf("") }
+    var editCommand     by remember { mutableStateOf("") }
     var editDescription by remember { mutableStateOf("") }
-    var editIconName by remember { mutableStateOf("terminal") }
-    var editConfirm by remember { mutableStateOf(false) }
-    var editEnabled by remember { mutableStateOf(true) }
+    var editIconName    by remember { mutableStateOf("terminal") }
+    var editCategory    by remember { mutableStateOf(TileCategory.CUSTOM) }
+    var editConfirm     by remember { mutableStateOf(false) }
+    var editEnabled     by remember { mutableStateOf(true) }
 
     fun openEditor(tile: ShellQsTile? = null) {
-        editLabel = tile?.label ?: ""
-        editCommand = tile?.command ?: ""
-        editDescription = tile?.description ?: ""
-        editIconName = tile?.iconName ?: "terminal"
-        editConfirm = tile?.confirmBeforeRun ?: false
-        editEnabled = tile?.isEnabled ?: true
-        editingTile = tile
-        showCreateSheet = true
+        editLabel = tile?.label ?: ""; editCommand = tile?.command ?: ""
+        editDescription = tile?.description ?: ""; editIconName = tile?.iconName ?: "terminal"
+        editCategory = tile?.category ?: TileCategory.CUSTOM
+        editConfirm = tile?.confirmBeforeRun ?: false; editEnabled = tile?.isEnabled ?: true
+        editingTile = tile; showCreateSheet = true
     }
 
     Scaffold(
@@ -255,113 +673,239 @@ fun ShellQsTileDashboardScreen(
                 onBack = { if (isSelecting) selectedIds = emptySet() else onBack() },
                 actions = {
                     if (isSelecting) {
+                        IconButton(onClick = { viewModel.enableTiles(selectedIds); snackbar = "Enabled"; selectedIds = emptySet() }) {
+                            Icon(Icons.Default.PlayArrow, "Enable")
+                        }
+                        IconButton(onClick = { viewModel.disableTiles(selectedIds); snackbar = "Disabled"; selectedIds = emptySet() }) {
+                            Icon(Icons.Default.Pause, "Disable")
+                        }
                         IconButton(onClick = {
-                            viewModel.enableTiles(selectedIds)
-                            snackbar = "Enabled ${selectedIds.size} tiles"
-                            selectedIds = emptySet()
-                        }) { Icon(Icons.Default.PlayArrow, "Enable") }
-                        IconButton(onClick = {
-                            viewModel.disableTiles(selectedIds)
-                            snackbar = "Disabled ${selectedIds.size} tiles"
-                            selectedIds = emptySet()
-                        }) { Icon(Icons.Default.Pause, "Disable") }
-                        IconButton(onClick = {
-                            val count = selectedIds.size
-                            selectedIds.forEach { viewModel.deleteTile(it) }
-                            snackbar = "Deleted $count tiles"
-                            selectedIds = emptySet()
-                        }) { Icon(Icons.Default.Delete, "Delete") }
+                            val cnt = selectedIds.size; selectedIds.forEach { viewModel.deleteTile(it) }
+                            snackbar = "Deleted $cnt"; selectedIds = emptySet()
+                        }) { Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) }
                         IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, "Cancel") }
                     } else {
-                        IconButton(onClick = { snackbar = "Syncing QS tile slots…" }) { Icon(Icons.Default.Sync, "Sync") }
-                        IconButton(onClick = { openEditor(null) }) { Icon(Icons.Default.Add, "New Tile") }
+                        IconButton(onClick = { showFolderDialog = true }) {
+                            Icon(Icons.Default.FolderOpen, "Media output folder")
+                        }
+                        if (selectedTab == 1) {
+                            IconButton(onClick = { openEditor(null) }) { Icon(Icons.Default.Add, "New Tile") }
+                        }
+                        if (selectedTab == 2 && logs.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.clearLogs(); snackbar = "Logs cleared" }) {
+                                Icon(Icons.Default.DeleteSweep, "Clear logs")
+                            }
+                        }
+                        if (selectedTab == 3 && results.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.clearResults(); snackbar = "Results cleared" }) {
+                                Icon(Icons.Default.DeleteSweep, "Clear results")
+                            }
+                        }
                     }
                 },
             )
         },
         floatingActionButton = {
-            if (!isSelecting && selectedTab == 0) {
-                FloatingActionButton(onClick = { openEditor(null) }) {
-                    Icon(Icons.Default.Add, "New Tile")
-                }
+            if (!isSelecting && selectedTab == 1) {
+                ExtendedFloatingActionButton(
+                    onClick = { openEditor(null) },
+                    icon = { Icon(Icons.Default.Add, null) },
+                    text = { Text("New Tile") },
+                )
             }
         },
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Info card
-            Card(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                shape = RoundedCornerShape(12.dp),
+
+            // ── Media folder banner ─────────────────────────
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
             ) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Default.ViewDay, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Custom Shell QS Tiles", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("${tiles.count { it.isEnabled }}/${tiles.size} tiles active · Tap a tile to run its command · Long-press to select", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(0.7f))
-                    }
-                    TextButton(onClick = { snackbar = "Opening QS panel setup…" }) { Text("Add to QS", style = MaterialTheme.typography.labelSmall) }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Default.FolderOpen, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.secondary)
+                    Text(
+                        "Media → $mediaFolder",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    TextButton(
+                        onClick = { showFolderDialog = true },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    ) { Text("Change", style = MaterialTheme.typography.labelSmall) }
                 }
             }
 
-            // Tabs: Tiles | Logs
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Tiles (${tiles.size})") }, icon = { Icon(Icons.Default.ViewDay, null, Modifier.size(16.dp)) })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Logs (${logs.size})") }, icon = { Icon(Icons.Default.Article, null, Modifier.size(16.dp)) })
+            // ── Tabs ────────────────────────────────────────
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = 8.dp,
+            ) {
+                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
+                    text = { Text("Built-in (${BUILT_IN_TILES.size})") },
+                    icon = { Icon(Icons.Default.ViewModule, null, Modifier.size(16.dp)) })
+                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
+                    text = { Text("Custom (${customTiles.size})") },
+                    icon = { Icon(Icons.Default.ViewDay, null, Modifier.size(16.dp)) })
+                Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 },
+                    text = { Text("Logs (${logs.size})") },
+                    icon = { Icon(Icons.Default.Article, null, Modifier.size(16.dp)) })
+                Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 },
+                    text = { Text("Results (${results.size})") },
+                    icon = { Icon(Icons.Default.Assessment, null, Modifier.size(16.dp)) })
             }
 
             when (selectedTab) {
-                0 -> TilesTab(
-                    tiles = tiles,
+                0 -> BuiltInTilesTab(
+                    tiles = BUILT_IN_TILES,
+                    catFilter = catFilter,
+                    searchQuery = builtInSearch,
+                    onCatFilter = { catFilter = if (catFilter == it) null else it },
+                    onSearchChange = { builtInSearch = it },
+                    onRun = { tile ->
+                        if (tile.confirmBeforeRun) showDeleteConfirm = tile
+                        else { snackbar = "Running: ${tile.label}…"; viewModel.runTile(tile) }
+                    },
+                    onCopyCommand = { tile ->
+                        clipboard.setText(AnnotatedString(tile.command))
+                        snackbar = "Command copied"
+                    },
+                    onCloneToCustom = { tile ->
+                        openEditor(tile.copy(id = "${System.currentTimeMillis()}", isBuiltIn = false, category = TileCategory.CUSTOM))
+                        snackbar = "Cloning '${tile.label}' to Custom…"
+                    },
+                )
+
+                1 -> CustomTilesTab(
+                    tiles = customTiles,
                     selectedIds = selectedIds,
                     isSelecting = isSelecting,
-                    onToggle = { tile -> viewModel.toggleEnabled(tile.id) },
+                    onToggle = { viewModel.toggleEnabled(it.id) },
                     onRun = { tile ->
-                        if (tile.confirmBeforeRun) snackbar = "Confirm required for ${tile.label}"
-                        else {
-                            snackbar = "Running: ${tile.command.take(40)}"
-                            viewModel.runTile(tile)
-                        }
+                        if (tile.confirmBeforeRun) showDeleteConfirm = tile
+                        else { snackbar = "Running: ${tile.label}…"; viewModel.runTile(tile) }
                     },
                     onEdit = { openEditor(it) },
                     onDelete = { showDeleteConfirm = it },
                     onSelectToggle = { id -> selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id },
                     onLongPress = { id -> selectedIds = selectedIds + id },
                 )
-                1 -> LogsTab(
+
+                2 -> LogsTab(
                     logs = logs,
                     onClear = { viewModel.clearLogs(); snackbar = "Logs cleared" },
+                    onCopyLog = { log ->
+                        clipboard.setText(AnnotatedString("$ ${log.command}\n${log.output}"))
+                        snackbar = "Log copied"
+                    },
+                )
+
+                3 -> ResultsTab(
+                    results = results,
+                    onDelete = { viewModel.deleteResult(it) },
+                    onClear = { viewModel.clearResults(); snackbar = "All results cleared" },
+                    onCopy = { r ->
+                        clipboard.setText(AnnotatedString("${r.tileLabel}\n$ ${r.command}\n${r.output}"))
+                        snackbar = "Result copied"
+                    },
                 )
             }
         }
     }
 
-    // ── Create / Edit Sheet ──────────────────────────────────────────────────
+    // ── Folder picker dialog ──────────────────────────────
+    if (showFolderDialog) {
+        var folderInput by remember { mutableStateOf(mediaFolder) }
+        val presets = listOf(
+            "/sdcard/DCIM/ACCU",
+            "/sdcard/Download",
+            "/sdcard/Pictures/ACCU",
+            "/sdcard/Movies/ACCU",
+        )
+        AlertDialog(
+            onDismissRequest = { showFolderDialog = false },
+            icon = { Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Media Output Folder", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Screenshots and recordings from built-in tiles will be saved here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = folderInput, onValueChange = { folderInput = it },
+                        label = { Text("Folder path") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        leadingIcon = { Icon(Icons.Default.FolderOpen, null, Modifier.size(18.dp)) },
+                    )
+                    Text("Quick pick:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                    presets.forEach { preset ->
+                        OutlinedButton(
+                            onClick = { folderInput = preset },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            border = if (folderInput == preset) ButtonDefaults.outlinedButtonBorder() else ButtonDefaults.outlinedButtonBorder(),
+                        ) {
+                            Icon(Icons.Default.Folder, null, Modifier.size(14.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(preset, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (folderInput == preset) Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.setMediaFolder(folderInput.trimEnd('/'))
+                    snackbar = "Media folder updated ✓"
+                    showFolderDialog = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showFolderDialog = false }) { Text("Cancel") } },
+        )
+    }
+
+    // ── Create/Edit bottom sheet ──────────────────────────
     if (showCreateSheet) {
         AlertDialog(
             onDismissRequest = { showCreateSheet = false; editingTile = null },
-            title = { Text(if (editingTile == null) "New Shell QS Tile" else "Edit: ${editingTile!!.label}") },
+            title = { Text(if (editingTile == null) "New Custom Tile" else "Edit: ${editingTile!!.label}", fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = editLabel, onValueChange = { editLabel = it },
-                        label = { Text("Label*") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    )
+                    OutlinedTextField(value = editLabel, onValueChange = { editLabel = it }, label = { Text("Label*") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                     OutlinedTextField(
                         value = editCommand, onValueChange = { editCommand = it },
-                        label = { Text("Command*") }, modifier = Modifier.fillMaxWidth().height(90.dp),
+                        label = { Text("Shell Command*") }, modifier = Modifier.fillMaxWidth().height(100.dp),
                         placeholder = { Text("e.g. svc wifi disable && svc wifi enable") },
                         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     )
-                    OutlinedTextField(
-                        value = editDescription, onValueChange = { editDescription = it },
-                        label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    )
+                    OutlinedTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
 
-                    // Icon picker
-                    Text("Icon", style = MaterialTheme.typography.labelMedium)
-                    androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Category
+                    Text("Category", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(TileCategory.entries) { cat ->
+                            FilterChip(
+                                selected = editCategory == cat,
+                                onClick = { editCategory = cat },
+                                label = { Text(cat.label, style = MaterialTheme.typography.labelSmall) },
+                                leadingIcon = { Icon(cat.icon, null, Modifier.size(12.dp)) },
+                            )
+                        }
+                    }
+
+                    // Icon
+                    Text("Icon", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(TILE_ICON_OPTIONS) { (name, icon) ->
                             FilterChip(
                                 selected = editIconName == name,
@@ -374,7 +918,7 @@ fun ShellQsTileDashboardScreen(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Confirm before run", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                            Text("Show confirmation dialog before executing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Show confirmation dialog first", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = editConfirm, onCheckedChange = { editConfirm = it })
                     }
@@ -385,60 +929,249 @@ fun ShellQsTileDashboardScreen(
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        if (editLabel.isBlank() || editCommand.isBlank()) {
-                            snackbar = "Label and command are required"
-                            return@Button
-                        }
-                        if (editingTile == null) {
-                            viewModel.addTile(ShellQsTile(
-                                id = "${System.currentTimeMillis()}",
-                                label = editLabel,
-                                command = editCommand,
-                                description = editDescription,
-                                iconName = editIconName,
-                                isEnabled = editEnabled,
-                                confirmBeforeRun = editConfirm,
-                            ))
-                            snackbar = "Tile '${editLabel}' created"
-                        } else {
-                            viewModel.updateTile(editingTile!!.copy(
-                                label = editLabel, command = editCommand, description = editDescription,
-                                iconName = editIconName, confirmBeforeRun = editConfirm, isEnabled = editEnabled,
-                            ))
-                            snackbar = "Tile '${editLabel}' updated"
-                        }
-                        showCreateSheet = false; editingTile = null
-                    },
-                ) { Text(if (editingTile == null) "Create" else "Save") }
+                Button(onClick = {
+                    if (editLabel.isBlank() || editCommand.isBlank()) { snackbar = "Label and command required"; return@Button }
+                    if (editingTile == null) {
+                        viewModel.addTile(ShellQsTile(
+                            id = "${System.currentTimeMillis()}", label = editLabel, command = editCommand,
+                            description = editDescription, iconName = editIconName, category = editCategory,
+                            isEnabled = editEnabled, confirmBeforeRun = editConfirm,
+                        ))
+                        snackbar = "Tile '$editLabel' created ✓"
+                    } else {
+                        viewModel.updateTile(editingTile!!.copy(
+                            label = editLabel, command = editCommand, description = editDescription,
+                            iconName = editIconName, category = editCategory,
+                            confirmBeforeRun = editConfirm, isEnabled = editEnabled,
+                        ))
+                        snackbar = "Tile '$editLabel' updated ✓"
+                    }
+                    showCreateSheet = false; editingTile = null
+                }) { Text(if (editingTile == null) "Create" else "Save") }
             },
             dismissButton = { TextButton(onClick = { showCreateSheet = false; editingTile = null }) { Text("Cancel") } },
         )
     }
 
-    // Delete confirm
-    val toDelete = showDeleteConfirm
-    if (toDelete != null) {
+    // ── Confirm run dialog ────────────────────────────────
+    val toConfirm = showDeleteConfirm
+    if (toConfirm != null) {
+        val isDelete = !toConfirm.confirmBeforeRun
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
-            icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Delete '${toDelete.label}'?") },
-            text = { Text("This QS tile and its execution history will be permanently removed.") },
+            icon = {
+                Icon(if (isDelete) Icons.Default.Delete else Icons.Default.Warning, null,
+                    tint = if (isDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary)
+            },
+            title = { Text(if (isDelete) "Delete '${toConfirm.label}'?" else "Run '${toConfirm.label}'?") },
+            text = {
+                if (isDelete) Text("This custom tile and all its data will be permanently removed.")
+                else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("This action requires confirmation before running:", style = MaterialTheme.typography.bodySmall)
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
+                        Text(toConfirm.command, Modifier.padding(10.dp), fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                    }
+                }
+            },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.deleteTile(toDelete.id); snackbar = "Tile deleted"; showDeleteConfirm = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Text("Delete") }
+                    onClick = {
+                        if (isDelete) { viewModel.deleteTile(toConfirm.id); snackbar = "Tile deleted" }
+                        else { snackbar = "Running '${toConfirm.label}'…"; viewModel.runTile(toConfirm) }
+                        showDeleteConfirm = null
+                    },
+                    colors = if (isDelete) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                             else ButtonDefaults.buttonColors(),
+                ) { Text(if (isDelete) "Delete" else "Run") }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") } },
         )
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  TAB: BUILT-IN TILES
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun BuiltInTilesTab(
+    tiles: List<ShellQsTile>,
+    catFilter: TileCategory?,
+    searchQuery: String,
+    onCatFilter: (TileCategory) -> Unit,
+    onSearchChange: (String) -> Unit,
+    onRun: (ShellQsTile) -> Unit,
+    onCopyCommand: (ShellQsTile) -> Unit,
+    onCloneToCustom: (ShellQsTile) -> Unit,
+) {
+    val filtered = tiles.filter { t ->
+        (catFilter == null || t.category == catFilter) &&
+        (searchQuery.isBlank() || t.label.contains(searchQuery, ignoreCase = true) || t.description.contains(searchQuery, ignoreCase = true))
+    }
+    val grouped = filtered.groupBy { it.category }
+
+    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+        // Search bar
+        item {
+            OutlinedTextField(
+                value = searchQuery, onValueChange = onSearchChange,
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search built-in tiles…") },
+                leadingIcon = { Icon(Icons.Default.Search, null, Modifier.size(18.dp)) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) IconButton(onClick = { onSearchChange("") }) { Icon(Icons.Default.Clear, null, Modifier.size(16.dp)) }
+                },
+                singleLine = true, shape = RoundedCornerShape(12.dp),
+                textStyle = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        // Category filter chips
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(TileCategory.entries.filter { it != TileCategory.CUSTOM }) { cat ->
+                    val count = tiles.count { it.category == cat }
+                    FilterChip(
+                        selected = catFilter == cat,
+                        onClick = { onCatFilter(cat) },
+                        label = { Text("${cat.label} ($count)", style = MaterialTheme.typography.labelSmall) },
+                        leadingIcon = { Icon(cat.icon, null, Modifier.size(12.dp)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = cat.color.copy(alpha = 0.2f),
+                            selectedLabelColor = cat.color,
+                        ),
+                    )
+                }
+            }
+        }
+
+        // Tiles per category
+        grouped.forEach { (cat, catTiles) ->
+            item(key = "header_${cat.name}") {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier.size(28.dp).clip(CircleShape).background(cat.color.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(cat.icon, null, Modifier.size(14.dp), tint = cat.color) }
+                    Text(cat.label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = cat.color)
+                    Surface(shape = CircleShape, color = cat.color.copy(alpha = 0.12f)) {
+                        Text("${catTiles.size}", style = MaterialTheme.typography.labelSmall, color = cat.color, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                    }
+                }
+            }
+
+            items(catTiles, key = { it.id }) { tile ->
+                BuiltInTileCard(
+                    tile = tile,
+                    onRun = { onRun(tile) },
+                    onCopy = { onCopyCommand(tile) },
+                    onClone = { onCloneToCustom(tile) },
+                )
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.SearchOff, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        Text("No tiles match your search", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BuiltInTileCard(tile: ShellQsTile, onRun: () -> Unit, onCopy: () -> Unit, onClone: () -> Unit) {
+    val icon = TILE_ICON_OPTIONS.find { it.first == tile.iconName }?.second ?: tile.category.icon
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Box(
+            Modifier.fillMaxWidth().background(
+                Brush.horizontalGradient(listOf(tile.category.color.copy(alpha = 0.08f), Color.Transparent))
+            )
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    // Category accent
+                    Box(
+                        Modifier.size(42.dp).clip(RoundedCornerShape(10.dp)).background(tile.category.color.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(icon, null, Modifier.size(22.dp), tint = tile.category.color) }
+
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(tile.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Text(tile.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (tile.confirmBeforeRun) {
+                        Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
+                            Text("confirm", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Command preview
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f), shape = RoundedCornerShape(8.dp)) {
+                    Text(
+                        "$ ${tile.command.take(120)}${if (tile.command.length > 120) "…" else ""}",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Spacer(Modifier.height(4.dp))
+
+                // Actions
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onCopy, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Icon(Icons.Default.ContentCopy, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Copy", style = MaterialTheme.typography.labelSmall)
+                    }
+                    TextButton(onClick = onClone, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                        Icon(Icons.Default.AddCircleOutline, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Clone", style = MaterialTheme.typography.labelSmall)
+                    }
+                    Button(
+                        onClick = onRun,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = tile.category.color),
+                    ) {
+                        Icon(Icons.Default.PlayArrow, null, Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Run", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB: CUSTOM TILES
+// ═══════════════════════════════════════════════════════════════
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TilesTab(
+private fun CustomTilesTab(
     tiles: List<ShellQsTile>,
     selectedIds: Set<String>,
     isSelecting: Boolean,
@@ -451,95 +1184,91 @@ private fun TilesTab(
 ) {
     if (tiles.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.ViewDay, null, Modifier.size(56.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(12.dp))
-                Text("No QS tiles yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("Tap + to create a tile that runs any shell command", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No custom tiles yet", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tap + or clone a built-in tile to get started", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         return
     }
-    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 96.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(tiles, key = { it.id }) { tile ->
             val isSelected = tile.id in selectedIds
             val icon = TILE_ICON_OPTIONS.find { it.first == tile.iconName }?.second ?: Icons.Default.Terminal
-
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { if (isSelecting) onSelectToggle(tile.id) else onRun(tile) },
-                        onLongClick = { onLongPress(tile.id) },
-                    ),
+                modifier = Modifier.fillMaxWidth().combinedClickable(
+                    onClick = { if (isSelecting) onSelectToggle(tile.id) else onRun(tile) },
+                    onLongClick = { onLongPress(tile.id) },
+                ),
                 colors = CardDefaults.cardColors(
                     containerColor = when {
                         isSelected -> MaterialTheme.colorScheme.primaryContainer
-                        !tile.isEnabled -> MaterialTheme.colorScheme.surfaceVariant
+                        !tile.isEnabled -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                         else -> MaterialTheme.colorScheme.surfaceContainer
                     },
                 ),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(14.dp),
             ) {
-                Column(Modifier.padding(14.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        if (isSelecting) {
-                            Checkbox(checked = isSelected, onCheckedChange = { onSelectToggle(tile.id) })
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (tile.isEnabled) MaterialTheme.colorScheme.primary.copy(0.1f) else MaterialTheme.colorScheme.outline.copy(0.1f),
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(icon, null, tint = if (tile.isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, modifier = Modifier.size(22.dp))
-                            }
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(tile.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (!tile.isEnabled) {
-                                    Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.outline.copy(0.2f)) {
-                                        Text("off", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                Box(
+                    Modifier.fillMaxWidth().background(
+                        if (!isSelected) Brush.horizontalGradient(listOf(tile.category.color.copy(alpha = 0.07f), Color.Transparent))
+                        else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+                    )
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            if (isSelecting) { Checkbox(checked = isSelected, onCheckedChange = { onSelectToggle(tile.id) }); Spacer(Modifier.width(4.dp)) }
+                            Box(
+                                Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(if (tile.isEnabled) tile.category.color.copy(alpha = 0.14f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(icon, null, Modifier.size(22.dp), tint = if (tile.isEnabled) tile.category.color else MaterialTheme.colorScheme.outline) }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(tile.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                    Surface(shape = RoundedCornerShape(4.dp), color = tile.category.color.copy(alpha = 0.12f)) {
+                                        Text(tile.category.label, style = MaterialTheme.typography.labelSmall, color = tile.category.color, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                    }
+                                    if (!tile.isEnabled) {
+                                        Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.outline.copy(0.2f)) {
+                                            Text("off", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                        }
                                     }
                                 }
-                                if (tile.confirmBeforeRun) {
-                                    Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-                                        Text("confirm", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                                    }
-                                }
+                                Text(tile.command, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
                             }
-                            Text(tile.command, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                            Switch(checked = tile.isEnabled, onCheckedChange = { onToggle(tile) })
                         }
-                        Switch(checked = tile.isEnabled, onCheckedChange = { onToggle(tile) })
-                    }
 
-                    // Stats + actions row
-                    Spacer(Modifier.height(8.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(0.5f))
-                    Spacer(Modifier.height(6.dp))
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("${tile.executionCount}x runs · Last: ${tile.lastRun}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            if (tile.lastOutput.isNotBlank()) {
-                                Text("→ ${tile.lastOutput.take(50)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        if (tile.lastOutput.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), shape = RoundedCornerShape(6.dp)) {
+                                Text("→ ${tile.lastOutput.take(80)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth(),
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, fontFamily = FontFamily.Monospace)
                             }
                         }
-                        if (!isSelecting) {
-                            IconButton(onClick = { onEdit(tile) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.Edit, "Edit", modifier = Modifier.size(16.dp))
-                            }
-                            IconButton(onClick = { onDelete(tile) }, modifier = Modifier.size(32.dp)) {
-                                Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
-                            }
-                            if (tile.isEnabled) {
-                                IconButton(onClick = { onRun(tile) }, modifier = Modifier.size(32.dp)) {
-                                    if (tile.isRunning)
-                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    else
-                                        Icon(Icons.Default.PlayArrow, "Run now", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+
+                        Spacer(Modifier.height(6.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(0.4f))
+                        Spacer(Modifier.height(4.dp))
+
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("${tile.executionCount}× · Last: ${tile.lastRun}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                            if (!isSelecting) {
+                                IconButton(onClick = { onEdit(tile) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Edit, "Edit", modifier = Modifier.size(16.dp))
+                                }
+                                IconButton(onClick = { onDelete(tile) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                }
+                                if (tile.isEnabled) {
+                                    IconButton(onClick = { onRun(tile) }, modifier = Modifier.size(32.dp)) {
+                                        if (tile.isRunning) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                        else Icon(Icons.Default.PlayArrow, "Run", modifier = Modifier.size(18.dp), tint = tile.category.color)
+                                    }
                                 }
                             }
                         }
@@ -550,47 +1279,280 @@ private fun TilesTab(
     }
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  TAB: LOGS
+// ═══════════════════════════════════════════════════════════════
+
 @Composable
-private fun LogsTab(logs: List<TileLog>, onClear: () -> Unit) {
+private fun LogsTab(
+    logs: List<TileLog>,
+    onClear: () -> Unit,
+    onCopyLog: (TileLog) -> Unit,
+) {
     if (logs.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No logs yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.Article, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Text("No logs yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Run a tile to see its output log here", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         return
     }
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("${logs.size} entries", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = onClear, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Clear") }
+
+    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("${logs.size} log entries (newest first)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Icon(Icons.Default.DeleteSweep, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Clear All", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
         }
-        LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 4.dp, end = 12.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(logs, key = { "${it.tileId}_${it.timestamp}" }) { log ->
-                Card(
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (log.exitCode == 0) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.errorContainer.copy(0.3f)
-                    ),
+        items(logs, key = { "${it.tileId}_${it.timestamp}_${it.durationMs}" }) { log ->
+            LogCard(log = log, onCopy = { onCopyLog(log) })
+        }
+    }
+}
+
+@Composable
+private fun LogCard(log: TileLog, onCopy: () -> Unit) {
+    val successColor = Color(0xFF16A34A)
+    val errorColor   = MaterialTheme.colorScheme.error
+    val isSuccess    = log.exitCode == 0
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column {
+            // Header bar
+            Row(
+                Modifier.fillMaxWidth()
+                    .background(if (isSuccess) successColor.copy(alpha = 0.12f) else errorColor.copy(alpha = 0.1f))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier.size(20.dp).clip(CircleShape)
+                        .background(if (isSuccess) successColor.copy(alpha = 0.2f) else errorColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(
-                                if (log.exitCode == 0) Icons.Default.CheckCircle else Icons.Default.Error,
-                                null, tint = if (log.exitCode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(16.dp),
+                    Icon(
+                        if (isSuccess) Icons.Default.Check else Icons.Default.Close,
+                        null, Modifier.size(11.dp),
+                        tint = if (isSuccess) successColor else errorColor,
+                    )
+                }
+                Text(log.tileLabel, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Surface(shape = RoundedCornerShape(4.dp), color = log.category.color.copy(alpha = 0.12f)) {
+                    Text(log.category.label, style = MaterialTheme.typography.labelSmall, color = log.category.color, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                }
+                Text(log.timestamp, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (log.durationMs > 0) {
+                    Text("${log.durationMs}ms", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                }
+                IconButton(onClick = onCopy, modifier = Modifier.size(24.dp)) {
+                    Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(13.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Command
+            Text(
+                "$ ${log.command}",
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp).fillMaxWidth(),
+                fontFamily = FontFamily.Monospace, fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            )
+
+            // Output
+            if (log.output.isNotBlank()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 10.dp),
+                    color = if (isSuccess) successColor.copy(alpha = 0.06f) else errorColor.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Text(
+                        log.output,
+                        modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                        color = if (isSuccess) MaterialTheme.colorScheme.onSurface else errorColor.copy(alpha = 0.85f),
+                    )
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAB: RESULTS (persistent per-tile last result)
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun ResultsTab(
+    results: List<TileResult>,
+    onDelete: (String) -> Unit,
+    onClear: () -> Unit,
+    onCopy: (TileResult) -> Unit,
+) {
+    if (results.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Assessment, null, Modifier.size(56.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No results stored", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Last result from each tile is saved here permanently", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Results persist until you delete them", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        return
+    }
+
+    LazyColumn(contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 80.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("${results.size} stored results", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("One result per tile · Persists until deleted", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = onClear, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                    Icon(Icons.Default.DeleteSweep, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Clear All", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
+        // Stats row
+        item {
+            val successCount = results.count { it.exitCode == 0 }
+            val errorCount   = results.count { it.exitCode != 0 }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ResultStatPill("$successCount Success", Color(0xFF16A34A), Modifier.weight(1f))
+                ResultStatPill("$errorCount Failed", MaterialTheme.colorScheme.error, Modifier.weight(1f))
+                ResultStatPill("${results.size} Total", MaterialTheme.colorScheme.primary, Modifier.weight(1f))
+            }
+        }
+
+        // Category grouping
+        val grouped = results.groupBy { it.category }
+        grouped.forEach { (cat, catResults) ->
+            item(key = "res_header_${cat.name}") {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(cat.icon, null, Modifier.size(14.dp), tint = cat.color)
+                    Text(cat.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = cat.color)
+                    Surface(shape = CircleShape, color = cat.color.copy(alpha = 0.12f)) {
+                        Text("${catResults.size}", style = MaterialTheme.typography.labelSmall, color = cat.color, modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                    }
+                }
+            }
+            items(catResults, key = { "result_${it.tileId}" }) { result ->
+                ResultCard(
+                    result = result,
+                    onDelete = { onDelete(result.tileId) },
+                    onCopy = { onCopy(result) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResultCard(result: TileResult, onDelete: () -> Unit, onCopy: () -> Unit) {
+    val isSuccess  = result.exitCode == 0
+    val accentColor = if (isSuccess) Color(0xFF16A34A) else MaterialTheme.colorScheme.error
+
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Column {
+            // Left-accent header
+            Box(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().background(result.category.color.copy(alpha = 0.1f)).padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        Modifier.size(8.dp).clip(CircleShape).background(accentColor),
+                    )
+                    Text(result.tileLabel, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(result.timestamp, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Command
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.Terminal, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(result.command, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
+
+                // Output
+                Surface(
+                    color = accentColor.copy(alpha = 0.07f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        result.output.ifBlank { "(no output)" },
+                        modifier = Modifier.padding(10.dp).fillMaxWidth(),
+                        fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                        color = if (isSuccess) MaterialTheme.colorScheme.onSurface else accentColor.copy(alpha = 0.9f),
+                    )
+                }
+
+                // Footer
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
+                        Surface(shape = RoundedCornerShape(4.dp), color = accentColor.copy(alpha = 0.12f)) {
+                            Text(
+                                if (isSuccess) "✓ exit 0" else "✗ exit ${result.exitCode}",
+                                style = MaterialTheme.typography.labelSmall, color = accentColor,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                             )
-                            Text(log.tileLabel, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                            Text(log.timestamp, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Text("$ ${log.command}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        if (log.output.isNotBlank()) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(log.output, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = if (log.exitCode == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        if (result.durationMs > 0) {
+                            Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Text(
+                                    "${result.durationMs}ms",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
                         }
-                        Text("Exit: ${log.exitCode}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
+                    }
+                    IconButton(onClick = onCopy, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.ContentCopy, "Copy", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Delete, "Delete", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ResultStatPill(text: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(10.dp), color = color.copy(alpha = 0.12f)) {
+        Text(
+            text, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
+            style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        )
     }
 }

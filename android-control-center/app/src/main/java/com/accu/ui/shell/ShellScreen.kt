@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accu.ui.components.InfoTooltipIcon
 import com.accu.ui.theme.ExpandableSection
 import androidx.compose.foundation.lazy.LazyRow
+import kotlinx.coroutines.launch
 
 enum class ShellMode(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     LOCAL("Local ADB", Icons.Outlined.PhoneAndroid),
@@ -80,13 +81,12 @@ fun ShellScreen(
     var showOtgWaitingDialog by remember { mutableStateOf(false) }
     var wifiHost by remember { mutableStateOf("") }
     var wifiPort by remember { mutableStateOf("5555") }
-    var showSaveDialog by remember { mutableStateOf(false) }
-    var saveFileName by remember { mutableStateOf("output.txt") }
     var outputSearchQuery by remember { mutableStateOf("") }
     var showOutputSearch by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(output.size) {
         if (output.isNotEmpty()) listState.animateScrollToItem(output.size - 1)
@@ -116,8 +116,12 @@ fun ShellScreen(
                         IconButton(onClick = { viewModel.clearOutput() }) {
                             Icon(Icons.Outlined.DeleteOutline, "Clear")
                         }
-                        IconButton(onClick = { showSaveDialog = true }) {
-                            Icon(Icons.Outlined.Save, "Save output")
+                        IconButton(onClick = {
+                            val allText = output.joinToString("\n") { if (it.isCommand) "$ ${it.text}" else it.text }
+                            clipboardManager.setText(AnnotatedString(allText))
+                            scope.launch { snackbarHostState.showSnackbar("Copied ${output.size} lines ✓") }
+                        }) {
+                            Icon(Icons.Outlined.ContentCopy, "Copy all output")
                         }
                         IconButton(onClick = onNavigateToScripts) {
                             Icon(Icons.Outlined.Code, "Script Manager")
@@ -365,28 +369,62 @@ fun ShellScreen(
         val filteredOutput = if (outputSearchQuery.isBlank()) output
         else output.filter { it.text.contains(outputSearchQuery, ignoreCase = true) }
 
+        // Group flat output lines into per-command card groups
+        val outputGroups = remember(filteredOutput) {
+            val groups = mutableListOf<Pair<OutputLine, List<OutputLine>>>()
+            var curCmd: OutputLine? = null
+            var curLines = mutableListOf<OutputLine>()
+            filteredOutput.forEach { line ->
+                if (line.isCommand) {
+                    curCmd?.let { groups.add(it to curLines.toList()) }
+                    curCmd = line; curLines = mutableListOf()
+                } else curLines.add(line)
+            }
+            curCmd?.let { groups.add(it to curLines.toList()) }
+            groups.toList()
+        }
+
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 4.dp),
-            contentPadding = PaddingValues(vertical = 8.dp)
+            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (filteredOutput.isEmpty() && output.isEmpty()) {
+            if (outputGroups.isEmpty() && output.isEmpty()) {
                 item {
                     ShellWelcomeBanner(mode = currentMode, onSuggestionSelected = { command = it })
                 }
             }
-            items(filteredOutput, key = { it.id }) { line ->
-                ShellOutputLine(
-                    line = line,
-                    searchQuery = outputSearchQuery,
-                    onCopy = {
-                        clipboardManager.setText(AnnotatedString(line.text))
+            // Orphaned output lines before any command (e.g. connection status lines)
+            val orphanLines = filteredOutput.takeWhile { !it.isCommand }
+            if (orphanLines.isNotEmpty()) {
+                item(key = "orphans") {
+                    ShellCommandCard(
+                        command = null,
+                        outputLines = orphanLines,
+                        onCopyAll = {
+                            clipboardManager.setText(AnnotatedString(orphanLines.joinToString("\n") { it.text }))
+                            scope.launch { snackbarHostState.showSnackbar("Copied ✓") }
+                        },
+                        onBookmark = {},
+                        onAiAnalyze = {},
+                    )
+                }
+            }
+            items(outputGroups, key = { it.first.id }) { (cmd, outLines) ->
+                ShellCommandCard(
+                    command = cmd,
+                    outputLines = outLines,
+                    onCopyAll = {
+                        val txt = buildString {
+                            append("$ "); appendLine(cmd.text)
+                            outLines.forEach { appendLine(it.text) }
+                        }
+                        clipboardManager.setText(AnnotatedString(txt.trim()))
+                        scope.launch { snackbarHostState.showSnackbar("Command + output copied ✓") }
                     },
-                    onBookmark = { viewModel.addBookmark(line.text) },
-                    onAiAnalyze = {
-                        viewModel.analyzeWithAi(line.text)
-                        showAiAnalysis = true
-                    }
+                    onBookmark = { viewModel.addBookmark(cmd.text) },
+                    onAiAnalyze = { viewModel.analyzeWithAi(cmd.text); showAiAnalysis = true },
                 )
             }
             if (uiState.isRunning) {
@@ -513,32 +551,6 @@ fun ShellScreen(
         )
     }
 
-    // Save output dialog
-    if (showSaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showSaveDialog = false },
-            title = { Text("Save Output") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Save current terminal output to a text file.", style = MaterialTheme.typography.bodySmall)
-                    OutlinedTextField(
-                        value = saveFileName,
-                        onValueChange = { saveFileName = it },
-                        label = { Text("File name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.saveOutputToFile(saveFileName, output.joinToString("\n") { it.text })
-                    showSaveDialog = false
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { showSaveDialog = false }) { Text("Cancel") } }
-        )
-    }
 }
 
 @Composable
@@ -575,64 +587,112 @@ private fun ShellWelcomeBanner(mode: ShellMode, onSuggestionSelected: (String) -
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ShellOutputLine(
-    line: OutputLine,
-    searchQuery: String,
-    onCopy: () -> Unit,
+private fun ShellCommandCard(
+    command: OutputLine?,
+    outputLines: List<OutputLine>,
+    onCopyAll: () -> Unit,
     onBookmark: () -> Unit,
-    onAiAnalyze: () -> Unit
+    onAiAnalyze: () -> Unit,
 ) {
-    var showActions by remember { mutableStateOf(false) }
-    val bgColor = when {
-        line.isCommand -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        line.isError -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-        else -> Color.Transparent
+    val hasError   = outputLines.any { it.isError }
+    val successGreen = Color(0xFF16A34A)
+    val accentColor  = when {
+        command == null     -> MaterialTheme.colorScheme.onSurfaceVariant
+        hasError            -> MaterialTheme.colorScheme.error
+        outputLines.isEmpty() -> MaterialTheme.colorScheme.onSurfaceVariant
+        else                -> successGreen
     }
-    Surface(
-        modifier = Modifier.fillMaxWidth().combinedClickable(
-            onClick = {},
-            onLongClick = { showActions = !showActions }
-        ),
-        color = bgColor
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)) {
-            if (line.isCommand) {
-                Text("$ ", fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+        Column {
+            // ── Command header bar (dark terminal style) ──────────────
+            if (command != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.88f))
+                        .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    // $ prompt
+                    Text(
+                        "$",
+                        fontFamily = FontFamily.Monospace, fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+                    )
+                    // Command text
+                    Text(
+                        command.text,
+                        modifier = Modifier.weight(1f),
+                        fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    )
+                    // Status dot
+                    Box(
+                        Modifier.size(8.dp).clip(CircleShape).background(accentColor)
+                    )
+                    // Action buttons
+                    IconButton(onClick = onBookmark, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.Bookmark, "Bookmark", Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.inverseOnSurface.copy(0.55f))
+                    }
+                    IconButton(onClick = onAiAnalyze, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.AutoAwesome, "AI analyze", Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.inverseOnSurface.copy(0.55f))
+                    }
+                    IconButton(onClick = onCopyAll, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.inverseOnSurface.copy(0.55f))
+                    }
+                }
             }
-            Text(
-                text = line.text,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = when {
-                    line.isError -> MaterialTheme.colorScheme.error
-                    line.isCommand -> MaterialTheme.colorScheme.primary
-                    else -> MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-    AnimatedVisibility(visible = showActions) {
-        Row(
-            modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            TextButton(onClick = { onCopy(); showActions = false }, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Icon(Icons.Outlined.ContentCopy, null, Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Copy", style = MaterialTheme.typography.labelSmall)
-            }
-            TextButton(onClick = { onBookmark(); showActions = false }, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Icon(Icons.Outlined.Bookmark, null, Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Bookmark", style = MaterialTheme.typography.labelSmall)
-            }
-            TextButton(onClick = { onAiAnalyze(); showActions = false }, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(14.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("AI", style = MaterialTheme.typography.labelSmall)
+
+            // ── Output body ──────────────────────────────────────────
+            if (outputLines.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = when {
+                        hasError -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.18f)
+                        command == null -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        else -> successGreen.copy(alpha = 0.05f)
+                    },
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        outputLines.forEach { line ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (line.isError) {
+                                    Text("!", fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                }
+                                Text(
+                                    line.text,
+                                    fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                                    color = if (line.isError) MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (command != null) {
+                Text(
+                    "(no output)",
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    fontFamily = FontFamily.Monospace, fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
