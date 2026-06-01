@@ -23,8 +23,6 @@ data class ShizukuUiState(
     val permissionGranted: Boolean = false,
     val isLoading: Boolean = true,
     val deviceIp: String = "",
-    val wirelessAdbPort: Int = 5555,
-    val isWirelessAdbEnabled: Boolean = false,
     val isPairing: Boolean = false,
     val pairingStatus: String = "",
     /** True when pairing succeeded but the TLS connection phase failed — enables "Retry Connection". */
@@ -43,8 +41,6 @@ data class ShizukuUiState(
     val authorizedApps: List<AuthorizedApp> = emptyList(),
     val authorizedAppsFilter: AppsFilter = AppsFilter.ALL,
     val authorizedAppsSearch: String = "",
-    val mdnsServices: List<MdnsService> = emptyList(),
-    val isScanning: Boolean = false,
     val rishInfo: RishInfo = RishInfo(),
     val blackNightMode: Boolean = false,
     val useSystemColors: Boolean = true,
@@ -81,14 +77,6 @@ data class AuthorizedApp(
     val versionName: String = "",
     val isGranted: Boolean = true,
     val isSystemApp: Boolean = false,
-)
-
-data class MdnsService(
-    val serviceName: String,
-    val host: String,
-    val port: Int,
-    val type: String,
-    val isConnecting: Boolean = false,
 )
 
 data class RishInfo(
@@ -158,12 +146,6 @@ class ShizukuViewModel @Inject constructor(
             val deviceIp = connectionManager.getDeviceIp()
             val lastIp = connectionManager.getLastConnectedIp()
 
-            val wirelessEnabled = if (isConnected) {
-                try {
-                    shizukuUtils.execShizuku("settings get global adb_wifi_enabled").output.trim() == "1"
-                } catch (_: Exception) { false }
-            } else false
-
             val apps = if (isConnected) loadAuthorizedApps() else _state.value.authorizedApps
 
             // Fetch target device info — routes through exec() so it targets the connected device
@@ -183,8 +165,6 @@ class ShizukuViewModel @Inject constructor(
                     isInstalled = true,
                     uid = if (isRoot) 0 else android.os.Process.myUid(),
                     deviceIp = deviceIp,
-                    wirelessAdbPort = connectionManager.getLastConnectedPort(),
-                    isWirelessAdbEnabled = wirelessEnabled,
                     serverStartMethod = when {
                         isRoot -> "Root"
                         connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS -> "Wireless ADB ($lastIp)"
@@ -397,176 +377,6 @@ class ShizukuViewModel @Inject constructor(
      *   2. System adb binary found (/system/bin/adb etc.) → run adb pair
      *   3. Otherwise → guide user to run command from their PC
      */
-    fun pairWithCode(host: String, port: String, code: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update { it.copy(isPairing = true, pairingStatus = "Checking for adb binary…") }
-
-            // System adb binary (rare on Android — most devices don't have it)
-            val adb = connectionManager.findAdbBinary()
-            if (adb != null) {
-                addLog("System adb found at $adb — running pair…", LogLevel.INFO)
-                val result = shizukuUtils.execAdb("$adb pair $host:$port $code")
-                // Only trust explicit "Successfully paired" — isSuccess/exitCode unreliable on ROM adb builds
-                val success = result.output.contains("Successfully paired", ignoreCase = true)
-                if (success) {
-                    addLog("Paired — now connecting and verifying…", LogLevel.INFO)
-                    // Use the mDNS-discovered session port; fall back to 5555 only if not yet resolved
-                    val sessionPort = connectionManager.getSessionPort().takeIf { it > 0 } ?: 5555
-                    shizukuUtils.execAdb("$adb connect $host:$sessionPort")
-                    // Verify with an actual command — never trust "adb connect" output alone
-                    val verify = shizukuUtils.execAdb("$adb -s $host:$sessionPort shell echo ACCU_OK 2>&1")
-                    val verified = verify.output.trim() == "ACCU_OK"
-                    val status = if (verified) "Connected and verified ✓  $host:$sessionPort"
-                                 else "Paired but verification failed — device may be unreachable"
-                    addLog(status, if (verified) LogLevel.SUCCESS else LogLevel.ERROR)
-                    _state.update { it.copy(isPairing = false, pairingStatus = status) }
-                    if (verified) withContext(Dispatchers.Main) { refresh() }
-                } else {
-                    val errMsg = "Pairing failed — wrong code or expired: ${result.combinedOutput.take(120)}"
-                    addLog(errMsg, LogLevel.ERROR)
-                    _state.update { it.copy(isPairing = false, pairingStatus = errMsg) }
-                }
-                return@launch
-            }
-
-            // No adb binary on device — guide user to run from PC
-            // Use mDNS session port if already resolved; otherwise the pairing port
-            // (user can also check Settings → Wireless Debugging for the exact session port)
-            val sessionPort = connectionManager.getSessionPort().takeIf { it > 0 } ?: port.toIntOrNull() ?: 5555
-            val pcPairCmd    = "adb pair $host:$port $code"
-            val pcConnectCmd = "adb connect $host:$sessionPort"
-            addLog("No adb binary on this device — must pair from PC", LogLevel.WARNING)
-            _state.update {
-                it.copy(
-                    isPairing = false,
-                    pairingStatus = "No adb binary on this device.\nRun on your PC:\n  $pcPairCmd\nThen:\n  $pcConnectCmd",
-                )
-            }
-        }
-    }
-
-    // ── Wireless ADB ──────────────────────────────────────────────────────────
-
-    fun enableWirelessAdb() {
-        viewModelScope.launch(Dispatchers.IO) {
-            addLog("Enabling Wireless ADB…", LogLevel.INFO)
-            shizukuUtils.execShizuku("settings put global adb_wifi_enabled 1")
-            shizukuUtils.execShizuku("setprop service.adb.tcp.port 5555")
-            shizukuUtils.execShizuku("stop adbd")
-            shizukuUtils.execShizuku("start adbd")
-            delay(800)
-            _state.update { it.copy(isWirelessAdbEnabled = true, wirelessAdbPort = 5555) }
-            addLog("Wireless ADB enabled on port 5555 — connect: adb connect ${_state.value.deviceIp}:5555", LogLevel.SUCCESS)
-        }
-    }
-
-    fun disableWirelessAdb() {
-        viewModelScope.launch(Dispatchers.IO) {
-            addLog("Disabling Wireless ADB…", LogLevel.INFO)
-            shizukuUtils.execShizuku("settings put global adb_wifi_enabled 0")
-            shizukuUtils.execShizuku("setprop service.adb.tcp.port -1")
-            shizukuUtils.execShizuku("stop adbd")
-            shizukuUtils.execShizuku("start adbd")
-            _state.update { it.copy(isWirelessAdbEnabled = false) }
-            addLog("Wireless ADB disabled", LogLevel.INFO)
-        }
-    }
-
-    /**
-     * Connect via Wireless ADB.
-     * Since `adb` does not exist on Android, this tries:
-     *   1. Root → already privileged, nothing to do
-     *   2. System adb binary → run adb connect
-     *   3. Otherwise → show PC command for copy-paste
-     */
-    fun connectWirelessAdb(host: String, port: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val adb = connectionManager.findAdbBinary()
-            if (adb != null) {
-                addLog("System adb found — connecting to $host:$port…", LogLevel.INFO)
-                shizukuUtils.execAdb("$adb connect $host:$port")
-                // Verify the connection is actually live — don't trust "adb connect" output
-                val verify = shizukuUtils.execAdb("$adb -s $host:$port shell echo ACCU_OK 2>&1")
-                val verified = verify.output.trim() == "ACCU_OK"
-                addLog(
-                    if (verified) "Connected and verified ✓  $host:$port"
-                    else "Connect verification failed — device unreachable: ${verify.combinedOutput.take(100)}",
-                    if (verified) LogLevel.SUCCESS else LogLevel.ERROR,
-                )
-                if (verified) { delay(300); withContext(Dispatchers.Main) { refresh() } }
-            } else {
-                val pcCmd = "adb connect $host:$port"
-                addLog("No adb binary on this device — run from PC: $pcCmd", LogLevel.WARNING)
-                _state.update { it.copy(pairingStatus = "No adb binary on this device.\nRun on your PC:\n  $pcCmd") }
-            }
-        }
-    }
-
-    fun disconnectAdbDevice(serial: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            addLog("Disconnecting $serial…", LogLevel.INFO)
-            val adb = connectionManager.findAdbBinary()
-            if (adb != null) {
-                val result = shizukuUtils.execAdb("$adb disconnect $serial")
-                addLog(result.combinedOutput.take(100), if (result.isSuccess) LogLevel.INFO else LogLevel.ERROR)
-            } else {
-                addLog("adb not on device — run from PC: adb disconnect $serial", LogLevel.WARNING)
-            }
-            withContext(Dispatchers.Main) { refresh() }
-        }
-    }
-
-    // ── mDNS ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Start mDNS discovery via NsdManager — no `adb mdns services` call.
-     * ACCU's AccuConnectionManager uses Android's NsdManager API directly.
-     */
-    fun startMdnsScan() {
-        viewModelScope.launch {
-            _state.update { it.copy(isScanning = true, mdnsServices = emptyList()) }
-            addLog("Starting NsdManager mDNS discovery for Wireless Debugging services…", LogLevel.INFO)
-            // Delegate to AccuConnectionManager's real NsdManager-based discovery
-            withContext(Dispatchers.IO) { connectionManager.startPairingDiscovery() }
-            delay(3000)
-            _state.update { it.copy(isScanning = false) }
-            addLog("mDNS discovery running — will notify when pairing service is detected", LogLevel.INFO)
-        }
-    }
-
-    fun stopMdnsScan() {
-        _state.update { it.copy(isScanning = false) }
-        addLog("mDNS scan stopped", LogLevel.INFO)
-    }
-
-    fun connectMdnsService(service: MdnsService) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _state.update { st -> st.copy(mdnsServices = st.mdnsServices.map { if (it == service) it.copy(isConnecting = true) else it }) }
-            addLog("Connecting to ${service.serviceName} (${service.host}:${service.port})…", LogLevel.INFO)
-
-            // Root gives LOCAL privilege on THIS device — it does NOT mean this specific
-            // mDNS service/device is connected. We must actually run adb connect + verify.
-            val adb = connectionManager.findAdbBinary()
-            if (adb != null) {
-                connectionManager.execPlainShell("$adb connect ${service.host}:${service.port}")
-                // Verify with an actual shell command — never trust "adb connect" output alone
-                val verify = connectionManager.execPlainShell("$adb -s ${service.host}:${service.port} shell echo ACCU_OK 2>&1")
-                val ok = verify.output.trim() == "ACCU_OK"
-                addLog(
-                    if (ok) "Connected and verified ✓  ${service.serviceName}"
-                    else "Verification failed — device unreachable: ${verify.combinedOutput.take(80)}",
-                    if (ok) LogLevel.SUCCESS else LogLevel.ERROR,
-                )
-                if (ok) withContext(Dispatchers.Main) { refresh() }
-            } else {
-                val pcCmd = "adb connect ${service.host}:${service.port}"
-                addLog("No adb binary on this device — run from PC: $pcCmd", LogLevel.WARNING)
-                _state.update { it.copy(pairingStatus = "No adb binary on this device.\nRun on your PC:\n  $pcCmd") }
-            }
-            _state.update { st -> st.copy(mdnsServices = st.mdnsServices.map { if (it == service) it.copy(isConnecting = false) else it }) }
-        }
-    }
-
     // ── Authorized Apps (ACCU-granted) ────────────────────────────────────────
 
     fun loadApps() {
@@ -684,20 +494,6 @@ class ShizukuViewModel @Inject constructor(
             }
             .sortedBy { it.appName }
     } catch (_: Exception) { emptyList() }
-
-    private fun parseMdnsServices(output: String): List<MdnsService> = output.lines()
-        .filter { it.isNotBlank() && !it.startsWith("List") }
-        .mapNotNull { line ->
-            val parts = line.trim().split("\\s+".toRegex())
-            if (parts.size >= 3) {
-                MdnsService(
-                    serviceName = parts[0],
-                    host = parts.getOrElse(2) { "" }.split(":").getOrElse(0) { "" },
-                    port = parts.getOrElse(2) { ":0" }.split(":").getOrElse(1) { "0" }.toIntOrNull() ?: 0,
-                    type = parts.getOrElse(1) { "" },
-                )
-            } else null
-        }
 
     /**
      * Get connected ADB devices.
