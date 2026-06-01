@@ -1,5 +1,6 @@
 package com.accu.ui.shell
 
+import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -20,8 +21,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.InfoTooltipIcon
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import org.json.JSONArray
+import org.json.JSONObject
+import javax.inject.Inject
 
 data class CommandExample(
     val id: String,
@@ -32,6 +45,92 @@ data class CommandExample(
     val isCustom: Boolean = false,
     val isFavorite: Boolean = false,
 )
+
+// ──────────────────────────────────────────────────────────────────
+//  ViewModel — persists custom commands + favorites in SharedPrefs
+// ──────────────────────────────────────────────────────────────────
+
+private const val PREF_COMMANDS = "command_examples_prefs"
+private const val KEY_CUSTOMS   = "custom_commands"
+private const val KEY_FAVORITES = "favorite_ids"
+
+data class CommandExamplesUiState(
+    val customCommands: List<CommandExample> = emptyList(),
+    val favorites:      Set<String>          = emptySet(),
+)
+
+@HiltViewModel
+class CommandExamplesViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+) : ViewModel() {
+
+    private val prefs = context.getSharedPreferences(PREF_COMMANDS, Context.MODE_PRIVATE)
+
+    private val _state = MutableStateFlow(CommandExamplesUiState())
+    val state: StateFlow<CommandExamplesUiState> = _state.asStateFlow()
+
+    init { load() }
+
+    private fun load() {
+        val customs = prefs.getString(KEY_CUSTOMS, "[]")?.let { parseCustoms(it) } ?: emptyList()
+        val favSet  = prefs.getStringSet(KEY_FAVORITES, emptySet()) ?: emptySet()
+        _state.update { it.copy(customCommands = customs, favorites = favSet) }
+    }
+
+    fun addCustom(cmd: CommandExample) {
+        _state.update { it.copy(customCommands = it.customCommands + cmd) }
+        persist()
+    }
+
+    fun updateCustom(updated: CommandExample) {
+        _state.update { it.copy(customCommands = it.customCommands.map { c -> if (c.id == updated.id) updated else c }) }
+        persist()
+    }
+
+    fun deleteCustom(id: String) {
+        _state.update { it.copy(customCommands = it.customCommands.filter { c -> c.id != id }, favorites = it.favorites - id) }
+        persist()
+    }
+
+    fun toggleFavorite(id: String) {
+        _state.update { s ->
+            val fav = if (id in s.favorites) s.favorites - id else s.favorites + id
+            s.copy(favorites = fav)
+        }
+        prefs.edit().putStringSet(KEY_FAVORITES, _state.value.favorites).apply()
+    }
+
+    private fun persist() {
+        val json = JSONArray().apply {
+            _state.value.customCommands.forEach { c ->
+                put(JSONObject().apply {
+                    put("id", c.id); put("title", c.title); put("command", c.command)
+                    put("description", c.description)
+                    put("labels", JSONArray(c.labels))
+                })
+            }
+        }.toString()
+        prefs.edit()
+            .putString(KEY_CUSTOMS, json)
+            .putStringSet(KEY_FAVORITES, _state.value.favorites)
+            .apply()
+    }
+
+    private fun parseCustoms(json: String): List<CommandExample> = try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            val labelsArr = o.optJSONArray("labels")
+            val labels = if (labelsArr != null) (0 until labelsArr.length()).map { labelsArr.getString(it) }
+                         else listOf("custom")
+            CommandExample(
+                id = o.getString("id"), title = o.getString("title"),
+                command = o.getString("command"), description = o.optString("description"),
+                labels = labels, isCustom = true,
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+}
 
 private val PRELOADED_COMMANDS = listOf(
     // Activity Manager
@@ -260,9 +359,11 @@ private val PRELOADED_COMMANDS = listOf(
 fun CommandExamplesScreen(
     onBack: () -> Unit = {},
     onCommandSelected: (String) -> Unit = {},
+    viewModel: CommandExamplesViewModel = hiltViewModel(),
 ) {
-    var customCommands by remember { mutableStateOf(listOf<CommandExample>()) }
-    var favorites by remember { mutableStateOf(setOf<String>()) }
+    val vmState by viewModel.state.collectAsStateWithLifecycle()
+    val customCommands = vmState.customCommands
+    val favorites      = vmState.favorites
     val allCommands = remember(customCommands) { PRELOADED_COMMANDS + customCommands }
     val commands = remember(allCommands, favorites) {
         allCommands.map { if (it.id in favorites) it.copy(isFavorite = true) else it }
@@ -332,12 +433,9 @@ fun CommandExamplesScreen(
                     if (newTitle.isNotBlank() && newCommand.isNotBlank()) {
                         val labelList = newLabels.split(",").map { it.trim() }.filter { it.isNotBlank() }.ifEmpty { listOf("custom") }
                         if (editing != null) {
-                            customCommands = customCommands.map { c ->
-                                if (c.id == editing.id) c.copy(title = newTitle, command = newCommand, description = newDescription, labels = labelList)
-                                else c
-                            }
+                            viewModel.updateCustom(editing.copy(title = newTitle, command = newCommand, description = newDescription, labels = labelList))
                         } else {
-                            customCommands = customCommands + CommandExample("custom_${System.currentTimeMillis()}", newTitle, newCommand, newDescription, labelList, isCustom = true)
+                            viewModel.addCustom(CommandExample("custom_${System.currentTimeMillis()}", newTitle, newCommand, newDescription, labelList, isCustom = true))
                         }
                         newTitle = ""; newCommand = ""; newDescription = ""; newLabels = ""
                         showAddDialog = false; showEditDialog = null
@@ -357,7 +455,7 @@ fun CommandExamplesScreen(
             text = { Text("\"${cmd.title}\" will be permanently removed from your custom commands.") },
             confirmButton = {
                 TextButton(onClick = {
-                    customCommands = customCommands.filter { it.id != cmd.id }
+                    viewModel.deleteCustom(cmd.id)
                     showDeleteConfirm = null
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
@@ -490,9 +588,7 @@ fun CommandExamplesScreen(
                     CommandExampleCard(
                         cmd = cmd,
                         onSelect = { onCommandSelected(cmd.command); onBack() },
-                        onFavoriteToggle = {
-                            favorites = if (cmd.id in favorites) favorites - cmd.id else favorites + cmd.id
-                        },
+                        onFavoriteToggle = { viewModel.toggleFavorite(cmd.id) },
                         onEdit = if (cmd.isCustom) ({ showEditDialog = cmd; newTitle = cmd.title; newCommand = cmd.command; newDescription = cmd.description; newLabels = cmd.labels.joinToString(", ") }) else null,
                         onDelete = if (cmd.isCustom) ({ showDeleteConfirm = cmd }) else null,
                         onLabelClick = { label -> selectedLabels = if (label in selectedLabels) selectedLabels - label else selectedLabels + label }

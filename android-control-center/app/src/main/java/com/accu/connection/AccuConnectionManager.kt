@@ -50,11 +50,20 @@ import javax.inject.Singleton
 class AccuConnectionManager @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    // ─── Saved session model ───────────────────────────────────────────────────
+    data class SavedSession(
+        val label: String,
+        val ip: String,
+        val port: Int,
+        val savedAt: Long = System.currentTimeMillis(),
+    )
+
     companion object {
         private const val TAG = "AccuConnectionManager"
         private const val PREFS_NAME = "accu_connection_prefs"
-        private const val KEY_LAST_IP   = "last_adb_ip"
-        private const val KEY_LAST_PORT = "last_adb_port"
+        private const val KEY_LAST_IP      = "last_adb_ip"
+        private const val KEY_LAST_PORT    = "last_adb_port"
+        private const val KEY_SESSIONS_JSON = "saved_sessions_json"
 
         // Android Wireless Debugging mDNS service types
         private const val MDNS_PAIRING = "_adb-tls-pairing._tcp"
@@ -215,6 +224,61 @@ class AccuConnectionManager @Inject constructor(
     /** Returns the connection port that will be used after pairing (0 if not yet discovered). */
     fun getSessionPort(): Int = sessionPort
 
+    // ─── Multi-session persistence ─────────────────────────────────────────────
+
+    /** Returns all persisted paired sessions. */
+    fun getSavedSessions(): List<SavedSession> = try {
+        val json = prefs.getString(KEY_SESSIONS_JSON, "[]") ?: "[]"
+        parseSessions(json)
+    } catch (_: Exception) { emptyList() }
+
+    /** Persists or updates a session entry (keyed by ip:port). */
+    fun saveSession(label: String, ip: String, port: Int) {
+        val sessions = getSavedSessions().toMutableList()
+        sessions.removeAll { it.ip == ip && it.port == port }
+        sessions.add(0, SavedSession(label = label.ifBlank { ip }, ip = ip, port = port))
+        prefs.edit().putString(KEY_SESSIONS_JSON, serializeSessions(sessions)).apply()
+    }
+
+    /** Removes a session from persistence. */
+    fun deleteSession(ip: String, port: Int) {
+        val sessions = getSavedSessions().filter { !(it.ip == ip && it.port == port) }
+        prefs.edit().putString(KEY_SESSIONS_JSON, serializeSessions(sessions)).apply()
+    }
+
+    private fun serializeSessions(sessions: List<SavedSession>): String = buildString {
+        append("[")
+        sessions.forEachIndexed { i, s ->
+            if (i > 0) append(",")
+            append("{\"label\":\"${s.label}\",\"ip\":\"${s.ip}\",\"port\":${s.port},\"savedAt\":${s.savedAt}}")
+        }
+        append("]")
+    }
+
+    private fun parseSessions(json: String): List<SavedSession> {
+        val result = mutableListOf<SavedSession>()
+        try {
+            val trimmed = json.trim().removePrefix("[").removeSuffix("]")
+            if (trimmed.isBlank()) return emptyList()
+            val entries = trimmed.split("},{").map { it.trim().removePrefix("{").removeSuffix("}") }
+            for (entry in entries) {
+                val map = entry.split(",").associate { pair ->
+                    val kv = pair.split(":")
+                    val key = kv[0].trim().removeSurrounding("\"")
+                    val value = kv.drop(1).joinToString(":").trim().removeSurrounding("\"")
+                    key to value
+                }
+                result.add(SavedSession(
+                    label   = map["label"] ?: "",
+                    ip      = map["ip"] ?: continue,
+                    port    = map["port"]?.toIntOrNull() ?: continue,
+                    savedAt = map["savedAt"]?.toLongOrNull() ?: 0L,
+                ))
+            }
+        } catch (_: Exception) {}
+        return result
+    }
+
     /**
      * True when commands should execute on a REMOTE device (wireless ADB / OTG) rather
      * than the local device running ACCU.
@@ -332,12 +396,35 @@ class AccuConnectionManager @Inject constructor(
                             apkPath     = apkPath,
                             isSystem    = apkPath.startsWith("/system/") ||
                                           apkPath.startsWith("/vendor/") ||
-                                          apkPath.startsWith("/product/"),
+                                          apkPath.startsWith("/product/") ||
+                                          apkPath.startsWith("/apex/") ||
+                                          apkPath.startsWith("/system_ext/") ||
+                                          apkPath.startsWith("/oem/") ||
+                                          apkPath.startsWith("/odm/") ||
+                                          apkPath.startsWith("/priv-app/") ||
+                                          apkPath.contains("/priv-app/"),
                             isEnabled   = pkgName !in disabledPkgs,
                         )
                     } catch (_: Exception) { null }
                 }
         }
+
+    /**
+     * Execute a command LOCALLY on the device running ACCU, regardless of wireless connection.
+     * Use this for granting/revoking ACCU's own permissions, not for target-device operations.
+     * Priority: Root (LibSU) → plain shell
+     */
+    suspend fun execLocal(command: String): ShellResult = withContext(Dispatchers.IO) {
+        try {
+            if (Shell.getShell().isRoot) {
+                execRoot(command)
+            } else {
+                execPlainShell(command)
+            }
+        } catch (e: Exception) {
+            ShellResult("", e.message ?: "error", -1)
+        }
+    }
 
     /** Execute via LibSU root — uid=0, full privilege (equivalent to Shizuku server process) */
     fun execRoot(command: String): ShellResult = try {
@@ -757,6 +844,7 @@ class AccuConnectionManager @Inject constructor(
                 wifiConnectClient = conn
                 _state.value = ConnectionState.CONNECTED_WIRELESS
                 prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, connectPort).apply()
+                saveSession(host, host, connectPort)
                 showConnectedNotification(host, connectPort)
                 stopPairingDiscovery()
                 Timber.i("$TAG TLS ADB verified live connection to $host:$connectPort ✓")

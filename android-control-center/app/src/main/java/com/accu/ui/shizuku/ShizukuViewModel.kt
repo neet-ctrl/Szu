@@ -210,6 +210,32 @@ class ShizukuViewModel @Inject constructor(
         _state.update { it.copy(isPairing = true, pairingStatus = "Scanning for Wireless Debugging service…") }
     }
 
+    fun getSavedSessions(): List<com.accu.connection.AccuConnectionManager.SavedSession> =
+        connectionManager.getSavedSessions()
+
+    fun deleteSavedSession(ip: String, port: Int) {
+        connectionManager.deleteSession(ip, port)
+        // Trigger recomposition by bumping a state flag
+        _state.update { it.copy(pairingStatus = it.pairingStatus) }
+    }
+
+    fun reconnectToSession(session: com.accu.connection.AccuConnectionManager.SavedSession) {
+        viewModelScope.launch(Dispatchers.IO) {
+            addLog("Reconnecting to ${session.label} (${session.ip}:${session.port})…", LogLevel.INFO)
+            _state.update { it.copy(isLoading = true, pairingStatus = "Reconnecting to ${session.label}…") }
+            val ok = connectionManager.reconnect()
+            if (ok) {
+                addLog("Reconnected to ${session.label} ✓", LogLevel.SUCCESS)
+                _state.update { it.copy(isLoading = false, pairingStatus = "Connected to ${session.label}") }
+                connectionManager.checkAndUpdateState()
+                refresh()
+            } else {
+                addLog("Reconnect failed — try pairing again", LogLevel.ERROR)
+                _state.update { it.copy(isLoading = false, pairingStatus = "Reconnect failed — try pairing again") }
+            }
+        }
+    }
+
     fun startWithRoot() {
         viewModelScope.launch(Dispatchers.IO) {
             addLog("Testing root access…", LogLevel.INFO)

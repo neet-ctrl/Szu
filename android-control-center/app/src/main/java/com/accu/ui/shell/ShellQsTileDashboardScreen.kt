@@ -1,5 +1,6 @@
 package com.accu.ui.shell
 
+import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -18,7 +19,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.ui.components.ACCTopBar
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.*
+import javax.inject.Inject
 
 // ──────────────────────────────────────────────
 //  aShellYou — Shell QS Tile Dashboard
@@ -49,6 +68,131 @@ data class TileLog(
     val exitCode: Int,
 )
 
+// ──────────────────────────────────────────────────────────────────
+//  ViewModel — real ADB execution + SharedPrefs persistence
+// ──────────────────────────────────────────────────────────────────
+
+private const val PREF_TILES = "qs_tiles_prefs"
+private const val KEY_TILES  = "tiles_json"
+private const val KEY_LOGS   = "logs_json"
+private const val MAX_LOGS   = 200
+
+data class QsTilesUiState(
+    val tiles: List<ShellQsTile> = emptyList(),
+    val logs:  List<TileLog>    = emptyList(),
+)
+
+@HiltViewModel
+class ShellQsTileDashboardViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val connectionManager: AccuConnectionManager,
+) : ViewModel() {
+
+    private val prefs = context.getSharedPreferences(PREF_TILES, Context.MODE_PRIVATE)
+
+    private val _state = MutableStateFlow(QsTilesUiState())
+    val state: StateFlow<QsTilesUiState> = _state.asStateFlow()
+
+    init { load() }
+
+    private fun load() {
+        val tiles = parseTiles(prefs.getString(KEY_TILES, "[]") ?: "[]")
+        val logs  = parseLogs(prefs.getString(KEY_LOGS,  "[]") ?: "[]")
+        _state.update { it.copy(tiles = tiles, logs = logs) }
+    }
+
+    fun runTile(tile: ShellQsTile) {
+        if (!tile.isEnabled) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.update { s -> s.copy(tiles = s.tiles.map { if (it.id == tile.id) it.copy(isRunning = true) else it }) }
+            val result = try { connectionManager.exec(tile.command) } catch (e: Exception) {
+                com.accu.connection.ShellResult(output = "", error = e.message ?: "Error", exitCode = 1)
+            }
+            val ts = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val log = TileLog(
+                tileId    = tile.id, tileLabel = tile.label, timestamp = ts,
+                command   = tile.command,
+                output    = result.output.trim().take(500).ifBlank { result.error.take(200) },
+                exitCode  = if (result.isSuccess) 0 else 1,
+            )
+            _state.update { s ->
+                val updated = s.tiles.map { t ->
+                    if (t.id == tile.id) t.copy(
+                        isRunning      = false,
+                        executionCount = t.executionCount + 1,
+                        lastRun        = ts,
+                        lastOutput     = log.output.take(80),
+                    ) else t
+                }
+                val newLogs = (listOf(log) + s.logs).take(MAX_LOGS)
+                s.copy(tiles = updated, logs = newLogs)
+            }
+            persistAll()
+        }
+    }
+
+    fun addTile(tile: ShellQsTile) { _state.update { it.copy(tiles = it.tiles + tile) }; persistAll() }
+    fun updateTile(tile: ShellQsTile) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id == tile.id) tile else t }) }; persistAll() }
+    fun deleteTile(id: String) { _state.update { it.copy(tiles = it.tiles.filter { t -> t.id != id }) }; persistAll() }
+    fun enableTiles(ids: Set<String>) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id in ids) t.copy(isEnabled = true)  else t }) }; persistAll() }
+    fun disableTiles(ids: Set<String>) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id in ids) t.copy(isEnabled = false) else t }) }; persistAll() }
+    fun clearLogs() { _state.update { it.copy(logs = emptyList()) }; prefs.edit().putString(KEY_LOGS, "[]").apply() }
+    fun toggleEnabled(id: String) { _state.update { it.copy(tiles = it.tiles.map { t -> if (t.id == id) t.copy(isEnabled = !t.isEnabled) else t }) }; persistAll() }
+
+    private fun persistAll() {
+        prefs.edit()
+            .putString(KEY_TILES, serializeTiles(_state.value.tiles))
+            .putString(KEY_LOGS,  serializeLogs(_state.value.logs))
+            .apply()
+    }
+
+    // ── Serialization ──────────────────────────────────────────────────────
+    private fun serializeTiles(tiles: List<ShellQsTile>) = JSONArray().apply {
+        tiles.forEach { t ->
+            put(JSONObject().apply {
+                put("id", t.id); put("label", t.label); put("command", t.command)
+                put("description", t.description); put("iconName", t.iconName)
+                put("isEnabled", t.isEnabled); put("confirmBeforeRun", t.confirmBeforeRun)
+                put("executionCount", t.executionCount); put("lastRun", t.lastRun)
+                put("lastOutput", t.lastOutput)
+            })
+        }
+    }.toString()
+
+    private fun serializeLogs(logs: List<TileLog>) = JSONArray().apply {
+        logs.forEach { l ->
+            put(JSONObject().apply {
+                put("tileId", l.tileId); put("tileLabel", l.tileLabel)
+                put("timestamp", l.timestamp); put("command", l.command)
+                put("output", l.output); put("exitCode", l.exitCode)
+            })
+        }
+    }.toString()
+
+    private fun parseTiles(json: String): List<ShellQsTile> = try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            ShellQsTile(
+                id = o.getString("id"), label = o.getString("label"), command = o.getString("command"),
+                description = o.optString("description"), iconName = o.optString("iconName", "terminal"),
+                isEnabled = o.optBoolean("isEnabled", true), confirmBeforeRun = o.optBoolean("confirmBeforeRun", false),
+                executionCount = o.optInt("executionCount", 0), lastRun = o.optString("lastRun", "Never"),
+                lastOutput = o.optString("lastOutput"),
+            )
+        }
+    } catch (_: Exception) { emptyList() }
+
+    private fun parseLogs(json: String): List<TileLog> = try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { i ->
+            val o = arr.getJSONObject(i)
+            TileLog(o.getString("tileId"), o.getString("tileLabel"), o.getString("timestamp"),
+                    o.getString("command"), o.optString("output"), o.optInt("exitCode", 0))
+        }
+    } catch (_: Exception) { emptyList() }
+}
+
 private val TILE_ICON_OPTIONS = listOf(
     "terminal" to Icons.Default.Terminal,
     "wifi" to Icons.Default.Wifi,
@@ -64,25 +208,13 @@ private val TILE_ICON_OPTIONS = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
-    var tiles by remember {
-        mutableStateOf(listOf(
-            ShellQsTile("1", "Toggle Wi-Fi", "svc wifi disable && svc wifi enable", "Cycles Wi-Fi off/on to fix connectivity", "wifi", executionCount = 12, lastRun = "2 hr ago", lastOutput = "Done"),
-            ShellQsTile("2", "Clear All Notifications", "service call notification 1", "Clears all active notifications", "terminal", executionCount = 8, lastRun = "Yesterday", lastOutput = "Result: Parcel"),
-            ShellQsTile("3", "Screenshot", "screencap /sdcard/DCIM/screenshot_$(date +%s).png", "Captures full screen to DCIM", "screenshot", executionCount = 31, lastRun = "5 min ago", lastOutput = "Saved"),
-            ShellQsTile("4", "Restart System UI", "am crash com.android.systemui", "Restarts SystemUI process", "restart", true, true, 3, "Last week", ""),
-            ShellQsTile("5", "Toggle Airplane", "cmd connectivity airplane-mode enable", "Toggles airplane mode", "network", true, true, 0, "Never", ""),
-            ShellQsTile("6", "ADB Secure", "setprop persist.adb.tcp.port -1", "Disables TCP/IP ADB", "lock", executionCount = 2, lastRun = "3 days ago", lastOutput = "Done"),
-        ))
-    }
-    var logs by remember {
-        mutableStateOf(listOf(
-            TileLog("3", "Screenshot", "14:22:01", "screencap /sdcard/DCIM/screenshot_1717158121.png", "Saved to /sdcard/DCIM/screenshot_1717158121.png", 0),
-            TileLog("1", "Toggle Wi-Fi", "12:05:33", "svc wifi disable && svc wifi enable", "Done", 0),
-            TileLog("2", "Clear Notifications", "11:44:10", "service call notification 1", "Result: Parcel(00000000 00000001   '........')", 0),
-            TileLog("4", "Restart System UI", "2024-05-28 09:00", "am crash com.android.systemui", "Exception: Process crashed", 1),
-        ))
-    }
+fun ShellQsTileDashboardScreen(
+    onBack: () -> Unit = {},
+    viewModel: ShellQsTileDashboardViewModel = hiltViewModel(),
+) {
+    val vmState by viewModel.state.collectAsStateWithLifecycle()
+    val tiles = vmState.tiles
+    val logs  = vmState.logs
 
     var showCreateSheet by remember { mutableStateOf(false) }
     var editingTile by remember { mutableStateOf<ShellQsTile?>(null) }
@@ -124,18 +256,19 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
                 actions = {
                     if (isSelecting) {
                         IconButton(onClick = {
-                            tiles = tiles.map { if (it.id in selectedIds) it.copy(isEnabled = true) else it }
+                            viewModel.enableTiles(selectedIds)
                             snackbar = "Enabled ${selectedIds.size} tiles"
                             selectedIds = emptySet()
                         }) { Icon(Icons.Default.PlayArrow, "Enable") }
                         IconButton(onClick = {
-                            tiles = tiles.map { if (it.id in selectedIds) it.copy(isEnabled = false) else it }
+                            viewModel.disableTiles(selectedIds)
                             snackbar = "Disabled ${selectedIds.size} tiles"
                             selectedIds = emptySet()
                         }) { Icon(Icons.Default.Pause, "Disable") }
                         IconButton(onClick = {
-                            tiles = tiles.filter { it.id !in selectedIds }
-                            snackbar = "Deleted ${selectedIds.size} tiles"
+                            val count = selectedIds.size
+                            selectedIds.forEach { viewModel.deleteTile(it) }
+                            snackbar = "Deleted $count tiles"
                             selectedIds = emptySet()
                         }) { Icon(Icons.Default.Delete, "Delete") }
                         IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, "Cancel") }
@@ -183,12 +316,12 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
                     tiles = tiles,
                     selectedIds = selectedIds,
                     isSelecting = isSelecting,
-                    onToggle = { tile -> tiles = tiles.map { if (it.id == tile.id) it.copy(isEnabled = !it.isEnabled) else it } },
+                    onToggle = { tile -> viewModel.toggleEnabled(tile.id) },
                     onRun = { tile ->
                         if (tile.confirmBeforeRun) snackbar = "Confirm required for ${tile.label}"
                         else {
-                            tiles = tiles.map { if (it.id == tile.id) it.copy(executionCount = it.executionCount + 1, lastRun = "Just now", lastOutput = "Running…") else it }
                             snackbar = "Running: ${tile.command.take(40)}"
+                            viewModel.runTile(tile)
                         }
                     },
                     onEdit = { openEditor(it) },
@@ -198,7 +331,7 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
                 )
                 1 -> LogsTab(
                     logs = logs,
-                    onClear = { logs = emptyList(); snackbar = "Logs cleared" },
+                    onClear = { viewModel.clearLogs(); snackbar = "Logs cleared" },
                 )
             }
         }
@@ -259,7 +392,7 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
                             return@Button
                         }
                         if (editingTile == null) {
-                            tiles = tiles + ShellQsTile(
+                            viewModel.addTile(ShellQsTile(
                                 id = "${System.currentTimeMillis()}",
                                 label = editLabel,
                                 command = editCommand,
@@ -267,15 +400,13 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
                                 iconName = editIconName,
                                 isEnabled = editEnabled,
                                 confirmBeforeRun = editConfirm,
-                            )
+                            ))
                             snackbar = "Tile '${editLabel}' created"
                         } else {
-                            tiles = tiles.map { t ->
-                                if (t.id == editingTile!!.id) t.copy(
-                                    label = editLabel, command = editCommand, description = editDescription,
-                                    iconName = editIconName, confirmBeforeRun = editConfirm, isEnabled = editEnabled,
-                                ) else t
-                            }
+                            viewModel.updateTile(editingTile!!.copy(
+                                label = editLabel, command = editCommand, description = editDescription,
+                                iconName = editIconName, confirmBeforeRun = editConfirm, isEnabled = editEnabled,
+                            ))
                             snackbar = "Tile '${editLabel}' updated"
                         }
                         showCreateSheet = false; editingTile = null
@@ -296,7 +427,7 @@ fun ShellQsTileDashboardScreen(onBack: () -> Unit = {}) {
             text = { Text("This QS tile and its execution history will be permanently removed.") },
             confirmButton = {
                 Button(
-                    onClick = { tiles = tiles.filter { it.id != toDelete.id }; snackbar = "Tile deleted"; showDeleteConfirm = null },
+                    onClick = { viewModel.deleteTile(toDelete.id); snackbar = "Tile deleted"; showDeleteConfirm = null },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 ) { Text("Delete") }
             },
@@ -404,8 +535,11 @@ private fun TilesTab(
                                 Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                             }
                             if (tile.isEnabled) {
-                                IconButton(onClick = { }, modifier = Modifier.size(32.dp)) {
-                                    Icon(Icons.Default.PlayArrow, "Run now", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                IconButton(onClick = { onRun(tile) }, modifier = Modifier.size(32.dp)) {
+                                    if (tile.isRunning)
+                                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    else
+                                        Icon(Icons.Default.PlayArrow, "Run now", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }

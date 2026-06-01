@@ -105,6 +105,20 @@ enum class SortMode(val label: String) {
     NAME("By Name"),
 }
 
+/** 3-tier grant classification the user asked for. */
+enum class GrantTier(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    ALL          ("All",             Icons.Default.Dashboard),
+    AUTO_INSTALL ("Auto on Install", Icons.Default.CheckCircle),
+    MANUAL       ("Manual Grant",    Icons.Default.TouchApp),
+    AUTO_ADB     ("Auto via ADB",    Icons.Default.Hub),
+}
+
+private fun permGrantTier(perm: AccuPerm): GrantTier = when (perm.grantMethod) {
+    GrantMethod.AUTOMATIC -> GrantTier.AUTO_INSTALL
+    GrantMethod.SHIZUKU   -> GrantTier.AUTO_ADB
+    else                  -> GrantTier.MANUAL
+}
+
 // ═══════════════════════════════════════════════════════════
 //  FULL PERMISSION CATALOGUE  (55 permissions)
 // ═══════════════════════════════════════════════════════════
@@ -588,13 +602,14 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
     var perms by remember {
         mutableStateOf(ALL_ACCU_PERMISSIONS.map { it.copy(status = checkPermStatus(context, it)) })
     }
-    var searchQuery     by remember { mutableStateOf("") }
-    var selectedCat     by remember { mutableStateOf(AccuPermCategory.ALL) }
-    var sortMode        by remember { mutableStateOf(SortMode.STATUS) }
-    var expandedId      by remember { mutableStateOf<String?>(null) }
-    var showGrantDialog by remember { mutableStateOf(false) }
-    var sortExpanded    by remember { mutableStateOf(false) }
-    var grantingId      by remember { mutableStateOf<String?>(null) }
+    var searchQuery      by remember { mutableStateOf("") }
+    var selectedCat      by remember { mutableStateOf(AccuPermCategory.ALL) }
+    var selectedTier     by remember { mutableStateOf(GrantTier.ALL) }
+    var sortMode         by remember { mutableStateOf(SortMode.STATUS) }
+    var expandedId       by remember { mutableStateOf<String?>(null) }
+    var showGrantDialog  by remember { mutableStateOf(false) }
+    var sortExpanded     by remember { mutableStateOf(false) }
+    var grantingId       by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         perms = ALL_ACCU_PERMISSIONS.map { it.copy(status = checkPermStatus(context, it)) }
@@ -624,10 +639,11 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
     }
 
     // ── Derived ────────────────────────────────────────────
-    val filtered = remember(perms, searchQuery, selectedCat, sortMode) {
+    val filtered = remember(perms, searchQuery, selectedCat, selectedTier, sortMode) {
         perms
             .filter { p ->
                 (selectedCat == AccuPermCategory.ALL || p.category == selectedCat) &&
+                (selectedTier == GrantTier.ALL || permGrantTier(p) == selectedTier) &&
                 (searchQuery.isBlank() ||
                     p.friendlyName.contains(searchQuery, ignoreCase = true) ||
                     p.description.contains(searchQuery, ignoreCase = true) ||
@@ -788,6 +804,66 @@ fun AccuPermissionsScreen(onBack: () -> Unit = {}) {
                     singleLine = true,
                     shape      = RoundedCornerShape(16.dp),
                 )
+            }
+
+            // ── Grant tier tabs (3 categories) ───────────
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(0.4f)),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            "Grant Method",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(GrantTier.entries) { tier ->
+                                val tierCount = when (tier) {
+                                    GrantTier.ALL -> perms.size
+                                    else -> perms.count { permGrantTier(it) == tier }
+                                }
+                                val tierGranted = when (tier) {
+                                    GrantTier.ALL -> perms.count { it.status == PermStatus.GRANTED }
+                                    else -> perms.count { permGrantTier(it) == tier && it.status == PermStatus.GRANTED }
+                                }
+                                FilterChip(
+                                    selected = selectedTier == tier,
+                                    onClick  = { selectedTier = tier },
+                                    label    = {
+                                        Text(
+                                            "${tier.label} $tierGranted/$tierCount",
+                                            style = MaterialTheme.typography.labelSmall,
+                                        )
+                                    },
+                                    leadingIcon = { Icon(tier.icon, null, Modifier.size(14.dp)) },
+                                )
+                            }
+                        }
+                        // Tier descriptions
+                        when (selectedTier) {
+                            GrantTier.AUTO_INSTALL -> Text(
+                                "Granted automatically when app is installed. No user action needed.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            GrantTier.MANUAL -> Text(
+                                "User must grant manually via Settings or a system dialog. Cannot be granted by ADB.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            GrantTier.AUTO_ADB -> Text(
+                                "Can be auto-granted by ACCU via ADB when connected. Tap 'Grant All' to grant all at once.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            else -> {}
+                        }
+                    }
+                }
             }
 
             // ── Category filter chips ─────────────────────
@@ -1553,7 +1629,9 @@ class AccuPermissionsViewModel @Inject constructor(
         runCommand("pm revoke $packageName $rawPermission")
 
     private suspend fun runCommand(command: String): Boolean = try {
-        val result = connectionManager.exec(command)
+        // Always execute on the LOCAL device (where ACCU runs), never on a remote target device.
+        // ACCU's own permissions must be granted on its own device, not on the connected device.
+        val result = connectionManager.execLocal(command)
         result.isSuccess
     } catch (_: Exception) {
         false

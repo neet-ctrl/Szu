@@ -130,7 +130,16 @@ class AppManagerViewModel @Inject constructor(
     fun toggleFilter(filter: AppFilter) {
         _state.update { s ->
             val filters = s.filterFlags.toMutableSet()
-            if (!filters.add(filter)) filters.remove(filter)
+            if (!filters.add(filter)) {
+                filters.remove(filter)
+            } else {
+                // USER and SYSTEM are mutually exclusive — remove the opposite when one is toggled on
+                if (filter == AppFilter.USER)   filters.remove(AppFilter.SYSTEM)
+                if (filter == AppFilter.SYSTEM) filters.remove(AppFilter.USER)
+                // ENABLED and DISABLED are mutually exclusive
+                if (filter == AppFilter.ENABLED)  filters.remove(AppFilter.DISABLED)
+                if (filter == AppFilter.DISABLED) filters.remove(AppFilter.ENABLED)
+            }
             s.copy(filterFlags = filters)
         }
         applyFilters()

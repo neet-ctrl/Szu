@@ -228,6 +228,82 @@ private fun ConnectionOptionsPhase(
                 }
             }
 
+            // ── Recent / saved sessions ───────────────────────────────────────
+            val savedSessions = remember(state) { viewModel.getSavedSessions() }
+            if (savedSessions.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "Recent Connections",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "${savedSessions.size} saved",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    savedSessions.forEach { session ->
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+                        ) {
+                            Row(
+                                Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFF2563EB).copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Wifi, null,
+                                        tint = Color(0xFF2563EB),
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        session.label.ifBlank { session.ip },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    Text(
+                                        "${session.ip}:${session.port}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+                                }
+                                IconButton(onClick = { viewModel.deleteSavedSession(session.ip, session.port) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Filled.Close, "Remove", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
+                                }
+                                FilledTonalButton(
+                                    onClick = { viewModel.reconnectToSession(session) },
+                                    enabled = !isConnecting,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                ) {
+                                    Icon(Icons.Filled.Wifi, null, modifier = Modifier.size(14.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Reconnect", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(32.dp))
 
             // ── Footer ────────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import com.accu.connection.AccuConnectionManager
 import com.accu.ui.components.InfoTooltipIcon
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -112,6 +113,7 @@ data class LargeFileState(
 @HiltViewModel
 class LargeFileFinderViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val connectionManager: AccuConnectionManager,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LargeFileState())
@@ -120,44 +122,91 @@ class LargeFileFinderViewModel @Inject constructor(
     fun scan() {
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isScanning = true, files = emptyList(), scannedCount = 0, selectedFiles = emptySet()) }
-            val threshold = _state.value.threshold.bytes
-            val found = mutableListOf<LargeFileItem>()
-            val roots = listOf(
-                Environment.getExternalStorageDirectory(),
-                Environment.getDataDirectory(),
-            )
-            var scanned = 0
-            suspend fun scan(dir: File) {
-                if (!dir.exists() || !dir.canRead()) return
-                try {
-                    dir.listFiles()?.forEach { f ->
-                        yield()
-                        if (f.isDirectory) {
-                            _state.update { it.copy(currentScanPath = f.path, scannedCount = scanned) }
-                            scan(f)
-                        } else if (f.length() >= threshold) {
-                            scanned++
-                            val ext = f.extension
-                            found.add(LargeFileItem(
-                                path = f.absolutePath, name = f.name,
-                                sizeBytes = f.length(), lastModified = f.lastModified(),
-                                extension = ext, category = extensionToCategory(ext),
-                            ))
-                            _state.update { s ->
-                                s.copy(
-                                    files = found.toList().sortedByDescending { it.sizeBytes },
-                                    totalSizeBytes = found.sumOf { it.sizeBytes },
-                                    scannedCount = scanned,
-                                    scanProgress = (scanned % 1000) / 1000f,
-                                )
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
+            if (connectionManager.isRemoteSession()) {
+                scanViaAdb()
+            } else {
+                scanLocal()
             }
-            roots.forEach { scan(it) }
             _state.update { it.copy(isScanning = false, scanProgress = 1f) }
         }
+    }
+
+    private suspend fun scanViaAdb() {
+        val threshold = _state.value.threshold
+        val minKb = threshold.bytes / 1024
+        _state.update { it.copy(currentScanPath = "Scanning via ADB…") }
+        val result = connectionManager.exec(
+            "find /sdcard -type f -size +${minKb}k 2>/dev/null | while IFS= read -r f; do" +
+            " s=\$(stat -c %s \"\$f\" 2>/dev/null);" +
+            " t=\$(stat -c %Y \"\$f\" 2>/dev/null);" +
+            " [ -n \"\$s\" ] && echo \"\$s \$t \$f\";" +
+            " done"
+        )
+        val found = mutableListOf<LargeFileItem>()
+        result.output.lines().filter { it.isNotBlank() }.forEach { line ->
+            try {
+                val parts = line.split(" ", limit = 3)
+                if (parts.size < 3) return@forEach
+                val sizeBytes = parts[0].toLongOrNull() ?: return@forEach
+                val lastModifiedSec = parts[1].toLongOrNull() ?: 0L
+                val path = parts[2].trim()
+                if (path.isBlank()) return@forEach
+                val name = path.substringAfterLast("/")
+                val ext  = name.substringAfterLast(".", "")
+                found.add(LargeFileItem(
+                    path = path, name = name,
+                    sizeBytes = sizeBytes, lastModified = lastModifiedSec * 1000L,
+                    extension = ext, category = extensionToCategory(ext),
+                ))
+                _state.update { s ->
+                    s.copy(
+                        files = found.toList().sortedByDescending { it.sizeBytes },
+                        totalSizeBytes = found.sumOf { it.sizeBytes },
+                        scannedCount = found.size,
+                        currentScanPath = path.takeLast(40),
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private suspend fun scanLocal() {
+        val threshold = _state.value.threshold.bytes
+        val found = mutableListOf<LargeFileItem>()
+        val roots = listOf(
+            Environment.getExternalStorageDirectory(),
+            Environment.getDataDirectory(),
+        )
+        var scanned = 0
+        suspend fun scan(dir: File) {
+            if (!dir.exists() || !dir.canRead()) return
+            try {
+                dir.listFiles()?.forEach { f ->
+                    yield()
+                    if (f.isDirectory) {
+                        _state.update { it.copy(currentScanPath = f.path, scannedCount = scanned) }
+                        scan(f)
+                    } else if (f.length() >= threshold) {
+                        scanned++
+                        val ext = f.extension
+                        found.add(LargeFileItem(
+                            path = f.absolutePath, name = f.name,
+                            sizeBytes = f.length(), lastModified = f.lastModified(),
+                            extension = ext, category = extensionToCategory(ext),
+                        ))
+                        _state.update { s ->
+                            s.copy(
+                                files = found.toList().sortedByDescending { it.sizeBytes },
+                                totalSizeBytes = found.sumOf { it.sizeBytes },
+                                scannedCount = scanned,
+                                scanProgress = (scanned % 1000) / 1000f,
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        roots.forEach { scan(it) }
     }
 
     fun toggleSelect(path: String) = _state.update { s ->
@@ -171,8 +220,14 @@ class LargeFileFinderViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val sel = _state.value.selectedFiles
             var deleted = 0L
-            sel.forEach { path ->
-                try { val f = File(path); if (f.exists()) { deleted += f.length(); f.delete() } } catch (_: Exception) {}
+            if (connectionManager.isRemoteSession()) {
+                val paths = sel.joinToString(" ") { "\"$it\"" }
+                connectionManager.exec("rm -f $paths 2>/dev/null")
+                deleted = _state.value.files.filter { it.path in sel }.sumOf { it.sizeBytes }
+            } else {
+                sel.forEach { path ->
+                    try { val f = File(path); if (f.exists()) { deleted += f.length(); f.delete() } } catch (_: Exception) {}
+                }
             }
             _state.update { s ->
                 s.copy(
