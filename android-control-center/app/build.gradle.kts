@@ -21,6 +21,7 @@ android {
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     signingConfigs {
@@ -72,6 +73,14 @@ android {
         compose = true
         buildConfig = true
         aidl = true
+        prefab = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = "src/main/cpp/CMakeLists.txt"
+            version = "3.22.0+"
+        }
     }
 
     packaging {
@@ -206,6 +215,8 @@ dependencies {
     // ADB protocol (pure Kotlin — pairs and connects without any adb binary on device)
     implementation(libs.dadb)
 
-    // Reorderable drag-drop lists
-    implementation(libs.reorderable)
+    // ADB Wireless Pairing — SPAKE2 via BoringSSL JNI + Conscrypt TLS keying material
+    implementation(libs.conscrypt.android)
+    implementation(libs.bcpkix)
+    implementation(libs.boringssl.ndk)
 }

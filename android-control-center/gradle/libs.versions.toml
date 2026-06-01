@@ -33,6 +33,9 @@ reorderable = "2.3.1"
 zxing = "3.5.3"
 jsoup = "1.18.3"
 dadb = "1.2.10"
+conscrypt = "2.5.2"
+bouncycastle = "1.80"
+boringssl-ndk = "20250114"
 
 [libraries]
 # Build tools
@@ -125,6 +128,9 @@ libsu-io = { group = "com.github.topjohnwu.libsu", name = "io", version.ref = "l
 apache-commons-io = { group = "org.apache.commons", name = "commons-lang3", version.ref = "apache-commons" }
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 dadb = { group = "dev.mobile", name = "dadb", version.ref = "dadb" }
+conscrypt-android = { group = "org.conscrypt", name = "conscrypt-android", version.ref = "conscrypt" }
+bcpkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
+boringssl-ndk = { group = "io.github.vvb2060.ndk", name = "boringssl", version.ref = "boringssl-ndk" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 moshi = { group = "com.squareup.moshi", name = "moshi-kotlin", version.ref = "moshi" }
 moshi-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-codegen", version.ref = "moshi" }

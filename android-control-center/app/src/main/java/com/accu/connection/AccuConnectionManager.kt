@@ -142,8 +142,10 @@ class AccuConnectionManager @Inject constructor(
         AdbKeyPair.read(privFile, pubFile)
     }
 
-    /** The .pub file written alongside adbKeyPair — used by AdbWifiPairingClient. */
-    private val adbPubFile: File get() = File(context.filesDir, "accu_adb_key.pub")
+    /** RSA identity for wireless ADB pairing and connection (SPAKE2 + TLS cert). */
+    private val adbKey: AdbKey by lazy {
+        AdbKey(PreferenceAdbKeyStore(prefs), "ACCU")
+    }
 
     private val prefs: SharedPreferences
         get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -641,12 +643,10 @@ class AccuConnectionManager @Inject constructor(
             return@withContext connectAfterPair(host, adb)
         }
 
-        // ── Path B: AdbWifiPairingClient — pure-Kotlin SPAKE2 (works on all Android phones) ──
-        // Ensure our RSA key pair exists before pairing so the .pub file is ready
-        @Suppress("UNUSED_EXPRESSION") adbKeyPair  // force lazy init → creates priv + pub files
+        // ── Path B: AdbWifiPairingClient — BoringSSL SPAKE2 + Conscrypt TLS ────────────────
         Timber.i("$TAG completePairing (SPAKE2): pairing $host:$port ***")
         _state.value = ConnectionState.CONNECTING
-        val pairingOk = AdbWifiPairingClient.pair(host, port, code, adbPubFile)
+        val pairingOk = AdbWifiPairingClient.pair(host, port, code, adbKey)
         if (!pairingOk) {
             Timber.w("$TAG SPAKE2 pairing failed — likely wrong code")
             _state.value = ConnectionState.AWAITING_CODE
