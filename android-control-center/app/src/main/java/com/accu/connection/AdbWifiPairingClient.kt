@@ -1,7 +1,6 @@
 package com.accu.connection
 
 import android.util.Log
-import org.conscrypt.Conscrypt
 import timber.log.Timber
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -89,7 +88,10 @@ object AdbWifiPairingClient {
         return try {
             // ── 2. Derive SPAKE2 password = pairCode || TLS keying material ───
             val codeBytes    = pairingCode.toByteArray(Charsets.UTF_8)
-            val keyMaterial  = Conscrypt.exportKeyingMaterial(sslSocket, EXPORT_KEY_LABEL, null, EXPORT_KEY_SIZE)
+            // Use com.android.org.conscrypt.Conscrypt.exportKeyingMaterial via reflection —
+            // exactly like Shizuku.  HiddenApiBypass (installed in ACCApplication) ensures
+            // the method is accessible on Android 9+.
+            val keyMaterial  = exportKeyingMaterialSystemConscrypt(sslSocket, EXPORT_KEY_LABEL, EXPORT_KEY_SIZE)
             val password     = codeBytes + keyMaterial
 
             // ── 3. Create SPAKE2 context (BoringSSL JNI) ─────────────────────
@@ -146,6 +148,34 @@ object AdbWifiPairingClient {
             runCatching { sslSocket.close() }
             runCatching { rawSocket.close() }
         }
+    }
+
+    // ── System Conscrypt exportKeyingMaterial (via reflection, like Shizuku) ─────
+
+    /**
+     * Calls com.android.org.conscrypt.Conscrypt.exportKeyingMaterial via reflection.
+     *
+     * Shizuku calls this directly (they have hidden API stubs + hiddenapibypass).
+     * We use reflection + HiddenApiBypass (installed in ACCApplication.onCreate)
+     * to achieve the exact same result without compile-time hidden API stubs.
+     *
+     * The socket MUST be a system Conscrypt socket (created via
+     * SSLContext.getInstance("TLSv1.3") with no explicit provider).
+     */
+    private fun exportKeyingMaterialSystemConscrypt(
+        socket: javax.net.ssl.SSLSocket,
+        label: String,
+        length: Int
+    ): ByteArray {
+        val clazz  = Class.forName("com.android.org.conscrypt.Conscrypt")
+        val method = clazz.getMethod(
+            "exportKeyingMaterial",
+            javax.net.ssl.SSLSocket::class.java,
+            String::class.java,
+            ByteArray::class.java,
+            Int::class.java
+        )
+        return method.invoke(null, socket, label, null, length) as ByteArray
     }
 
     // ── Packet I/O (identical to AOSP pairing_connection) ────────────────────

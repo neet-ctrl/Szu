@@ -217,8 +217,10 @@ dependencies {
     // ADB protocol (pure Kotlin — pairs and connects without any adb binary on device)
     implementation(libs.dadb)
 
-    // ADB Wireless Pairing — SPAKE2 via BoringSSL JNI + Conscrypt TLS keying material
-    implementation(libs.conscrypt.android)
+    // ADB Wireless Pairing — SPAKE2 via BoringSSL JNI
+    // Uses Android system Conscrypt (com.android.org.conscrypt) exactly like Shizuku.
+    // hiddenapibypass allows reflection access to com.android.org.conscrypt.Conscrypt.exportKeyingMaterial
+    implementation(libs.hiddenapibypass)
     implementation(libs.bcpkix)
     implementation(libs.boringssl.ndk)
 }

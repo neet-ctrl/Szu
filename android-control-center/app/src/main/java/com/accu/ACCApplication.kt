@@ -14,9 +14,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.conscrypt.Conscrypt
+import org.lsposed.hiddenapibypass.HiddenApiBypass
 import timber.log.Timber
-import java.security.Security
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -36,17 +35,14 @@ class ACCApplication : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        // Install Conscrypt as the top-priority security provider globally.
-        // This ensures that every JCA operation (KeyFactory, KeyPairGenerator, Signature,
-        // SSLContext) uses the same OpenSSL-backed implementation.  Without this, the
-        // platform's default provider may be chosen for some operations, leading to
-        // key-type mismatches where Conscrypt's TLS engine cannot perform RSA-PSS signing
-        // on the private key during TLS 1.3 CertificateVerify.
+        // Bypass hidden API restrictions so we can call com.android.org.conscrypt.Conscrypt
+        // via reflection — exactly as Shizuku does for ADB wireless pairing.
+        // Empty string exempts ALL hidden APIs (safe for ADB-specific use).
         try {
-            Security.insertProviderAt(Conscrypt.newProvider(), 1)
-            Timber.d("ACCApplication: Conscrypt installed as provider #1")
+            HiddenApiBypass.addHiddenApiExemptions("")
+            Timber.d("ACCApplication: HiddenApiBypass exemptions applied")
         } catch (e: Exception) {
-            Timber.w(e, "ACCApplication: Conscrypt provider install failed (non-fatal)")
+            Timber.w(e, "ACCApplication: HiddenApiBypass failed (non-fatal, Android <9?)")
         }
 
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())

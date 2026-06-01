@@ -34,6 +34,7 @@ zxing = "3.5.3"
 jsoup = "1.18.3"
 dadb = "1.2.10"
 conscrypt = "2.5.2"
+hiddenapibypass = "4.3"
 bouncycastle = "1.80"
 boringssl-ndk = "20250114"
 
@@ -129,6 +130,7 @@ apache-commons-io = { group = "org.apache.commons", name = "commons-lang3", vers
 jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 dadb = { group = "dev.mobile", name = "dadb", version.ref = "dadb" }
 conscrypt-android = { group = "org.conscrypt", name = "conscrypt-android", version.ref = "conscrypt" }
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenapibypass" }
 bcpkix = { group = "org.bouncycastle", name = "bcpkix-jdk18on", version.ref = "bouncycastle" }
 boringssl-ndk = { group = "io.github.vvb2060.ndk", name = "boringssl", version.ref = "boringssl-ndk" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }

@@ -6,7 +6,6 @@ import org.bouncycastle.asn1.x500.X500Name
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
 import org.bouncycastle.cert.X509v3CertificateBuilder
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import org.conscrypt.Conscrypt
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.math.BigInteger
@@ -71,14 +70,13 @@ class AdbKey private constructor(
      */
     val adbPublicKeyRaw: ByteArray by lazy { publicKey.toAdbRaw() }
 
-    // ── Conscrypt TLSv1.3 context — presents our cert, enables exportKeyingMaterial ──
+    // ── TLSv1.3 context — system Conscrypt (com.android.org.conscrypt), exactly like Shizuku ──
 
     val sslContext: SSLContext by lazy {
-        // Use the shared conscryptProvider (same instance used to parse/generate the key).
-        // All three — key, cert, and SSLContext — MUST use the same Conscrypt provider so
-        // the OpenSSL-backed private key is recognised when Conscrypt performs RSA-PSS
-        // signing for the TLS 1.3 CertificateVerify message.
-        val ctx = SSLContext.getInstance("TLSv1.3", conscryptProvider)
+        // SSLContext.getInstance("TLSv1.3") with no provider = Android system Conscrypt
+        // (com.android.org.conscrypt).  This is exactly what Shizuku's AdbKey does.
+        // System Conscrypt knows how to sign CertificateVerify with a plain Java RSAPrivateKey.
+        val ctx = SSLContext.getInstance("TLSv1.3")
         ctx.init(arrayOf(buildKeyManager()), arrayOf(buildTrustManager()), SecureRandom())
         ctx
     }
@@ -118,18 +116,18 @@ class AdbKey private constructor(
     private fun buildKeyManager() = object : X509ExtendedKeyManager() {
         private val alias = "key"
 
-        // Always present our certificate regardless of the key-type list.
-        //
-        // Android adbd (TLS 1.3) sends a CertificateRequest whose signature_algorithms
-        // extension only includes rsa_pss_pss_sha256 / rsa_pss_rsae_sha256.
-        // Conscrypt maps those to key-type "RSASSA-PSS" (not "RSA"), so a strict
-        // types.any { it == "RSA" } check returns null and we send no cert.
-        // adbd enforces SSL_VERIFY_FAIL_IF_NO_PEER_CERT → sends close_notify →
-        // startHandshake() throws SSLException("connection closed").
-        //
-        // We only ever have one key, so returning alias unconditionally is safe.
-        override fun chooseClientAlias(types: Array<out String>?, i: Array<out Principal>?, s: Socket?) = alias
-        override fun chooseEngineClientAlias(types: Array<out String>?, i: Array<out Principal>?, e: SSLEngine?) = alias
+        // Return our alias only for "RSA" key type — exactly like Shizuku AdbKey.kt line 189:
+        //   for (keyType in keyTypes) { if (keyType == "RSA") return alias }
+        // System Conscrypt (com.android.org.conscrypt) reports the CertificateRequest
+        // key type as "RSA", so this check succeeds and we send our client cert.
+        override fun chooseClientAlias(types: Array<out String>?, i: Array<out Principal>?, s: Socket?): String? {
+            types?.forEach { if (it == "RSA") return alias }
+            return null
+        }
+        override fun chooseEngineClientAlias(types: Array<out String>?, i: Array<out Principal>?, e: SSLEngine?): String? {
+            types?.forEach { if (it == "RSA") return alias }
+            return null
+        }
         override fun getCertificateChain(a: String?) = if (a == alias) arrayOf(certificate) else null
         override fun getPrivateKey(a: String?)        = if (a == alias) privateKey else null
         override fun getClientAliases(t: String?, i: Array<out Principal>?) = arrayOf(alias)
@@ -153,45 +151,18 @@ class AdbKey private constructor(
     companion object {
 
         /**
-         * Single shared Conscrypt provider used for ALL key and SSL operations.
-         *
-         * This is the critical piece: when Conscrypt's TLS 1.3 layer creates the
-         * CertificateVerify message it needs to perform RSA-PSS signing on the
-         * private key.  Conscrypt can only do PSS operations on OpenSSL-backed keys
-         * (i.e. keys that were generated or parsed via its own provider).  If we use
-         * the default Java provider the key is a plain-Java RSAPrivateKey — Conscrypt
-         * fails to sign CertificateVerify, sends an empty Certificate message, adbd
-         * enforces SSL_VERIFY_FAIL_IF_NO_PEER_CERT, sends close_notify, and we get:
-         *   "TLS handshake failed (connection closed)"
-         *
-         * Solution: use this shared Conscrypt provider for KeyFactory, KeyPairGenerator
-         * AND SSLContext so every RSA key is OpenSSL-backed end-to-end.
-         */
-        internal val conscryptProvider: Provider by lazy { Conscrypt.newProvider() }
-
-        /**
-         * Load from a PKCS8 PEM file written by dadb's [AdbKeyPair.generate].
-         * If the file doesn't exist, generates a new 2048-bit RSA key and writes it
-         * in PKCS8 PEM format so dadb can also read it.
-         *
-         * **Always call this AFTER [dadb.AdbKeyPair.generate] has been called**,
-         * so both share the exact same underlying RSA key — the one the device
-         * authorizes during pairing is then used for all subsequent connections.
+         * Load from a PKCS8 PEM file.
+         * Uses the default KeyFactory (system provider — same as Shizuku's approach).
+         * System Conscrypt handles RSA-PSS signing during TLS 1.3 CertificateVerify
+         * with a plain Java RSAPrivateKey — proven by Shizuku working on Android 11+.
          */
         fun fromFile(privFile: File, name: String): AdbKey {
-            val priv = if (privFile.exists()) {
-                parsePkcs8Pem(privFile)
-            } else {
-                generateAndSaveToFile(privFile)
-            }
+            val priv = if (privFile.exists()) parsePkcs8Pem(privFile)
+                       else generateAndSaveToFile(privFile)
             return AdbKey(priv, name)
         }
 
-        /**
-         * Parse the PKCS8 PEM using the **Conscrypt provider** so the resulting
-         * RSAPrivateKey is OpenSSL-backed.  This is required for RSA-PSS signing
-         * in TLS 1.3 CertificateVerify — see [conscryptProvider] doc above.
-         */
+        // Matches Shizuku: KeyFactory.getInstance("RSA") — no explicit provider.
         private fun parsePkcs8Pem(file: File): RSAPrivateKey {
             val pem = file.readText()
             val b64 = pem
@@ -199,16 +170,13 @@ class AdbKey private constructor(
                 .replace("-----END PRIVATE KEY-----", "")
                 .replace("\\s".toRegex(), "")
             val der = Base64.decode(b64, Base64.DEFAULT)
-            return KeyFactory.getInstance("RSA", conscryptProvider)
+            return KeyFactory.getInstance("RSA")
                 .generatePrivate(PKCS8EncodedKeySpec(der)) as RSAPrivateKey
         }
 
-        /**
-         * Generate a new key pair using the **Conscrypt provider** for the same
-         * OpenSSL-backed reason described in [conscryptProvider].
-         */
+        // Matches Shizuku: KeyPairGenerator.getInstance(KEY_ALGORITHM_RSA) — no explicit provider.
         private fun generateAndSaveToFile(privFile: File): RSAPrivateKey {
-            val kpg  = KeyPairGenerator.getInstance("RSA", conscryptProvider)
+            val kpg  = KeyPairGenerator.getInstance("RSA")
             kpg.initialize(RSAKeyGenParameterSpec(2048, RSAKeyGenParameterSpec.F4))
             val kp   = kpg.generateKeyPair()
             val priv = kp.private as RSAPrivateKey
