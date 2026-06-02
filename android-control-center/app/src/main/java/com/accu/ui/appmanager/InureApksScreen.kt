@@ -64,7 +64,7 @@ private fun scanDirectoryForApks(root: File, maxDepth: Int = 6): List<File> {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InureApksScreen(onBack: () -> Unit = {}) {
+fun InureApksScreen(onBack: () -> Unit = {}, onNavigateToAppDetail: (String) -> Unit = {}) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
     val context = LocalContext.current
@@ -323,9 +323,9 @@ fun InureApksScreen(onBack: () -> Unit = {}) {
                                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                                         )
                                     }
-                                    if (apk.isInstalled) {
+                                    if (apk.isInstalled && apk.packageName != null) {
                                         SuggestionChip(
-                                            onClick = {},
+                                            onClick = { onNavigateToAppDetail(apk.packageName) },
                                             label = { Text("Installed", fontSize = 10.sp) },
                                             modifier = Modifier.height(22.dp),
                                         )

@@ -43,7 +43,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
     var recordingPath by remember { mutableStateOf("/sdcard/screen_record.mp4") }
     var isRecording by remember { mutableStateOf(false) }
     var recordingTimer by remember { mutableIntStateOf(0) }
-    var recordingSize by remember { mutableIntStateOf(0) }  // MB simulated
+    var recordingSize by remember { mutableIntStateOf(0) }  // MB estimated from bitrate
     var recordingBitrate by remember { mutableStateOf("8000000") }
     var recordingSize2 by remember { mutableStateOf("1280x720") }
     var recordingMaxTime by remember { mutableStateOf("180") }
@@ -57,7 +57,9 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
         while (isRecording) {
             delay(1000)
             recordingTimer++
-            recordingSize += (Math.random() * 0.8 + 0.2).toInt() + if (recordingTimer % 3 == 0) 1 else 0
+            // Estimate MB from configured bitrate: bitrate bps / 8 bits = bytes/sec, / 1_000_000 = MB/sec
+            val bps = recordingBitrate.toLongOrNull() ?: 8_000_000L
+            recordingSize = ((bps.toDouble() / 8_000_000.0) * recordingTimer).toInt()
         }
     }
 

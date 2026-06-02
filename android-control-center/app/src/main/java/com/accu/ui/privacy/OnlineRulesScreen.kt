@@ -1,5 +1,6 @@
 package com.accu.ui.privacy
 
+import android.content.pm.PackageManager
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,12 +11,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.platform.LocalContext
 import com.accu.ui.components.InfoTooltipIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class TrackerRule(
     val id: String,
@@ -38,7 +42,7 @@ enum class TrackerCategory(val label: String, val icon: androidx.compose.ui.grap
     SOCIAL("Social Media SDK", Icons.Default.Share),
 }
 
-val SAMPLE_TRACKER_RULES = listOf(
+val TRACKER_RULES = listOf(
     TrackerRule(
         "firebase", "Firebase Analytics", "Google Firebase analytics and crash reporting services",
         TrackerCategory.ANALYTICS, 89,
@@ -92,13 +96,32 @@ val SAMPLE_TRACKER_RULES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnlineRulesScreen(onBack: () -> Unit) {
-    val rules = remember { mutableStateListOf(*SAMPLE_TRACKER_RULES.toTypedArray()) }
-    var isLoading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val rules = remember { mutableStateListOf(*TRACKER_RULES.toTypedArray()) }
+    var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
     var categoryFilter by remember { mutableStateOf<TrackerCategory?>(null) }
     var expandedId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            val installedPkgs = try {
+                pm.getInstalledPackages(0).map { it.packageName }
+            } catch (_: Exception) { emptyList() }
+            val updatedRules = TRACKER_RULES.map { rule ->
+                val count = installedPkgs.count { pkg -> rule.packages.any { prefix -> pkg.startsWith(prefix) } }
+                rule.copy(matchCount = count)
+            }
+            withContext(Dispatchers.Main) {
+                rules.clear()
+                rules.addAll(updatedRules)
+                isLoading = false
+            }
+        }
+    }
 
     val filtered = rules.filter { rule ->
         (searchQuery.isBlank() || rule.name.contains(searchQuery, ignoreCase = true) || rule.description.contains(searchQuery, ignoreCase = true)) &&

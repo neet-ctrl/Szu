@@ -16,8 +16,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 data class OrphanedData(
     val id: String,
@@ -37,19 +39,12 @@ enum class OrphanType(val label: String, val icon: androidx.compose.ui.graphics.
     SDK_DATA("SDK Data", Icons.Default.Extension, "Analytics/SDK data from removed app"),
 }
 
-val SAMPLE_ORPHANS = listOf(
-    OrphanedData("1", "/sdcard/Android/data/com.deleted.app1/", 45_000_000L, OrphanType.APP_DATA, "com.deleted.app1"),
-    OrphanedData("2", "/sdcard/Android/data/com.deleted.app2/files/", 12_000_000L, OrphanType.APP_DATA, "com.deleted.app2"),
-    OrphanedData("3", "/sdcard/.com.facebook.ads/", 8_000_000L, OrphanType.SDK_DATA, "com.facebook.katana"),
-    OrphanedData("4", "/sdcard/Android/data/com.old.game/cache/", 234_000_000L, OrphanType.CACHE, "com.old.game"),
-    OrphanedData("5", "/sdcard/Download/.part_video.mp4", 1_500_000_000L, OrphanType.DOWNLOAD),
-    OrphanedData("6", "/sdcard/Android/data/com.uninstalled.music/media/", 3_400_000_000L, OrphanType.MEDIA, "com.uninstalled.music"),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CorpseFinderScreen(onBack: () -> Unit) {
-    var orphans by remember { mutableStateOf(SAMPLE_ORPHANS) }
+    val context = LocalContext.current
+    var orphans by remember { mutableStateOf(emptyList<OrphanedData>()) }
     var isScanning by remember { mutableStateOf(false) }
     var scanProgress by remember { mutableStateOf(0f) }
     var expandedId by remember { mutableStateOf<String?>(null) }
@@ -116,10 +111,78 @@ fun CorpseFinderScreen(onBack: () -> Unit) {
                             onClick = {
                                 scope.launch {
                                     isScanning = true
-                                    repeat(25) { i -> delay(80); scanProgress = (i + 1) / 25f }
+                                    scanProgress = 0f
+                                    val found = mutableListOf<OrphanedData>()
+                                    withContext(Dispatchers.IO) {
+                                        val pm = context.packageManager
+                                        val installedPkgs = try {
+                                            pm.getInstalledPackages(0).map { it.packageName }.toSet()
+                                        } catch (_: Exception) { emptySet() }
+
+                                        val scanRoots = listOf(
+                                            File("/sdcard/Android/data"),
+                                            File("/sdcard/Android/obb"),
+                                        )
+                                        val scanSteps = scanRoots.flatMap { root ->
+                                            if (root.exists() && root.canRead()) root.listFiles()?.toList() ?: emptyList()
+                                            else emptyList()
+                                        }
+                                        val total = scanSteps.size.coerceAtLeast(1)
+                                        scanSteps.forEachIndexed { idx, dir ->
+                                            withContext(Dispatchers.Main) { scanProgress = (idx + 1).toFloat() / total }
+                                            val pkg = dir.name
+                                            if (pkg !in installedPkgs) {
+                                                val size = try { dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } } catch (_: Exception) { 0L }
+                                                val type = when {
+                                                    dir.path.contains("/obb") -> OrphanType.APP_DATA
+                                                    dir.name.contains("cache", ignoreCase = true) -> OrphanType.CACHE
+                                                    else -> OrphanType.APP_DATA
+                                                }
+                                                found.add(OrphanedData(
+                                                    id = dir.absolutePath,
+                                                    path = dir.absolutePath + "/",
+                                                    size = size,
+                                                    type = type,
+                                                    relatedPackage = pkg,
+                                                ))
+                                            }
+                                        }
+
+                                        // Also scan for hidden SDK folders on sdcard root
+                                        val sdcard = File("/sdcard")
+                                        if (sdcard.exists() && sdcard.canRead()) {
+                                            sdcard.listFiles()?.filter { it.name.startsWith(".") && it.isDirectory }?.forEach { dir ->
+                                                val size = try { dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } } catch (_: Exception) { 0L }
+                                                if (size > 0) {
+                                                    found.add(OrphanedData(
+                                                        id = dir.absolutePath,
+                                                        path = dir.absolutePath + "/",
+                                                        size = size,
+                                                        type = OrphanType.SDK_DATA,
+                                                        relatedPackage = null,
+                                                    ))
+                                                }
+                                            }
+                                        }
+
+                                        // Scan Downloads for partial files
+                                        val downloads = File("/sdcard/Download")
+                                        if (downloads.exists() && downloads.canRead()) {
+                                            downloads.listFiles()?.filter { it.name.startsWith(".") || it.extension.lowercase() in listOf("part", "crdownload", "tmp") }?.forEach { file ->
+                                                found.add(OrphanedData(
+                                                    id = file.absolutePath,
+                                                    path = file.absolutePath,
+                                                    size = file.length(),
+                                                    type = OrphanType.DOWNLOAD,
+                                                    relatedPackage = null,
+                                                ))
+                                            }
+                                        }
+                                    }
+                                    orphans = found
                                     isScanning = false
                                     scanProgress = 0f
-                                    snackbar.showSnackbar("Found ${orphans.size} orphaned data entries")
+                                    snackbar.showSnackbar(if (found.isEmpty()) "No orphaned data found" else "Found ${found.size} orphaned items")
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

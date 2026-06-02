@@ -1,12 +1,17 @@
 package com.accu.ui.filemanager
 
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -17,13 +22,20 @@ import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
 import com.accu.ui.components.ACCTopBar
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.*
 import javax.inject.Inject
 
 @HiltViewModel
 class FilePropertiesViewModel @Inject constructor(
     private val connectionManager: AccuConnectionManager,
 ) : ViewModel() {
+
     fun chmod(path: String, modeStr: String, onResult: (String) -> Unit) {
         viewModelScope.launch {
             val result = connectionManager.exec("chmod $modeStr \"$path\"")
@@ -33,6 +45,50 @@ class FilePropertiesViewModel @Inject constructor(
             )
         }
     }
+
+    suspend fun statFile(path: String): Map<String, String> = withContext(Dispatchers.IO) {
+        val result = connectionManager.exec("stat -c '%A|%U|%G|%s|%y|%x|%z' \"$path\" 2>/dev/null")
+        val parts = result.output.trim().split("|")
+        mapOf(
+            "perms"    to (parts.getOrNull(0) ?: ""),
+            "owner"    to (parts.getOrNull(1) ?: ""),
+            "group"    to (parts.getOrNull(2) ?: ""),
+            "size"     to (parts.getOrNull(3) ?: ""),
+            "modified" to (parts.getOrNull(4)?.take(19) ?: ""),
+            "accessed" to (parts.getOrNull(5)?.take(19) ?: ""),
+            "created"  to (parts.getOrNull(6)?.take(19) ?: ""),
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_073_741_824 -> "${"%.2f".format(bytes / 1_073_741_824.0)} GB"
+    bytes >= 1_048_576     -> "${"%.2f".format(bytes / 1_048_576.0)} MB"
+    bytes >= 1_024         -> "${"%.1f".format(bytes / 1_024.0)} KB"
+    else                   -> "$bytes B"
+}
+
+private fun formatDate(millis: Long): String =
+    SimpleDateFormat("MMM dd, yyyy 'at' HH:mm:ss", Locale.getDefault()).format(Date(millis))
+
+private fun mimeForExt(ext: String) = when (ext) {
+    "JPG", "JPEG" -> "image/jpeg"
+    "PNG"  -> "image/png"
+    "WEBP" -> "image/webp"
+    "GIF"  -> "image/gif"
+    "MP4"  -> "video/mp4"
+    "MKV"  -> "video/x-matroska"
+    "AVI"  -> "video/avi"
+    "WEBM" -> "video/webm"
+    "MP3"  -> "audio/mpeg"
+    "FLAC" -> "audio/flac"
+    "OGG"  -> "audio/ogg"
+    "M4A"  -> "audio/mp4"
+    "WAV"  -> "audio/wav"
+    "APK"  -> "application/vnd.android.package-archive"
+    "PDF"  -> "application/pdf"
+    "ZIP"  -> "application/zip"
+    else   -> "application/octet-stream"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,7 +96,9 @@ class FilePropertiesViewModel @Inject constructor(
 fun FilePropertiesScreen(
     filePath: String = "/sdcard/DCIM/Camera/IMG_20240530_143022.jpg",
     onBack: () -> Unit = {},
+    vm: FilePropertiesViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val fileName = filePath.substringAfterLast("/")
     val fileExt = fileName.substringAfterLast(".", "").uppercase()
     val isApk = fileExt == "APK"
@@ -51,7 +109,8 @@ fun FilePropertiesScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = buildList {
         add("Basic")
-        if (fileExt == "APK") add("APK Info"); add("Permissions")
+        if (isApk) add("APK Info")
+        add("Permissions")
         add("Checksums")
         if (isImage || isAudio || isVideo) add("Media Info")
     }
@@ -64,12 +123,12 @@ fun FilePropertiesScreen(
                 }
             }
             when (tabs.getOrNull(selectedTab)) {
-                "Basic" -> BasicTab(fileName, filePath, fileExt)
-                "APK Info" -> ApkInfoTab()
-                "Permissions" -> PermissionsTab(filePath)
-                "Checksums" -> ChecksumsTab(fileName)
-                "Media Info" -> MediaInfoTab(fileExt)
-                else -> BasicTab(fileName, filePath, fileExt)
+                "Basic"      -> BasicTab(fileName, filePath, fileExt, context)
+                "APK Info"   -> ApkInfoTab(filePath, context)
+                "Permissions"-> PermissionsTab(filePath, vm)
+                "Checksums"  -> ChecksumsTab(filePath)
+                "Media Info" -> MediaInfoTab(filePath, fileExt, isImage, isAudio, isVideo, context)
+                else         -> BasicTab(fileName, filePath, fileExt, context)
             }
         }
     }
@@ -85,155 +144,261 @@ private fun PropRow(label: String, value: String) {
 }
 
 @Composable
-private fun BasicTab(name: String, path: String, ext: String) {
+private fun BasicTab(name: String, path: String, ext: String, context: android.content.Context) {
+    val file = remember(path) { File(path) }
+    val size = remember(path) { if (file.exists()) file.length() else 0L }
+    val modified = remember(path) { if (file.exists()) formatDate(file.lastModified()) else "Unknown" }
+
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item { PropRow("Name", name) }
         item { PropRow("Extension", ext) }
-        item { PropRow("Size", "8.43 MB (8,843,264 bytes)") }
+        item { PropRow("Size", if (size > 0) "${formatBytes(size)} (${"%,d".format(size)} bytes)" else "Unknown") }
         item { PropRow("Location", path.substringBeforeLast("/")) }
         item { PropRow("Full path", path) }
-        item { PropRow("Created", "May 30, 2024 at 14:30:22") }
-        item { PropRow("Modified", "May 30, 2024 at 14:30:22") }
-        item { PropRow("Accessed", "Today at 09:14") }
-        item { PropRow("MIME type", when (ext) {
-            "JPG", "JPEG" -> "image/jpeg"
-            "PNG" -> "image/png"
-            "MP4" -> "video/mp4"
-            "APK" -> "application/vnd.android.package-archive"
-            else -> "application/octet-stream"
-        }) }
+        item { PropRow("Modified", modified) }
+        item { PropRow("MIME type", mimeForExt(ext)) }
+        item { PropRow("Exists", if (file.exists()) "Yes" else "No") }
+        if (file.isDirectory) item { PropRow("Contents", "${file.listFiles()?.size ?: 0} items") }
     }
 }
 
 @Composable
 private fun PermissionsTab(path: String, vm: FilePropertiesViewModel = hiltViewModel()) {
+    var statInfo by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(path) {
+        statInfo = vm.statFile(path)
+        isLoading = false
+    }
+
+    val perms = statInfo["perms"] ?: ""
+    val parsePerms = { idx: Int -> perms.getOrElse(idx) { '-' } != '-' }
+
+    var oR by remember(perms) { mutableStateOf(parsePerms(1)) }
+    var oW by remember(perms) { mutableStateOf(parsePerms(2)) }
+    var oX by remember(perms) { mutableStateOf(parsePerms(3)) }
+    var snackMsg by remember { mutableStateOf<String?>(null) }
+
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-        item { PropRow("Owner", "media_rw (1023)") }
-        item { PropRow("Group", "sdcard_rw (1015)") }
-        item { PropRow("Permissions", "rw-rw-r-- (664)") }
-        item { PropRow("Owner read", "Yes") }
-        item { PropRow("Owner write", "Yes") }
-        item { PropRow("Owner exec", "No") }
-        item { PropRow("Group read", "Yes") }
-        item { PropRow("Group write", "Yes") }
-        item { PropRow("Group exec", "No") }
-        item { PropRow("Others read", "Yes") }
-        item { PropRow("Others write", "No") }
-        item { PropRow("Others exec", "No") }
-        item {
-            var snackMsg by remember { mutableStateOf<String?>(null) }
-            Spacer(Modifier.height(12.dp))
-            Text("Change Permissions", fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(8.dp))
-            Text("Owner", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-            var oR by remember { mutableStateOf(true) }
-            var oW by remember { mutableStateOf(true) }
-            var oX by remember { mutableStateOf(false) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = oR, onClick = { oR = !oR }, label = { Text("Read") })
-                FilterChip(selected = oW, onClick = { oW = !oW }, label = { Text("Write") })
-                FilterChip(selected = oX, onClick = { oX = !oX }, label = { Text("Execute") })
+        if (isLoading) {
+            item { Box(Modifier.fillParentMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+        } else {
+            item { PropRow("Permissions", statInfo["perms"]?.ifBlank { "Unknown" } ?: "Unknown") }
+            item { PropRow("Owner", statInfo["owner"]?.ifBlank { "Unknown" } ?: "Unknown") }
+            item { PropRow("Group", statInfo["group"]?.ifBlank { "Unknown" } ?: "Unknown") }
+            if (perms.length >= 10) {
+                item { PropRow("Owner read",    if (parsePerms(1)) "Yes" else "No") }
+                item { PropRow("Owner write",   if (parsePerms(2)) "Yes" else "No") }
+                item { PropRow("Owner exec",    if (parsePerms(3)) "Yes" else "No") }
+                item { PropRow("Group read",    if (parsePerms(4)) "Yes" else "No") }
+                item { PropRow("Group write",   if (parsePerms(5)) "Yes" else "No") }
+                item { PropRow("Group exec",    if (parsePerms(6)) "Yes" else "No") }
+                item { PropRow("Others read",   if (parsePerms(7)) "Yes" else "No") }
+                item { PropRow("Others write",  if (parsePerms(8)) "Yes" else "No") }
+                item { PropRow("Others exec",   if (parsePerms(9)) "Yes" else "No") }
             }
-            Spacer(Modifier.height(8.dp))
-            snackMsg?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp) }
-            Button(
-                onClick = {
-                    val mode    = (if (oR) 4 else 0) + (if (oW) 2 else 0) + (if (oX) 1 else 0)
-                    val modeStr = "$mode${mode}${mode}"
-                    vm.chmod(path, modeStr) { msg -> snackMsg = msg }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Apply via ACCU") }
+            item {
+                Spacer(Modifier.height(12.dp))
+                Text("Change Permissions", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+                Text("Owner", fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = oR, onClick = { oR = !oR }, label = { Text("Read") })
+                    FilterChip(selected = oW, onClick = { oW = !oW }, label = { Text("Write") })
+                    FilterChip(selected = oX, onClick = { oX = !oX }, label = { Text("Execute") })
+                }
+                Spacer(Modifier.height(8.dp))
+                snackMsg?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp) }
+                Button(
+                    onClick = {
+                        val mode = (if (oR) 4 else 0) + (if (oW) 2 else 0) + (if (oX) 1 else 0)
+                        val modeStr = "$mode${mode}${mode}"
+                        vm.chmod(path, modeStr) { msg -> snackMsg = msg }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Apply via ACCU") }
+            }
         }
     }
 }
 
 @Composable
-private fun ChecksumsTab(name: String) {
+private fun ChecksumsTab(filePath: String) {
     var computing by remember { mutableStateOf(false) }
-    var computed by remember { mutableStateOf(false) }
+    var md5 by remember { mutableStateOf("") }
+    var sha1 by remember { mutableStateOf("") }
+    var sha256 by remember { mutableStateOf("") }
+    var sha512 by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    fun computeHash(algorithm: String): String = try {
+        val md = MessageDigest.getInstance(algorithm)
+        File(filePath).inputStream().use { fis ->
+            val buf = ByteArray(65536)
+            var read: Int
+            while (fis.read(buf).also { read = it } != -1) md.update(buf, 0, read)
+        }
+        md.digest().joinToString("") { "%02x".format(it) }
+    } catch (e: Exception) { "Error: ${e.message}" }
 
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
         item {
-            if (!computed) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    Button(onClick = { computing = true; computed = true; computing = false }) {
-                        if (computing) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Default.Calculate, null)
+            if (md5.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 16.dp), contentAlignment = Alignment.Center) {
+                    Button(onClick = {
+                        computing = true
+                        error = ""
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                if (!File(filePath).exists()) {
+                                    withContext(Dispatchers.Main) { error = "File not accessible: $filePath"; computing = false }
+                                    return@withContext
+                                }
+                                val md5r  = computeHash("MD5")
+                                val sha1r = computeHash("SHA-1")
+                                val sha256r = computeHash("SHA-256")
+                                val sha512r = computeHash("SHA-512")
+                                withContext(Dispatchers.Main) {
+                                    md5 = md5r; sha1 = sha1r; sha256 = sha256r; sha512 = sha512r
+                                    computing = false
+                                }
+                            }
+                        }
+                    }, enabled = !computing) {
+                        if (computing) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.Calculate, null)
                         Spacer(Modifier.width(6.dp))
                         Text(if (computing) "Computing…" else "Compute checksums")
                     }
                 }
+                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
             }
         }
-        if (computed) {
-            item { PropRow("MD5", "a4f2c8d91e03b7a52f19e4c6d83b1720") }
-            item { PropRow("SHA-1", "3da541559918a808c2402bba5012f6c60b27661c") }
-            item { PropRow("SHA-256", "8c7f5e9d2a1b4c6f0e3d7a8b9c4e1f2d3a6b8c9e0f1d2a3b4c5d6e7f8a9b0c") }
-            item { PropRow("SHA-512", "1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f") }
-            item { PropRow("CRC32", "A3F7C2D1") }
+        if (md5.isNotEmpty()) {
+            item { PropRow("MD5",    md5) }
+            item { PropRow("SHA-1",  sha1) }
+            item { PropRow("SHA-256", sha256) }
+            item { PropRow("SHA-512", sha512) }
         }
     }
 }
 
 @Composable
-private fun ApkInfoTab() {
+private fun ApkInfoTab(filePath: String, context: android.content.Context) {
+    var isLoading by remember { mutableStateOf(true) }
+    var info by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    LaunchedEffect(filePath) {
+        withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            val pi = try { pm.getPackageArchiveInfo(filePath, PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS or PackageManager.GET_PERMISSIONS) } catch (_: Exception) { null }
+            val map = if (pi != null) {
+                val ai = pi.applicationInfo
+                ai?.sourceDir = filePath
+                ai?.publicSourceDir = filePath
+                val label = try { ai?.loadLabel(pm)?.toString() ?: pi.packageName } catch (_: Exception) { pi.packageName }
+                mapOf(
+                    "App name"     to label,
+                    "Package name" to pi.packageName,
+                    "Version name" to (pi.versionName ?: "Unknown"),
+                    "Version code" to pi.longVersionCode.toString(),
+                    "Min SDK"      to (ai?.minSdkVersion?.let { "$it (Android ${sdkToName(it)})" } ?: "Unknown"),
+                    "Target SDK"   to (ai?.targetSdkVersion?.let { "$it (Android ${sdkToName(it)})" } ?: "Unknown"),
+                    "Activities"   to (pi.activities?.size?.toString() ?: "0"),
+                    "Services"     to (pi.services?.size?.toString() ?: "0"),
+                    "Receivers"    to (pi.receivers?.size?.toString() ?: "0"),
+                    "Providers"    to (pi.providers?.size?.toString() ?: "0"),
+                    "Permissions"  to (pi.requestedPermissions?.size?.let { "$it requested" } ?: "0"),
+                )
+            } else mapOf("Error" to "Could not read APK info from $filePath")
+            withContext(Dispatchers.Main) { info = map; isLoading = false }
+        }
+    }
+
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-        item { PropRow("Package name", "com.example.application") }
-        item { PropRow("Version name", "3.2.1") }
-        item { PropRow("Version code", "321001") }
-        item { PropRow("Min SDK", "21 (Android 5.0)") }
-        item { PropRow("Target SDK", "34 (Android 14)") }
-        item { PropRow("Compile SDK", "34 (Android 14)") }
-        item { PropRow("Signature", "SHA-256: 7a8b9c4e1f2d...") }
-        item { PropRow("Activities", "12") }
-        item { PropRow("Services", "4") }
-        item { PropRow("Receivers", "8") }
-        item { PropRow("Providers", "2") }
-        item { PropRow("Permissions", "18 declared") }
-        item { PropRow("Native libs", "arm64-v8a, armeabi-v7a") }
-        item { PropRow("Split APKs", "None") }
+        if (isLoading) {
+            item { Box(Modifier.fillParentMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+        } else {
+            info.forEach { (k, v) -> item { PropRow(k, v) } }
+        }
     }
 }
 
 @Composable
-private fun MediaInfoTab(ext: String) {
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-        when (ext) {
-            "JPG", "JPEG", "PNG", "WEBP" -> {
-                item { PropRow("Resolution", "4032 × 3024 pixels") }
-                item { PropRow("Color space", "sRGB") }
-                item { PropRow("Bit depth", "8-bit") }
-                item { PropRow("Camera", "Google Pixel 8 Pro") }
-                item { PropRow("Lens", "f/1.68, 6.81mm") }
-                item { PropRow("ISO", "80") }
-                item { PropRow("Shutter speed", "1/2000 s") }
-                item { PropRow("Flash", "Off") }
-                item { PropRow("GPS latitude", "37.7749° N") }
-                item { PropRow("GPS longitude", "122.4194° W") }
-                item { PropRow("Captured at", "May 30, 2024 14:30:22") }
-                item { PropRow("Software", "Pixel Camera 9.2") }
+private fun MediaInfoTab(filePath: String, ext: String, isImage: Boolean, isAudio: Boolean, isVideo: Boolean, context: android.content.Context) {
+    var isLoading by remember { mutableStateOf(true) }
+    var info by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+
+    LaunchedEffect(filePath) {
+        withContext(Dispatchers.IO) {
+            val file = File(filePath)
+            val map = mutableMapOf<String, String>()
+            if (!file.exists()) {
+                map["Error"] = "File not accessible"
+            } else if (isAudio || isVideo) {
+                val mmr = MediaMetadataRetriever()
+                try {
+                    mmr.setDataSource(filePath)
+                    val durationMs = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    if (durationMs != null) {
+                        val mins = durationMs / 60000
+                        val secs = (durationMs % 60000) / 1000
+                        map["Duration"] = "$mins:${secs.toString().padStart(2, '0')}"
+                    }
+                    if (isAudio) {
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { map["Bit rate"] = "${it / 1000} kbps" }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)?.let { if (it.isNotBlank()) map["Title"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)?.let { if (it.isNotBlank()) map["Artist"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)?.let { if (it.isNotBlank()) map["Album"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_YEAR)?.let { if (it.isNotBlank()) map["Year"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)?.let { if (it.isNotBlank()) map["Genre"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)?.let { if (it.isNotBlank()) map["Album artist"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)?.let { if (it.isNotBlank()) map["Disc"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)?.let { if (it.isNotBlank()) map["Track"] = it }
+                    }
+                    if (isVideo) {
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.let { w ->
+                            mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.let { h ->
+                                map["Resolution"] = "$w × $h"
+                            }
+                        }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)?.let { if (it.isNotBlank()) map["Frame rate"] = "$it fps" }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()?.let { map["Bit rate"] = "${"%.1f".format(it / 1_000_000.0)} Mbps" }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.let { if (it != "0") map["Rotation"] = "$it°" }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)?.let { map["MIME type"] = it }
+                        mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO)?.let { map["Has audio"] = if (it == "yes") "Yes" else "No" }
+                    }
+                } catch (e: Exception) {
+                    map["Error"] = "Could not read media metadata: ${e.message?.take(100)}"
+                } finally {
+                    mmr.release()
+                }
+            } else if (isImage) {
+                val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(filePath, opts)
+                if (opts.outWidth > 0) map["Resolution"] = "${opts.outWidth} × ${opts.outHeight} px"
+                opts.outMimeType?.let { if (it.isNotBlank()) map["MIME type"] = it }
+                map["File size"] = formatBytes(file.length())
             }
-            "MP3", "FLAC", "OGG", "M4A", "WAV" -> {
-                item { PropRow("Duration", "3:48") }
-                item { PropRow("Bit rate", "320 kbps") }
-                item { PropRow("Sample rate", "44100 Hz") }
-                item { PropRow("Channels", "Stereo") }
-                item { PropRow("Title", "Track title") }
-                item { PropRow("Artist", "Artist name") }
-                item { PropRow("Album", "Album name") }
-                item { PropRow("Year", "2024") }
-                item { PropRow("Genre", "Electronic") }
-            }
-            "MP4", "MKV", "AVI", "WEBM" -> {
-                item { PropRow("Duration", "15:22") }
-                item { PropRow("Resolution", "1920 × 1080 (1080p)") }
-                item { PropRow("Frame rate", "30 fps") }
-                item { PropRow("Video codec", "H.264") }
-                item { PropRow("Audio codec", "AAC") }
-                item { PropRow("Bit rate", "8 Mbps") }
-                item { PropRow("Color profile", "Rec. 709") }
-            }
-            else -> { item { PropRow("No media info", "Not a recognized media file") } }
+            withContext(Dispatchers.Main) { info = map; isLoading = false }
         }
     }
+
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+        if (isLoading) {
+            item { Box(Modifier.fillParentMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+        } else if (info.isEmpty()) {
+            item { Box(Modifier.fillParentMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { Text("No media metadata available", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
+        } else {
+            info.forEach { (k, v) -> item { PropRow(k, v) } }
+        }
+    }
+}
+
+private fun sdkToName(sdk: Int) = when (sdk) {
+    34 -> "14"; 33 -> "13"; 32 -> "12L"; 31 -> "12"; 30 -> "11"; 29 -> "10"
+    28 -> "9"; 27 -> "8.1"; 26 -> "8.0"; 25 -> "7.1"; 24 -> "7.0"; 23 -> "6.0"
+    22 -> "5.1"; 21 -> "5.0"; 19 -> "4.4"; else -> sdk.toString()
 }

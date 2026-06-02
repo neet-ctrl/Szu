@@ -43,18 +43,7 @@ fun KeyMapListScreen(
     onNavigateToLog: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
 ) {
-    val sampleMaps = remember {
-        listOf(
-            KeyMapItem("1", "Vol Down (500ms hold)", listOf("Toggle flashlight"), emptyList(), true, Icons.Default.VolumeDown),
-            KeyMapItem("2", "Vol Up + Vol Down (press)", listOf("Screenshot", "Vibrate 50ms"), listOf("Screen on"), false, Icons.Default.VolumeUp),
-            KeyMapItem("3", "Power Button (double-press)", listOf("Open Camera"), listOf("Screen off"), true, Icons.Default.PowerSettingsNew),
-            KeyMapItem("4", "Vol Down + Power (hold)", listOf("Toggle DND"), emptyList(), true, Icons.Default.DoNotDisturb),
-            KeyMapItem("5", "Headset Button (triple-press)", listOf("Play/Pause media"), listOf("Headset connected"), true, Icons.Default.Headset),
-            KeyMapItem("6", "Floating Button Tap", listOf("Toggle Wi-Fi"), emptyList(), false, Icons.Default.TouchApp, true, "Accessibility service not running"),
-            KeyMapItem("7", "Assistant Button (press)", listOf("Open Chrome", "Vibrate 30ms"), listOf("Screen on", "App: Launcher"), true, Icons.Default.Assistant),
-        )
-    }
-    var keyMaps by remember { mutableStateOf(sampleMaps) }
+    var keyMaps by remember { mutableStateOf(emptyList<KeyMapItem>()) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     val isSelecting = selectedIds.isNotEmpty()
     var showDeleteDialog by remember { mutableStateOf(false) }

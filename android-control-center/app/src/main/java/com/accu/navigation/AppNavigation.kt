@@ -647,7 +647,10 @@ fun AppNavigation(initialRoute: String? = null) {
 
             // Inure — APK Scanner
             composable(Screen.InureApks.route) {
-                InureApksScreen(onBack = { navController.popBackStack() })
+                InureApksScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
             }
 
             // Inure — Tracker Analytics

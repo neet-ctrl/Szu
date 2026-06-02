@@ -21,12 +21,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentRed
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ── Log level ─────────────────────────────────────────────────────────────────
 
@@ -57,28 +62,6 @@ private fun parseLoglevel(raw: String): LogLevel = when {
     else                -> LogLevel.INFO
 }
 
-private val DEMO_LINES = listOf(
-    "01-01 00:00:01.001  1234  1235 D ActivityManager: Process com.example.app (pid 5678) has died",
-    "01-01 00:00:01.050  1234  1234 I SystemServer: Starting services...",
-    "01-01 00:00:01.100  2001  2001 V ViewRootImpl: performTraversals mWidth=1080 mHeight=2340",
-    "01-01 00:00:01.200  3000  3001 W PackageManager: Package com.bloat.app not found",
-    "01-01 00:00:01.300  4000  4000 E SQLiteDatabase: Failed to open database /data/data/com.app/databases/db",
-    "01-01 00:00:01.400  1234  1240 I Choreographer: Skipped 34 frames!  The application may be doing too much work on its main thread.",
-    "01-01 00:00:01.500  5000  5000 D BluetoothGatt: onConnectionStateChange status=0 newState=2",
-    "01-01 00:00:01.600  6000  6001 W art: Suspending all threads took: 45.321ms",
-    "01-01 00:00:01.700  7000  7000 I AudioFlinger: AudioFlinger's thread 0xb4000071 ready to run",
-    "01-01 00:00:01.800  8000  8000 E NetworkSecurityConfig: No Network Security Config specified",
-    "01-01 00:00:01.900  1234  1234 I ActivityTaskManager: START u0 {act=android.intent.action.MAIN}",
-    "01-01 00:00:02.000  9000  9001 D Volley: [1] 2.onErrorResponse: unexpected end of stream on Connection",
-    "01-01 00:00:02.100  1234  1299 F AndroidRuntime: FATAL EXCEPTION: main Process: com.example, PID: 1234",
-    "01-01 00:00:02.200  1000  1001 V InputReader: Input event received: id=123, type=1, code=330, value=1",
-    "01-01 00:00:02.300  2500  2500 I Camera2ClientBase: Camera 0: Opened",
-    "01-01 00:00:02.400  3500  3502 W Binder: Slow binder call to com.android.server took 512ms",
-    "01-01 00:00:02.500  1234  1300 D WindowManager: Adding window Window{abc123} at 1",
-    "01-01 00:00:02.600  4500  4500 E MediaPlayer: MediaPlayer error (1, -19)",
-    "01-01 00:00:02.700  1234  1234 I PackageManager: Package installed: com.example.newapp",
-    "01-01 00:00:02.800  5500  5500 D ConnectivityService: Network 100 interface eth0 available",
-)
 
 private fun parseLogLine(raw: String, id: Long): LogLine {
     return try {
@@ -104,6 +87,7 @@ private fun parseLogLine(raw: String, id: Long): LogLine {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbLogcatScreen(onBack: () -> Unit = {}) {
+    val vm: ShizukuViewModel = hiltViewModel()
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -119,6 +103,7 @@ fun AdbLogcatScreen(onBack: () -> Unit = {}) {
     var lineCounter by remember { mutableLongStateOf(0L) }
     var autoScroll by remember { mutableStateOf(true) }
     var copiedMsg by remember { mutableStateOf(false) }
+    var lastTimestamp by remember { mutableStateOf("") }
 
     val filtered = remember(lines, searchQuery, tagFilter, selectedLevels) {
         lines.filter { line ->
@@ -128,18 +113,44 @@ fun AdbLogcatScreen(onBack: () -> Unit = {}) {
         }
     }
 
+    // Initial load: fetch last 200 lines when started
+    LaunchedEffect(isRunning) {
+        if (!isRunning) return@LaunchedEffect
+        val initial = withContext(Dispatchers.IO) {
+            vm.connectionManager.exec("logcat -t 200 -v brief 2>/dev/null").output ?: ""
+        }
+        val parsed = initial.lines().filter { it.isNotBlank() }.mapIndexed { i, raw ->
+            parseLogLine(raw, lineCounter + i)
+        }
+        if (parsed.isNotEmpty()) {
+            lineCounter += parsed.size
+            lines = parsed.takeLast(5000)
+            lastTimestamp = parsed.lastOrNull()?.timestamp ?: ""
+        }
+    }
+
+    // Polling loop: fetch new lines every 2 seconds while running and not paused
     LaunchedEffect(isRunning, isPaused) {
         if (!isRunning || isPaused) return@LaunchedEffect
-        var idx = 0
-        while (isRunning && !isPaused) {
-            val raw = DEMO_LINES[idx % DEMO_LINES.size]
-            val parsed = parseLogLine(raw, lineCounter++)
-            lines = (lines + parsed).takeLast(5000)
-            idx++
-            if (autoScroll && filtered.isNotEmpty()) {
-                try { listState.scrollToItem(filtered.size - 1) } catch (_: Exception) {}
+        while (isActive && isRunning && !isPaused) {
+            delay(2000L)
+            if (!isRunning || isPaused) break
+            val newOutput = withContext(Dispatchers.IO) {
+                val cmd = if (lastTimestamp.isNotBlank()) "logcat -T \"$lastTimestamp\" -v brief 2>/dev/null"
+                          else "logcat -t 50 -v brief 2>/dev/null"
+                vm.connectionManager.exec(cmd).output ?: ""
             }
-            delay(300L + (idx * 41L) % 500L)
+            val newLines = newOutput.lines().filter { it.isNotBlank() && !it.startsWith("-----") }
+                .drop(1) // skip the first line which repeats lastTimestamp entry
+                .mapIndexed { i, raw -> parseLogLine(raw, lineCounter + i) }
+            if (newLines.isNotEmpty()) {
+                lineCounter += newLines.size
+                lines = (lines + newLines).takeLast(5000)
+                lastTimestamp = newLines.lastOrNull()?.timestamp?.trim() ?: lastTimestamp
+                if (autoScroll && filtered.isNotEmpty()) {
+                    try { listState.scrollToItem(filtered.size - 1) } catch (_: Exception) {}
+                }
+            }
         }
     }
 

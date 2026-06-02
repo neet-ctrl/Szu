@@ -97,7 +97,7 @@ fun defaultSchedules() = listOf(
         hour = 23, minute = 0,
         daysOfWeek = setOf(1,2,3,4,5,6,7),
         freezeAll = true,
-        isEnabled = false,
+        isEnabled = true,
     ),
     FreezeSchedule(
         name = "Screen-Off Auto Freeze",
@@ -105,7 +105,7 @@ fun defaultSchedules() = listOf(
         action = FreezeAction.FREEZE,
         triggerType = FreezeTrigger.SCREEN_OFF,
         freezeAll = true,
-        isEnabled = false,
+        isEnabled = true,
     ),
     FreezeSchedule(
         name = "Morning Unfreeze",
@@ -115,7 +115,7 @@ fun defaultSchedules() = listOf(
         hour = 7, minute = 0,
         daysOfWeek = setOf(1,2,3,4,5),
         freezeAll = true,
-        isEnabled = false,
+        isEnabled = true,
     ),
     FreezeSchedule(
         name = "Boot Unfreeze",

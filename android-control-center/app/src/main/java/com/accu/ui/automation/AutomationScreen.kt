@@ -110,7 +110,10 @@ fun AutomationScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { if (state.selectedTab == AutomationTab.KEY_MAPPINGS) viewModel.insertSampleMapping() else viewModel.insertSampleProfile() }) {
+            FloatingActionButton(onClick = {
+                if (state.selectedTab == AutomationTab.KEY_MAPPINGS) onNavigateToKeyMapList()
+                else viewModel.insertSampleProfile()
+            }) {
                 Icon(Icons.Default.Add, "Add")
             }
         },
@@ -139,7 +142,7 @@ private fun KeyMappingsTab(state: AutomationState, viewModel: AutomationViewMode
             subtitle = "Tap + to add a key mapping. Map volume buttons, power button, and more to custom actions.",
             action = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Button(onClick = { viewModel.insertSampleMapping() }) { Text("Add Sample Mapping") }
+                    Button(onClick = onNavigateToKeyMapList) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Create Key Map") }
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(onClick = onNavigateToKeyMapList) { Icon(Icons.Default.List, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Open Key Map List") }
                 }
@@ -184,7 +187,7 @@ private fun AutomationProfilesTab(state: AutomationState, viewModel: AutomationV
             icon = Icons.Default.AutoAwesome,
             title = "No Automation Profiles",
             subtitle = "Create automations triggered by events like screen off, battery level, app launch, and more.",
-            action = { Button(onClick = { viewModel.insertSampleProfile() }) { Text("Add Sample Profile") } },
+            action = { Button(onClick = { viewModel.insertSampleProfile() }) { Icon(Icons.Default.Add, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Add Automation Profile") } },
         )
     } else {
         LazyColumn(Modifier.fillMaxSize()) {

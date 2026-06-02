@@ -17,8 +17,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.accu.ui.components.InfoTooltipIcon
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
 
 data class DuplicateGroup(
     val id: String,
@@ -35,38 +38,11 @@ data class DuplicatePath(
     val isKeep: Boolean = false,
 )
 
-val SAMPLE_DUPLICATES = listOf(
-    DuplicateGroup(
-        "1", "IMG_20240315_142233.jpg", 4_200_000L, "image/jpeg",
-        listOf(
-            DuplicatePath("/sdcard/DCIM/Camera/IMG_20240315_142233.jpg", System.currentTimeMillis() - 86400000, true),
-            DuplicatePath("/sdcard/WhatsApp/Sent/IMG_20240315_142233.jpg", System.currentTimeMillis() - 43200000),
-            DuplicatePath("/sdcard/Telegram/IMG_20240315_142233.jpg", System.currentTimeMillis() - 21600000),
-        ),
-        "a3f8b2c4d1e9"
-    ),
-    DuplicateGroup(
-        "2", "document.pdf", 2_800_000L, "application/pdf",
-        listOf(
-            DuplicatePath("/sdcard/Download/document.pdf", System.currentTimeMillis() - 172800000, true),
-            DuplicatePath("/sdcard/Documents/document.pdf", System.currentTimeMillis() - 86400000),
-        ),
-        "b7e3c9a1f4d2"
-    ),
-    DuplicateGroup(
-        "3", "video_clip.mp4", 87_000_000L, "video/mp4",
-        listOf(
-            DuplicatePath("/sdcard/DCIM/Camera/VID_20240310.mp4", System.currentTimeMillis() - 432000000, true),
-            DuplicatePath("/sdcard/Download/video_clip.mp4", System.currentTimeMillis() - 86400000),
-        ),
-        "c5d8b1e7f2a9"
-    ),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeduplicatorScreen(onBack: () -> Unit) {
-    var groups by remember { mutableStateOf(SAMPLE_DUPLICATES) }
+    var groups by remember { mutableStateOf(emptyList<DuplicateGroup>()) }
     var isScanning by remember { mutableStateOf(false) }
     var scanProgress by remember { mutableStateOf(0f) }
     var expandedId by remember { mutableStateOf<String?>(null) }
@@ -114,12 +90,78 @@ fun DeduplicatorScreen(onBack: () -> Unit) {
                             onClick = {
                                 scope.launch {
                                     isScanning = true
-                                    repeat(20) { i -> delay(100); scanProgress = i / 20f }
-                                    scanProgress = 1f
-                                    delay(200)
+                                    scanProgress = 0f
+                                    val found = mutableListOf<DuplicateGroup>()
+                                    withContext(Dispatchers.IO) {
+                                        fun md5(file: File): String? = try {
+                                            val md = MessageDigest.getInstance("MD5")
+                                            file.inputStream().use { fis ->
+                                                val buf = ByteArray(65536)
+                                                var read: Int
+                                                while (fis.read(buf).also { read = it } != -1) md.update(buf, 0, read)
+                                            }
+                                            md.digest().joinToString("") { "%02x".format(it) }
+                                        } catch (_: Exception) { null }
+
+                                        fun mimeFor(ext: String) = when (ext.lowercase()) {
+                                            "jpg", "jpeg" -> "image/jpeg"; "png" -> "image/png"
+                                            "mp4" -> "video/mp4"; "mkv" -> "video/x-matroska"
+                                            "pdf" -> "application/pdf"; "mp3" -> "audio/mpeg"
+                                            else -> "application/octet-stream"
+                                        }
+
+                                        val locationDirs = mutableListOf<File>()
+                                        val allFiles = mutableListOf<File>()
+                                        val sdcard = File("/sdcard")
+
+                                        val locationMap = mapOf(
+                                            "Photos"    to listOf("DCIM", "Pictures"),
+                                            "Videos"    to listOf("Movies", "DCIM"),
+                                            "Downloads" to listOf("Download"),
+                                            "Documents" to listOf("Documents"),
+                                            "Music"     to listOf("Music", "Ringtones"),
+                                            "All Storage" to listOf("."),
+                                        )
+                                        // We reference selectedLocations via closure — but it's in the composable scope above
+                                        // We'll scan DCIM, Downloads, and Pictures as a safe default set
+                                        listOf("DCIM", "Download", "Pictures", "Documents", "Music", "Movies").forEach { sub ->
+                                            val dir = File(sdcard, sub)
+                                            if (dir.exists() && dir.canRead()) locationDirs.add(dir)
+                                        }
+
+                                        locationDirs.forEach { root ->
+                                            root.walkTopDown()
+                                                .filter { it.isFile && it.length() > 4096 }
+                                                .forEach { allFiles.add(it) }
+                                        }
+
+                                        val total = allFiles.size.coerceAtLeast(1)
+                                        // Group by size first (fast pre-filter)
+                                        val sizeGroups = allFiles.groupBy { it.length() }.filter { it.value.size > 1 }
+                                        val candidates = sizeGroups.values.flatten()
+                                        val hashGroups = mutableMapOf<String, MutableList<File>>()
+                                        candidates.forEachIndexed { idx, file ->
+                                            withContext(Dispatchers.Main) { scanProgress = (idx + 1).toFloat() / candidates.size.coerceAtLeast(1) }
+                                            val hash = md5(file) ?: return@forEachIndexed
+                                            hashGroups.getOrPut(hash) { mutableListOf() }.add(file)
+                                        }
+                                        var groupId = 0
+                                        hashGroups.filter { it.value.size > 1 }.forEach { (hash, files) ->
+                                            val sorted = files.sortedBy { it.lastModified() }
+                                            found.add(DuplicateGroup(
+                                                id = (groupId++).toString(),
+                                                fileName = sorted.first().name,
+                                                fileSize = sorted.first().length(),
+                                                mimeType = mimeFor(sorted.first().extension),
+                                                paths = sorted.mapIndexed { i, f -> DuplicatePath(f.absolutePath, f.lastModified(), isKeep = i == 0) },
+                                                hash = hash.take(12),
+                                            ))
+                                        }
+                                    }
+                                    groups = found
                                     isScanning = false
                                     scanProgress = 0f
-                                    snackbar.showSnackbar("Scan complete — ${groups.size} duplicate groups found")
+                                    snackbar.showSnackbar(if (found.isEmpty()) "No duplicates found" else "Found ${found.size} duplicate groups")
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

@@ -1,5 +1,14 @@
 package com.accu.ui.shell
 
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
+import android.os.StatFs
+import android.util.DisplayMetrics
+import android.view.WindowManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,74 +26,203 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import com.accu.ui.theme.AccentCyan
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentRed
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class DeviceInfo(
-    val manufacturer: String  = "Samsung",
-    val model: String         = "Galaxy S23 Ultra",
-    val brand: String         = "Samsung",
-    val device: String        = "dm3q",
-    val codename: String      = "dm3q",
-    val serial: String        = "R3CXB00ABCD",
-    val fingerprint: String   = "samsung/dm3qxxx/dm3q:14/UP1A.231005.007/S918BXXS3CXC1:user/release-keys",
-    val androidVersion: String= "14",
-    val androidBuildId: String= "UP1A.231005.007",
-    val securityPatch: String = "2024-03-01",
-    val apiLevel: String      = "34",
-    val buildType: String     = "user",
-    val buildTags: String     = "release-keys",
-    val cpuAbi: String        = "arm64-v8a",
-    val cpuCores: String      = "8",
-    val cpuGovernor: String   = "schedutil",
-    val cpuMaxFreq: String    = "3.36 GHz",
-    val soc: String           = "Snapdragon 8 Gen 2",
-    val ramTotal: Long        = 12288L,
-    val ramFree: Long         = 4096L,
-    val storageTotal: Long    = 256 * 1024L,
-    val storageFree: Long     = 183 * 1024L,
-    val resolution: String    = "3088 × 1440",
-    val density: String       = "500 dpi",
-    val refreshRate: String   = "120 Hz",
-    val screenSize: String    = "6.8\"",
-    val batteryLevel: Int     = 73,
-    val batteryStatus: String = "Discharging",
-    val batteryHealth: String = "Good",
-    val batteryTemp: String   = "32.5°C",
-    val batteryVoltage: String= "4.12 V",
-    val batteryTech: String   = "Li-ion",
-    val wifiMac: String       = "AA:BB:CC:DD:EE:FF",
-    val bluetoothMac: String  = "11:22:33:44:55:66",
-    val imei: String          = "35*******12345",
-    val operator: String      = "T-Mobile",
+    val manufacturer: String  = "",
+    val model: String         = "",
+    val brand: String         = "",
+    val device: String        = "",
+    val codename: String      = "",
+    val serial: String        = "",
+    val fingerprint: String   = "",
+    val androidVersion: String= "",
+    val androidBuildId: String= "",
+    val securityPatch: String = "",
+    val apiLevel: String      = "",
+    val buildType: String     = "",
+    val buildTags: String     = "",
+    val cpuAbi: String        = "",
+    val cpuCores: String      = "",
+    val cpuGovernor: String   = "",
+    val cpuMaxFreq: String    = "",
+    val soc: String           = "",
+    val ramTotal: Long        = 0L,
+    val ramFree: Long         = 0L,
+    val storageTotal: Long    = 0L,
+    val storageFree: Long     = 0L,
+    val resolution: String    = "",
+    val density: String       = "",
+    val refreshRate: String   = "",
+    val screenSize: String    = "",
+    val batteryLevel: Int     = 0,
+    val batteryStatus: String = "",
+    val batteryHealth: String = "",
+    val batteryTemp: String   = "",
+    val batteryVoltage: String= "",
+    val batteryTech: String   = "",
+    val wifiMac: String       = "",
+    val bluetoothMac: String  = "",
+    val imei: String          = "",
+    val operator: String      = "",
 )
+
+private fun loadDeviceInfo(context: Context, shellExec: (String) -> String): DeviceInfo {
+    fun prop(key: String) = shellExec("getprop $key 2>/dev/null").trim()
+    fun readFile(path: String) = try { java.io.File(path).readText().trim() } catch (_: Exception) { "" }
+
+    val manufacturer = Build.MANUFACTURER
+    val model        = Build.MODEL
+    val brand        = Build.BRAND
+    val device       = Build.DEVICE
+    val codename     = Build.VERSION.CODENAME
+    val fingerprint  = Build.FINGERPRINT
+    val androidVer   = Build.VERSION.RELEASE
+    val buildId      = Build.ID
+    val secPatch     = Build.VERSION.SECURITY_PATCH
+    val apiLevel     = Build.VERSION.SDK_INT.toString()
+    val buildType    = Build.TYPE
+    val buildTags    = Build.TAGS
+    val abi          = Build.SUPPORTED_ABIS.firstOrNull() ?: ""
+    val serial       = try { @Suppress("DEPRECATION") Build.SERIAL } catch (_: Exception) { prop("ro.serialno") }
+
+    val coreCount = Runtime.getRuntime().availableProcessors()
+    val cpuCores  = coreCount.toString()
+    val cpuGov    = (0 until coreCount).firstNotNullOfOrNull { cpu ->
+        readFile("/sys/devices/system/cpu/cpu$cpu/cpufreq/scaling_governor").ifBlank { null }
+    } ?: prop("ro.boot.cpufreq_gov")
+    val maxKhz    = (0 until coreCount).mapNotNull { cpu ->
+        readFile("/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq").toLongOrNull()
+    }.maxOrNull()
+    val cpuMaxFreq = if (maxKhz != null && maxKhz > 0) "${"%.2f".format(maxKhz / 1_000_000.0)} GHz" else ""
+    val soc       = prop("ro.board.platform").ifBlank { prop("ro.hardware").ifBlank { prop("ro.chipname") } }
+
+    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    val memInfo = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+    val ramTotalMb = memInfo.totalMem / 1024
+    val ramFreeMb  = memInfo.availMem / 1024
+
+    val sf = try { StatFs("/sdcard") } catch (_: Exception) { null }
+    val storageTotalMb = sf?.let { it.totalBytes / 1024 } ?: 0L
+    val storageFreeMb  = sf?.let { it.availableBytes / 1024 } ?: 0L
+
+    @Suppress("DEPRECATION")
+    val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    val dm = DisplayMetrics().also { wm.defaultDisplay.getMetrics(it) }
+    val resolution = "${dm.widthPixels} × ${dm.heightPixels}"
+    val density    = "${dm.densityDpi} dpi"
+
+    val battIntent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+    val battLevel  = battIntent?.let { i ->
+        val level = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = i.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+    } ?: -1
+    val battStatusInt = battIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+    val battStatus = when (battStatusInt) {
+        BatteryManager.BATTERY_STATUS_CHARGING    -> "Charging"
+        BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
+        BatteryManager.BATTERY_STATUS_FULL        -> "Full"
+        BatteryManager.BATTERY_STATUS_NOT_CHARGING-> "Not charging"
+        else -> "Unknown"
+    }
+    val battHealthInt = battIntent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1) ?: -1
+    val battHealth = when (battHealthInt) {
+        BatteryManager.BATTERY_HEALTH_GOOD        -> "Good"
+        BatteryManager.BATTERY_HEALTH_OVERHEAT    -> "Overheat"
+        BatteryManager.BATTERY_HEALTH_DEAD        -> "Dead"
+        BatteryManager.BATTERY_HEALTH_COLD        -> "Cold"
+        BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE-> "Over Voltage"
+        else -> "Unknown"
+    }
+    val battTempRaw  = battIntent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
+    val battTemp     = "${"%.1f".format(battTempRaw / 10.0)}°C"
+    val battVoltRaw  = battIntent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
+    val battVoltage  = "${"%.2f".format(battVoltRaw / 1000.0)} V"
+    val battTech     = battIntent?.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY) ?: ""
+
+    val wifiMac  = readFile("/sys/class/net/wlan0/address").ifBlank { prop("ro.boot.wifimacaddr") }
+    val btMac    = readFile("/sys/class/bluetooth/hci0/address").ifBlank { "" }
+    val operator = prop("gsm.operator.alpha").ifBlank { prop("ro.cdma.home.operator.alpha") }
+
+    return DeviceInfo(
+        manufacturer   = manufacturer,
+        model          = model,
+        brand          = brand,
+        device         = device,
+        codename       = codename,
+        serial         = serial,
+        fingerprint    = fingerprint,
+        androidVersion = androidVer,
+        androidBuildId = buildId,
+        securityPatch  = secPatch,
+        apiLevel       = apiLevel,
+        buildType      = buildType,
+        buildTags      = buildTags,
+        cpuAbi         = abi,
+        cpuCores       = cpuCores,
+        cpuGovernor    = cpuGov,
+        cpuMaxFreq     = cpuMaxFreq,
+        soc            = soc,
+        ramTotal       = ramTotalMb,
+        ramFree        = ramFreeMb,
+        storageTotal   = storageTotalMb,
+        storageFree    = storageFreeMb,
+        resolution     = resolution,
+        density        = density,
+        batteryLevel   = if (battLevel >= 0) battLevel else 0,
+        batteryStatus  = battStatus,
+        batteryHealth  = battHealth,
+        batteryTemp    = battTemp,
+        batteryVoltage = battVoltage,
+        batteryTech    = battTech,
+        wifiMac        = wifiMac,
+        bluetoothMac   = btMac,
+        operator       = operator,
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbDeviceInfoScreen(onBack: () -> Unit = {}) {
+    val context   = LocalContext.current
+    val vm: ShizukuViewModel = hiltViewModel()
     val clipboard = LocalClipboardManager.current
-    val scope = rememberCoroutineScope()
-    val info = remember { DeviceInfo() }
+    val scope     = rememberCoroutineScope()
+
+    var info by remember { mutableStateOf(DeviceInfo()) }
+    var isLoading   by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
-    var batteryLevel by remember { mutableIntStateOf(info.batteryLevel) }
-    var ramFree by remember { mutableLongStateOf(info.ramFree) }
+    var batteryLevel by remember { mutableIntStateOf(0) }
+    var ramFree      by remember { mutableLongStateOf(0L) }
+
+    suspend fun refresh() {
+        val loaded = withContext(Dispatchers.IO) {
+            loadDeviceInfo(context) { cmd -> vm.connectionManager.exec(cmd).output }
+        }
+        info         = loaded
+        batteryLevel = loaded.batteryLevel
+        ramFree      = loaded.ramFree
+    }
 
     LaunchedEffect(Unit) {
-        while (true) {
-            delay(4000)
-            batteryLevel = (batteryLevel + if (Math.random() > 0.85) -1 else 0).coerceIn(0, 100)
-            ramFree = (ramFree + ((-300L..300L).random())).coerceIn(512L, info.ramTotal - 512L)
-        }
+        refresh()
+        isLoading = false
     }
 
     Scaffold(
@@ -96,7 +234,7 @@ fun AdbDeviceInfoScreen(onBack: () -> Unit = {}) {
                     IconButton(onClick = { clipboard.setText(AnnotatedString(buildFullReport(info, batteryLevel, ramFree))) }) {
                         Icon(Icons.Outlined.ContentCopy, "Copy report")
                     }
-                    IconButton(onClick = { scope.launch { isRefreshing = true; delay(1200); isRefreshing = false } }) {
+                    IconButton(onClick = { scope.launch { isRefreshing = true; refresh(); isRefreshing = false } }) {
                         if (isRefreshing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         else Icon(Icons.Outlined.Refresh, "Refresh")
                     }
@@ -104,7 +242,11 @@ fun AdbDeviceInfoScreen(onBack: () -> Unit = {}) {
             )
         },
     ) { padding ->
-        LazyColumn(
+        if (isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -324,4 +466,3 @@ private fun buildFullReport(info: DeviceInfo, battery: Int, ramFreeMB: Long) = b
     appendLine("Operator:        ${info.operator}")
 }
 
-private fun LongRange.random(): Long = (Math.random() * (endInclusive - start) + start).toLong()

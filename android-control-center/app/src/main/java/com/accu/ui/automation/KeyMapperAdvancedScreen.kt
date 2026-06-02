@@ -77,28 +77,11 @@ enum class ActionType(val label: String, val icon: androidx.compose.ui.graphics.
     MEDIA_PREVIOUS("Previous Track", Icons.Default.SkipPrevious),
 }
 
-val SAMPLE_KEY_MAPPINGS = listOf(
-    KeyMapping(
-        "1", "Screenshot Shortcut",
-        TriggerConfig(TriggerType.VOLUME_UP, longPress = true),
-        listOf(MappingAction(ActionType.SCREENSHOT)),
-    ),
-    KeyMapping(
-        "2", "Quick Flashlight",
-        TriggerConfig(TriggerType.VOLUME_DOWN, doubleTap = true),
-        listOf(MappingAction(ActionType.FLASHLIGHT)),
-    ),
-    KeyMapping(
-        "3", "Media Play/Pause",
-        TriggerConfig(TriggerType.HEADSET_BUTTON, clickCount = 1),
-        listOf(MappingAction(ActionType.MEDIA_PLAY_PAUSE)),
-    ),
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyMapperAdvancedScreen(onBack: () -> Unit) {
-    val mappings = remember { mutableStateListOf(*SAMPLE_KEY_MAPPINGS.toTypedArray()) }
+    val mappings = remember { mutableStateListOf<KeyMapping>() }
     var showCreateSheet by remember { mutableStateOf(false) }
     var selectedProfile by remember { mutableStateOf("Default") }
     val profiles = listOf("Default", "Gaming", "Work", "Driving", "Sleep")

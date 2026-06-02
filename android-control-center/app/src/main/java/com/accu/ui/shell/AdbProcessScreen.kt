@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import com.accu.ui.theme.AccentCyan
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentRed
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ── Data model ────────────────────────────────────────────────────────────────
 
@@ -49,43 +51,27 @@ private data class ServiceEntry(
     val isRunning: Boolean,
 )
 
-private val DEMO_PROCESSES = listOf(
-    ProcessEntry(1,    "init",                          user = "root",    cpuPercent = 0.0f,  memKb = 4096,    status = "S", threads = 1,  isSystemApp = true),
-    ProcessEntry(234,  "surfaceflinger",                user = "system",  cpuPercent = 2.1f,  memKb = 98304,   status = "S", threads = 12, isSystemApp = true),
-    ProcessEntry(435,  "system_server",                 user = "system",  cpuPercent = 3.4f,  memKb = 204800,  status = "S", threads = 98, isSystemApp = true),
-    ProcessEntry(876,  "com.android.launcher3",         user = "u0_a10",  cpuPercent = 1.2f,  memKb = 143360,  status = "S", threads = 22, isSystemApp = true),
-    ProcessEntry(1001, "com.google.android.gms",        user = "u0_a20",  cpuPercent = 4.7f,  memKb = 319488,  status = "S", threads = 47, isSystemApp = false),
-    ProcessEntry(1120, "com.android.settings",          user = "u0_a30",  cpuPercent = 0.3f,  memKb = 110592,  status = "S", threads = 15, isSystemApp = true),
-    ProcessEntry(1234, "com.accu.controlcenter",        user = "u0_a50",  cpuPercent = 0.8f,  memKb = 87040,   status = "R", threads = 28, isSystemApp = false),
-    ProcessEntry(1456, "com.whatsapp",                  user = "u0_a80",  cpuPercent = 0.5f,  memKb = 262144,  status = "S", threads = 38, isSystemApp = false),
-    ProcessEntry(1678, "com.instagram.android",         user = "u0_a90",  cpuPercent = 0.2f,  memKb = 221184,  status = "S", threads = 32, isSystemApp = false),
-    ProcessEntry(1890, "com.spotify.music",             user = "u0_a100", cpuPercent = 1.9f,  memKb = 180224,  status = "S", threads = 25, isSystemApp = false),
-    ProcessEntry(2100, "com.google.android.youtube",    user = "u0_a110", cpuPercent = 5.3f,  memKb = 344064,  status = "R", threads = 41, isSystemApp = false),
-    ProcessEntry(2300, "kworker/0:1",                   user = "root",    cpuPercent = 0.1f,  memKb = 0,       status = "S", threads = 1,  isSystemApp = true),
-    ProcessEntry(2450, "com.android.phone",             user = "radio",   cpuPercent = 0.0f,  memKb = 77824,   status = "S", threads = 18, isSystemApp = true),
-    ProcessEntry(2600, "com.google.android.apps.maps",  user = "u0_a120", cpuPercent = 0.4f,  memKb = 204800,  status = "S", threads = 29, isSystemApp = false),
-    ProcessEntry(2800, "audioserver",                   user = "audioserver", cpuPercent = 0.7f, memKb = 32768, status = "S", threads = 6, isSystemApp = true),
-    ProcessEntry(2950, "cameraserver",                  user = "cameraserver", cpuPercent = 0.0f, memKb = 16384, status = "S", threads = 4, isSystemApp = true),
-    ProcessEntry(3100, "com.chrome.android",            user = "u0_a130", cpuPercent = 2.8f,  memKb = 409600,  status = "R", threads = 55, isSystemApp = false),
-    ProcessEntry(3300, "mediaserver",                   user = "media",   cpuPercent = 0.3f,  memKb = 24576,   status = "S", threads = 8,  isSystemApp = true),
-    ProcessEntry(3500, "com.samsung.android.dialer",    user = "u0_a140", cpuPercent = 0.0f,  memKb = 57344,   status = "S", threads = 14, isSystemApp = true),
-    ProcessEntry(3700, "vold",                          user = "root",    cpuPercent = 0.0f,  memKb = 8192,    status = "S", threads = 2,  isSystemApp = true),
-)
-
-private val DEMO_SERVICES = listOf(
-    ServiceEntry("ActivityManagerService",     "android",                       435,  true),
-    ServiceEntry("WindowManagerService",       "android",                       435,  true),
-    ServiceEntry("PackageManagerService",      "android",                       435,  true),
-    ServiceEntry("TelephonyManager",           "com.android.phone",             2450, true),
-    ServiceEntry("WifiService",                "com.android.server",            435,  true),
-    ServiceEntry("NotificationManagerService", "android",                       435,  true),
-    ServiceEntry("AccessibilityManagerService","android",                       435,  true),
-    ServiceEntry("LocationManagerService",     "com.android.server",            435,  true),
-    ServiceEntry("MediaPlaybackService",       "com.spotify.music",             1890, true),
-    ServiceEntry("FirebaseMessagingService",   "com.google.android.gms",        1001, true),
-    ServiceEntry("DownloadManagerService",     "com.android.providers.download",435,  false),
-    ServiceEntry("BackupManagerService",       "android",                       435,  false),
-)
+private fun parseProcessLine(line: String): ProcessEntry? {
+    return try {
+        val parts = line.trim().split(Regex("\\s+"))
+        // toybox ps -A output: USER PID PPID VSZ RSS WCHAN ADDR S NAME
+        if (parts.size < 9) return null
+        val user   = parts[0]
+        val pid    = parts[1].toIntOrNull() ?: return null
+        val rssKb  = parts[4].toLongOrNull() ?: 0L
+        val status = parts[7].firstOrNull()?.toString() ?: "S"
+        val name   = parts[8].trimStart('[').trimEnd(']')
+        if (name == "NAME" || pid <= 0) return null
+        ProcessEntry(
+            pid       = pid,
+            name      = name,
+            user      = user,
+            memKb     = rssKb,
+            status    = status,
+            isSystemApp = user == "root" || user == "system" || user == "radio" || user == "media" || user.startsWith("audioserver") || user == "cameraserver",
+        )
+    } catch (_: Exception) { null }
+}
 
 private fun formatMem(kb: Long): String {
     return when {
@@ -112,26 +98,49 @@ private enum class SortBy { CPU, MEMORY, PID, NAME }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbProcessScreen(onBack: () -> Unit = {}) {
+    val vm: ShizukuViewModel = hiltViewModel()
     val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableStateOf(ProcessTab.PROCESSES) }
     var sortBy by remember { mutableStateOf(SortBy.CPU) }
     var searchQuery by remember { mutableStateOf("") }
     var showSearch by remember { mutableStateOf(false) }
-    var processes by remember { mutableStateOf(DEMO_PROCESSES) }
-    var services by remember { mutableStateOf(DEMO_SERVICES) }
+    var processes by remember { mutableStateOf(emptyList<ProcessEntry>()) }
+    var services by remember { mutableStateOf(emptyList<ServiceEntry>()) }
+    var isLoading by remember { mutableStateOf(true) }
     var isRefreshing by remember { mutableStateOf(false) }
     var killTarget by remember { mutableStateOf<ProcessEntry?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
     var hideSystem by remember { mutableStateOf(false) }
 
-    // Live CPU simulation
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(2000)
-            processes = processes.map { p ->
-                p.copy(cpuPercent = (p.cpuPercent + (-0.8f..0.8f).random()).coerceIn(0f, 100f))
-            }
+    suspend fun loadProcesses() {
+        val result = withContext(Dispatchers.IO) {
+            vm.connectionManager.exec("ps -A 2>/dev/null || ps 2>/dev/null")
         }
+        if (result.isSuccess && result.output.isNotBlank()) {
+            processes = result.output.lines()
+                .drop(1)
+                .mapNotNull { parseProcessLine(it) }
+                .distinctBy { it.pid }
+        }
+        // Load services via dumpsys activity services (compact)
+        val svcResult = withContext(Dispatchers.IO) {
+            vm.connectionManager.exec("dumpsys activity services -c 2>/dev/null | grep 'ServiceRecord{' | head -40")
+        }
+        if (svcResult.isSuccess && svcResult.output.isNotBlank()) {
+            services = svcResult.output.lines()
+                .mapNotNull { line ->
+                    val nameMatch = Regex("""ServiceRecord\{[^ ]+ ([^ ]+)\}""").find(line)?.groupValues?.get(1) ?: return@mapNotNull null
+                    val pkg = nameMatch.substringBeforeLast("/")
+                    val svcClass = nameMatch.substringAfterLast("/").let { if (it.startsWith(".")) pkg + it else it }
+                    ServiceEntry(svcClass.substringAfterLast("."), pkg, 0, true)
+                }
+                .take(30)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadProcesses()
+        isLoading = false
     }
 
     val sorted = remember(processes, sortBy, searchQuery, hideSystem) {
@@ -159,8 +168,11 @@ fun AdbProcessScreen(onBack: () -> Unit = {}) {
             text = { Text("Force-kill ${proc.name} (PID ${proc.pid})?\n\nThis will terminate the process immediately. Data loss may occur.") },
             confirmButton = {
                 Button(onClick = {
-                    processes = processes.filter { it.pid != proc.pid }
-                    killTarget = null
+                    scope.launch {
+                        withContext(Dispatchers.IO) { vm.connectionManager.exec("kill -9 ${proc.pid} 2>/dev/null") }
+                        processes = processes.filter { it.pid != proc.pid }
+                        killTarget = null
+                    }
                 }, colors = ButtonDefaults.buttonColors(containerColor = AccentRed)) { Text("Kill", color = Color.White) }
             },
             dismissButton = { TextButton(onClick = { killTarget = null }) { Text("Cancel") } }
@@ -188,7 +200,7 @@ fun AdbProcessScreen(onBack: () -> Unit = {}) {
                             }
                         }
                         IconButton(onClick = {
-                            scope.launch { isRefreshing = true; delay(800); isRefreshing = false }
+                            scope.launch { isRefreshing = true; loadProcesses(); isRefreshing = false }
                         }) {
                             if (isRefreshing) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                             else Icon(Icons.Outlined.Refresh, "Refresh")
@@ -227,15 +239,33 @@ fun AdbProcessScreen(onBack: () -> Unit = {}) {
             }
         },
     ) { padding ->
-        when (selectedTab) {
-            ProcessTab.PROCESSES -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 80.dp)) {
-                items(sorted, key = { it.pid }) { proc ->
-                    ProcessRow(proc, onKill = { killTarget = proc })
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            if (isLoading) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center))
+            } else {
+                when (selectedTab) {
+                    ProcessTab.PROCESSES -> {
+                        if (sorted.isEmpty()) {
+                            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Memory, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(12.dp))
+                                Text("No processes found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.height(8.dp))
+                                Text("ACCU connection required for live process list", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        } else {
+                            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp)) {
+                                items(sorted, key = { it.pid }) { proc ->
+                                    ProcessRow(proc, onKill = { killTarget = proc })
+                                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                                }
+                            }
+                        }
+                    }
+                    ProcessTab.SERVICES -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 80.dp)) {
+                        items(services, key = { it.name }) { svc -> ServiceRow(svc) }
+                    }
                 }
-            }
-            ProcessTab.SERVICES -> LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 80.dp)) {
-                items(services, key = { it.name }) { svc -> ServiceRow(svc) }
             }
         }
     }
@@ -312,4 +342,3 @@ private fun ServiceRow(svc: ServiceEntry) {
     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
 }
 
-private fun ClosedRange<Float>.random(): Float = (Math.random() * (endInclusive - start) + start).toFloat()

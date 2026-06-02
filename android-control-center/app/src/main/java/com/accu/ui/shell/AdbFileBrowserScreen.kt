@@ -23,7 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -55,29 +57,41 @@ private fun fileIcon(item: RemoteFileItem) = when {
 
 private fun fileIconTint(item: RemoteFileItem): Color? = null
 
-private val SAMPLE_ROOT_FILES = listOf(
-    RemoteFileItem("sdcard", "/sdcard", true, "", "drwxrwx---", "2024-01-01"),
-    RemoteFileItem("data", "/data", true, "", "drwxrwx--x", "2024-01-01"),
-    RemoteFileItem("system", "/system", true, "", "dr-xr-xr-x", "2024-01-01"),
-    RemoteFileItem("storage", "/storage", true, "", "drwxr-xr-x", "2024-01-01"),
-    RemoteFileItem("proc", "/proc", true, "", "dr-xr-xr-x", "2024-01-01"),
-    RemoteFileItem("sys", "/sys", true, "", "drwxr-xr-x", "2024-01-01"),
-    RemoteFileItem("dev", "/dev", true, "", "drwxr-xr-x", "2024-01-01"),
-    RemoteFileItem("vendor", "/vendor", true, "", "dr-xr-xr-x", "2024-01-01"),
-)
 
-private val SAMPLE_SDCARD_FILES = listOf(
-    RemoteFileItem("Android", "/sdcard/Android", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("DCIM", "/sdcard/DCIM", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Download", "/sdcard/Download", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Music", "/sdcard/Music", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Pictures", "/sdcard/Pictures", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Documents", "/sdcard/Documents", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Movies", "/sdcard/Movies", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("Ringtones", "/sdcard/Ringtones", true, "", "drwxrwx---", "2024-06-01"),
-    RemoteFileItem("screenshot.png", "/sdcard/screenshot.png", false, "245 KB", "-rw-rw-r--", "2024-05-28"),
-    RemoteFileItem("recording.mp4", "/sdcard/recording.mp4", false, "12.3 MB", "-rw-rw-r--", "2024-05-27"),
-)
+private fun parseLsLine(line: String, parentPath: String): RemoteFileItem? {
+    val trimmed = line.trim()
+    if (trimmed.isBlank() || trimmed.startsWith("total ")) return null
+    return try {
+        // Format: permissions links owner group size date time name (busybox / toybox)
+        val parts = trimmed.split(Regex("\\s+"), limit = 9)
+        if (parts.size < 7) return null
+        val perms = parts[0]
+        val isDir = perms.startsWith("d")
+        val isLink = perms.startsWith("l")
+        val sizePart = parts[4].toLongOrNull()
+        val datePart = "${parts[5]} ${parts[6]}"
+        val rawName = parts.getOrNull(8)?.trimStart() ?: parts.getOrNull(7) ?: return null
+        val name = if (isLink && rawName.contains(" -> ")) rawName.substringBefore(" -> ") else rawName
+        if (name == "." || name == "..") return null
+        val sizeStr = when {
+            isDir  -> ""
+            sizePart == null -> ""
+            sizePart >= 1_073_741_824 -> "${"%.1f".format(sizePart / 1_073_741_824.0)} GB"
+            sizePart >= 1_048_576     -> "${"%.1f".format(sizePart / 1_048_576.0)} MB"
+            sizePart >= 1_024         -> "${"%.1f".format(sizePart / 1_024.0)} KB"
+            else                      -> "$sizePart B"
+        }
+        RemoteFileItem(
+            name = name,
+            path = if (parentPath.endsWith("/")) "$parentPath$name" else "$parentPath/$name",
+            isDir = isDir || isLink,
+            size = sizeStr,
+            permissions = perms,
+            modifiedDate = datePart,
+            isSymlink = isLink,
+        )
+    } catch (_: Exception) { null }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -86,13 +100,15 @@ fun AdbFileBrowserScreen(
     deviceAddress: String = "",
     onBack: () -> Unit = {},
 ) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
     var currentPath by remember { mutableStateOf("/") }
     var pathStack by remember { mutableStateOf(listOf("/")) }
-    var files by remember { mutableStateOf(SAMPLE_ROOT_FILES) }
+    var files by remember { mutableStateOf(emptyList<RemoteFileItem>()) }
     var isLoading by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -120,17 +136,26 @@ fun AdbFileBrowserScreen(
     fun loadPath(path: String) {
         scope.launch {
             isLoading = true
-            delay(300)
-            files = when {
-                path == "/" -> SAMPLE_ROOT_FILES
-                path.startsWith("/sdcard") && path.split("/").size <= 2 -> SAMPLE_SDCARD_FILES
-                else -> listOf(
-                    RemoteFileItem("subfolder_1", "$path/subfolder_1", true, "", "drwxr-xr-x", "2024-05-01"),
-                    RemoteFileItem("subfolder_2", "$path/subfolder_2", true, "", "drwxr-xr-x", "2024-05-02"),
-                    RemoteFileItem("file_a.txt", "$path/file_a.txt", false, "2.1 KB", "-rw-r--r--", "2024-05-10"),
-                    RemoteFileItem("file_b.log", "$path/file_b.log", false, "45.7 KB", "-rw-r--r--", "2024-05-11"),
-                    RemoteFileItem("data.bin", "$path/data.bin", false, "128 KB", "-rw-r-----", "2024-04-30"),
-                )
+            val result = withContext(Dispatchers.IO) {
+                connectionManager.exec("ls -la \"$path\" 2>/dev/null || ls -l \"$path\" 2>/dev/null")
+            }
+            files = if (result.isSuccess && result.output.isNotBlank()) {
+                result.output.lines()
+                    .mapNotNull { parseLsLine(it, path) }
+                    .filter { !it.name.startsWith(".") || showHidden }
+            } else {
+                // Fallback to standard Java File API for local filesystem when ACCU not connected
+                withContext(Dispatchers.IO) {
+                    try {
+                        java.io.File(path).listFiles()?.map { f ->
+                            val size = if (f.isFile) {
+                                val s = f.length()
+                                when { s >= 1_048_576 -> "${"%.1f".format(s / 1_048_576.0)} MB"; s >= 1024 -> "${"%.1f".format(s / 1024.0)} KB"; else -> "$s B" }
+                            } else ""
+                            RemoteFileItem(f.name, f.absolutePath, f.isDirectory, size, "", "")
+                        }?.filter { showHidden || !it.name.startsWith(".") } ?: emptyList()
+                    } catch (_: Exception) { emptyList() }
+                }
             }
             isLoading = false
         }

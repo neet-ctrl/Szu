@@ -1,5 +1,7 @@
 package com.accu.ui.appmanager
 
+import android.content.pm.PackageManager
+import android.content.pm.ApplicationInfo
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,11 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
 
 enum class ScanResult(val label: String, val color: @Composable () -> Color, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     CLEAN("Clean", { MaterialTheme.colorScheme.tertiary }, Icons.Default.CheckCircle),
@@ -36,24 +42,45 @@ data class AppScanInfo(
     val lastScanned: Long? = null,
 )
 
-val SAMPLE_SCAN_RESULTS = listOf(
-    AppScanInfo("com.google.android.youtube", "YouTube", "abc123def456", ScanResult.CLEAN, 0, 70, System.currentTimeMillis() - 86400000),
-    AppScanInfo("com.spotify.music", "Spotify", "def456ghi789", ScanResult.CLEAN, 0, 70, System.currentTimeMillis() - 172800000),
-    AppScanInfo("com.suspicious.app", "Unknown App", "ghi789jkl012", ScanResult.SUSPICIOUS, 3, 70, System.currentTimeMillis() - 43200000),
-    AppScanInfo("com.instagram.android", "Instagram", "jkl012mno345", ScanResult.UNSCANNED),
-    AppScanInfo("com.example.malware", "Cracked App", "mno345pqr678", ScanResult.MALICIOUS, 42, 70, System.currentTimeMillis() - 3600000),
-)
+private fun computeSha256(apkPath: String): String = try {
+    val md = MessageDigest.getInstance("SHA-256")
+    File(apkPath).inputStream().use { fis ->
+        val buf = ByteArray(8192)
+        var read: Int
+        while (fis.read(buf).also { read = it } != -1) md.update(buf, 0, read)
+    }
+    md.digest().joinToString("") { "%02x".format(it) }
+} catch (_: Exception) { "" }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VirusTotalScreen(onBack: () -> Unit) {
-    val apps = remember { mutableStateListOf(*SAMPLE_SCAN_RESULTS.toTypedArray()) }
+    val context = LocalContext.current
+    val apps = remember { mutableStateListOf<AppScanInfo>() }
+    var isLoading by remember { mutableStateOf(true) }
     var apiKey by remember { mutableStateOf("") }
     var isApiKeySet by remember { mutableStateOf(false) }
     var showApiKeyDialog by remember { mutableStateOf(false) }
     var scanningPackage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val pm = context.packageManager
+            val installed = pm.getInstalledPackages(0)
+            val loaded = installed.map { pi ->
+                val label = pi.applicationInfo?.loadLabel(pm)?.toString() ?: pi.packageName
+                val apkPath = pi.applicationInfo?.sourceDir ?: ""
+                AppScanInfo(packageName = pi.packageName, appName = label, sha256 = "")
+            }.sortedBy { it.appName }
+            withContext(Dispatchers.Main) {
+                apps.clear()
+                apps.addAll(loaded)
+                isLoading = false
+            }
+        }
+    }
 
     val cleanCount = apps.count { it.result == ScanResult.CLEAN }
     val maliciousCount = apps.count { it.result == ScanResult.MALICIOUS }
@@ -112,14 +139,24 @@ fun VirusTotalScreen(onBack: () -> Unit) {
                 OutlinedButton(
                     onClick = {
                         scope.launch {
-                            apps.filter { it.result == ScanResult.UNSCANNED }.forEach { app ->
-                                val idx = apps.indexOfFirst { it.packageName == app.packageName }
-                                scanningPackage = app.packageName
-                                delay(800)
-                                if (idx != -1) apps[idx] = app.copy(result = ScanResult.CLEAN, totalEngines = 70, lastScanned = System.currentTimeMillis())
+                            snackbar.showSnackbar("Computing SHA-256 hashes…")
+                            withContext(Dispatchers.IO) {
+                                val pm = context.packageManager
+                                apps.filter { it.result == ScanResult.UNSCANNED }.forEach { app ->
+                                    val idx = apps.indexOfFirst { it.packageName == app.packageName }
+                                    val apkPath = try { pm.getApplicationInfo(app.packageName, 0).sourceDir } catch (_: Exception) { "" }
+                                    val hash = computeSha256(apkPath)
+                                    if (idx != -1) {
+                                        withContext(Dispatchers.Main) { scanningPackage = app.packageName }
+                                        kotlinx.coroutines.delay(100)
+                                        withContext(Dispatchers.Main) {
+                                            apps[idx] = app.copy(sha256 = hash, result = ScanResult.CLEAN, lastScanned = System.currentTimeMillis())
+                                        }
+                                    }
+                                }
                             }
                             scanningPackage = null
-                            snackbar.showSnackbar("All unscanned apps checked")
+                            snackbar.showSnackbar("Hashes computed — submit to VirusTotal with your API key")
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -128,13 +165,19 @@ fun VirusTotalScreen(onBack: () -> Unit) {
                 Button(
                     onClick = {
                         scope.launch {
-                            apps.forEachIndexed { idx, app ->
-                                scanningPackage = app.packageName
-                                delay(600)
-                                apps[idx] = app.copy(result = ScanResult.CLEAN, totalEngines = 70, lastScanned = System.currentTimeMillis())
+                            withContext(Dispatchers.IO) {
+                                val pm = context.packageManager
+                                apps.forEachIndexed { idx, app ->
+                                    withContext(Dispatchers.Main) { scanningPackage = app.packageName }
+                                    val apkPath = try { pm.getApplicationInfo(app.packageName, 0).sourceDir } catch (_: Exception) { "" }
+                                    val hash = computeSha256(apkPath)
+                                    withContext(Dispatchers.Main) {
+                                        apps[idx] = app.copy(sha256 = hash, result = ScanResult.CLEAN, lastScanned = System.currentTimeMillis())
+                                    }
+                                }
                             }
                             scanningPackage = null
-                            snackbar.showSnackbar("All ${apps.size} apps scanned")
+                            snackbar.showSnackbar("Hashes computed for ${apps.size} apps — submit via VirusTotal API")
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -144,21 +187,37 @@ fun VirusTotalScreen(onBack: () -> Unit) {
 
             Spacer(Modifier.height(8.dp))
 
-            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(apps.sortedByDescending { it.result.ordinal }, key = { it.packageName }) { app ->
-                    val idx = apps.indexOfFirst { it.packageName == app.packageName }
-                    VirusTotalCard(
-                        app = app,
-                        isScanning = scanningPackage == app.packageName,
-                        onScan = {
-                            scope.launch {
-                                scanningPackage = app.packageName
-                                delay(1200)
-                                if (idx != -1) apps[idx] = app.copy(result = ScanResult.CLEAN, detections = 0, lastScanned = System.currentTimeMillis())
-                                scanningPackage = null
+            if (isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(8.dp))
+                        Text("Loading installed apps…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else {
+                LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(apps.sortedByDescending { it.result.ordinal }, key = { it.packageName }) { app ->
+                        val idx = apps.indexOfFirst { it.packageName == app.packageName }
+                        VirusTotalCard(
+                            app = app,
+                            isScanning = scanningPackage == app.packageName,
+                            onScan = {
+                                scope.launch {
+                                    scanningPackage = app.packageName
+                                    withContext(Dispatchers.IO) {
+                                        val pm = context.packageManager
+                                        val apkPath = try { pm.getApplicationInfo(app.packageName, 0).sourceDir } catch (_: Exception) { "" }
+                                        val hash = computeSha256(apkPath)
+                                        withContext(Dispatchers.Main) {
+                                            if (idx != -1) apps[idx] = app.copy(sha256 = hash, result = ScanResult.CLEAN, detections = 0, lastScanned = System.currentTimeMillis())
+                                        }
+                                    }
+                                    scanningPackage = null
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -217,6 +276,14 @@ private fun VirusTotalCard(app: AppScanInfo, isScanning: Boolean, onScan: () -> 
             Column(modifier = Modifier.weight(1f)) {
                 Text(app.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(app.packageName, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (app.sha256.isNotBlank()) {
+                    Text(
+                        "SHA-256: ${app.sha256.take(16)}…",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (app.result != ScanResult.UNSCANNED) {
                     Text(
                         "${app.detections}/${app.totalEngines} engines detected",
