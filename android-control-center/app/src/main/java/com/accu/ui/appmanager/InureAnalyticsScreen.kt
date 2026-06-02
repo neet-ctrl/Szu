@@ -40,13 +40,6 @@ data class AppUsageStat(
 
 data class InstallerStat(val installer: String, val count: Int, val color: Color)
 
-val SAMPLE_USAGE_STATS = listOf(
-    AppUsageStat("com.google.android.youtube", "YouTube", 12_600_000L, 45, System.currentTimeMillis() - 3600000, Color(0xFFFF0000)),
-    AppUsageStat("com.instagram.android", "Instagram", 8_400_000L, 89, System.currentTimeMillis() - 1800000, Color(0xFFE91E63)),
-    AppUsageStat("com.twitter.android", "X (Twitter)", 4_200_000L, 34, System.currentTimeMillis() - 7200000, Color(0xFF1DA1F2)),
-    AppUsageStat("com.whatsapp", "WhatsApp", 3_600_000L, 120, System.currentTimeMillis() - 900000, Color(0xFF25D366)),
-    AppUsageStat("com.google.android.gm", "Gmail", 2_100_000L, 28, System.currentTimeMillis() - 14400000, Color(0xFFEA4335)),
-)
 
 fun formatDuration(ms: Long): String {
     val hours = ms / 3600000
@@ -98,7 +91,69 @@ fun InureAnalyticsScreen(onBack: () -> Unit) {
 
 @Composable
 private fun UsageTab() {
-    val totalMs = SAMPLE_USAGE_STATS.sumOf { it.usageTimeMs }
+    val context = LocalContext.current
+    var stats by remember { mutableStateOf<List<AppUsageStat>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var permissionNeeded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val hasPermission = try {
+                val ops = context.getSystemService(android.app.AppOpsManager::class.java)
+                ops.checkOpNoThrow("android:get_usage_stats", android.os.Process.myUid(), context.packageName) ==
+                    android.app.AppOpsManager.MODE_ALLOWED
+            } catch (_: Exception) { false }
+
+            if (!hasPermission) {
+                permissionNeeded = true
+                loading = false
+                return@withContext
+            }
+
+            try {
+                val usm = context.getSystemService(android.app.usage.UsageStatsManager::class.java)
+                val now = System.currentTimeMillis()
+                val raw = usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, now - 86_400_000L, now) ?: emptyList()
+                val pm = context.packageManager
+
+                val aggregated = mutableMapOf<String, Long>()
+                raw.forEach { s -> aggregated[s.packageName] = (aggregated[s.packageName] ?: 0L) + s.totalTimeInForeground }
+
+                stats = aggregated.entries
+                    .filter { it.value > 0 }
+                    .sortedByDescending { it.value }
+                    .take(10)
+                    .mapIndexedNotNull { idx, (pkg, ms) ->
+                        val name = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { return@mapIndexedNotNull null }
+                        AppUsageStat(pkg, name, ms, 0, System.currentTimeMillis(), CHART_COLORS[idx % CHART_COLORS.size])
+                    }
+            } catch (_: Exception) { permissionNeeded = true }
+            loading = false
+        }
+    }
+
+    if (loading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+
+    if (permissionNeeded) {
+        Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.Lock, null, modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(16.dp))
+            Text("Usage Access Required", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Text("Grant 'Usage Access' permission to ACCU to see real-time screen time data.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) {
+                Text("Open Settings")
+            }
+        }
+        return
+    }
+
+    val totalMs = stats.sumOf { it.usageTimeMs }
+
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card(
@@ -108,14 +163,27 @@ private fun UsageTab() {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Today's Screen Time", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(formatDuration(totalMs), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(12.dp))
-                    BarChart(stats = SAMPLE_USAGE_STATS, total = totalMs)
+                    if (stats.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        BarChart(stats = stats, total = totalMs)
+                    }
                 }
             }
         }
-        item { Text("Top Apps by Usage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
-        items(SAMPLE_USAGE_STATS.sortedByDescending { it.usageTimeMs }) { stat ->
-            UsageStatCard(stat = stat, total = totalMs)
+        if (stats.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.BarChart, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No usage data for today", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        } else {
+            item { Text("Top Apps by Usage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+            items(stats.sortedByDescending { it.usageTimeMs }) { stat ->
+                UsageStatCard(stat = stat, total = totalMs)
+            }
         }
     }
 }

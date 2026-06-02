@@ -1,8 +1,11 @@
 package com.accu.ui.appmanager
 
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -11,12 +14,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class DisabledApp(
     val name: String,
@@ -35,22 +45,22 @@ enum class DisabledVia(val label: String) {
     UNKNOWN("Unknown"),
 }
 
+private fun formatSize(bytes: Long): String = when {
+    bytes >= 1_000_000 -> "${bytes / 1_000_000} MB"
+    bytes >= 1_000     -> "${bytes / 1_000} KB"
+    else               -> "$bytes B"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
-    var apps by remember {
-        mutableStateOf(listOf(
-            DisabledApp("Google Play Movies", "com.google.android.videos", DisabledVia.SYSTEM_SETTINGS, 14_000_000, false),
-            DisabledApp("Carrier Services", "com.google.android.ims", DisabledVia.CANTA_BLOCKER, 8_200_000, true),
-            DisabledApp("Device Health Services", "com.google.android.apps.turbo", DisabledVia.CANTA_BLOCKER, 6_100_000, true),
-            DisabledApp("Android Auto", "com.google.android.projection.gearhead", DisabledVia.SYSTEM_SETTINGS, 45_000_000, true),
-            DisabledApp("Face Unlock", "com.android.facelock", DisabledVia.ADB, 3_100_000, true),
-            DisabledApp("Digital Wellbeing", "com.google.android.apps.wellbeing", DisabledVia.SYSTEM_SETTINGS, 28_000_000, false),
-            DisabledApp("Google Magazine", "com.google.android.apps.magazines", DisabledVia.CANTA_BLOCKER, 12_000_000, false),
-            DisabledApp("Samsung Bixby", "com.samsung.android.bixby.agent", DisabledVia.ROOT, 55_000_000, true),
-            DisabledApp("Game Space", "com.samsung.android.game.gamehome", DisabledVia.ADB, 18_000_000, true),
-        ))
-    }
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    val context = LocalContext.current
+
+    var apps by remember { mutableStateOf<List<DisabledApp>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var filterVia by remember { mutableStateOf<DisabledVia?>(null) }
     var sortBy by remember { mutableStateOf("name") }
@@ -58,8 +68,67 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
     var confirmEnableApp by remember { mutableStateOf<DisabledApp?>(null) }
     var snackbar by remember { mutableStateOf<String?>(null) }
     val snackbarHost = remember { SnackbarHostState() }
+    var enablingPkg by remember { mutableStateOf("") }
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
+
+    fun reload() { loading = true; error = ""; apps = emptyList() }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val pm = context.packageManager
+                // Get disabled packages from local PackageManager (covers the device ACCU is on)
+                val disabledLocal = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                    .filter { pi ->
+                        pi.applicationInfo?.let { ai ->
+                            ai.enabled == false ||
+                            (ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) ||
+                            (ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER)
+                        } ?: false
+                    }
+
+                // Also query via pm list packages -d on the target device
+                val adbRaw = try {
+                    connectionManager.exec("pm list packages -d 2>/dev/null").output
+                } catch (_: Exception) { "" }
+                val adbDisabled = adbRaw.lines()
+                    .filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+
+                val result = mutableListOf<DisabledApp>()
+
+                // From local PackageManager
+                disabledLocal.forEach { pi ->
+                    val ai = pi.applicationInfo ?: return@forEach
+                    val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val sizeBytes = try { java.io.File(ai.sourceDir ?: "").length() } catch (_: Exception) { 0L }
+                    val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
+                    val via = when (ai.enabledSetting) {
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER -> DisabledVia.SYSTEM_SETTINGS
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> DisabledVia.ADB
+                        else -> DisabledVia.UNKNOWN
+                    }
+                    result += DisabledApp(appName, pi.packageName, via, sizeBytes, isSystem)
+                }
+
+                // From ADB pm list packages -d — add those not already found locally
+                val localPkgs = result.map { it.pkg }.toSet()
+                adbDisabled.filter { it !in localPkgs }.forEach { pkg ->
+                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { pkg }
+                    val isSystem = try { (pm.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0 } catch (_: Exception) { false }
+                    result += DisabledApp(appName, pkg, DisabledVia.ADB, 0L, isSystem)
+                }
+
+                apps = result
+            } catch (e: Exception) {
+                error = e.message ?: "Failed to load disabled apps"
+            }
+            loading = false
+        }
+    }
 
     val filtered = apps.filter { app ->
         (filterVia == null || app.disabledVia == filterVia) &&
@@ -67,23 +136,18 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
     }.let { list ->
         when (sortBy) {
             "size" -> list.sortedByDescending { it.sizeBytes }
-            "via" -> list.sortedBy { it.disabledVia.label }
-            else -> list.sortedBy { it.name }
+            "via"  -> list.sortedBy { it.disabledVia.label }
+            else   -> list.sortedBy { it.name }
         }
-    }
-
-    fun formatSize(bytes: Long): String = when {
-        bytes >= 1_000_000 -> "${bytes / 1_000_000} MB"
-        bytes >= 1_000 -> "${bytes / 1_000} KB"
-        else -> "$bytes B"
     }
 
     Scaffold(
         topBar = {
             ACCTopBar(
-                title = "Disabled Apps (${apps.size})",
+                title = "Disabled Apps${if (apps.isNotEmpty()) " (${apps.size})" else ""}",
                 onBack = onBack,
                 actions = {
+                    IconButton(onClick = { reload() }) { Icon(Icons.Default.Refresh, "Refresh") }
                     Box {
                         IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Sort") }
                         DropdownMenu(showSortMenu, { showSortMenu = false }) {
@@ -98,7 +162,38 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Info card
+            if (loading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        CircularProgressIndicator()
+                        Text("Scanning disabled apps…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                return@Column
+            }
+
+            if (error.isNotEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                        Button(onClick = { error = ""; reload() }) { Text("Retry") }
+                    }
+                }
+                return@Column
+            }
+
+            if (apps.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+                        Text("No disabled apps found", style = MaterialTheme.typography.headlineSmall)
+                        Text("All installed apps are currently enabled", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                return@Column
+            }
+
             Card(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -108,13 +203,12 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                     Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("${apps.size} disabled apps found", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                        Text("Re-enabling system apps may restore functionality and break debloat. Use with caution.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(0.8f))
+                        Text("${apps.size} disabled apps", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text("Re-enabling system apps may restore background services. Use with caution.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(0.8f))
                     }
                 }
             }
 
-            // Search
             OutlinedTextField(
                 value = search, onValueChange = { search = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -123,15 +217,11 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                 singleLine = true,
             )
 
-            // Filter by source chips
-            androidx.compose.foundation.lazy.LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(selected = filterVia == null, onClick = { filterVia = null }, label = { Text("All") })
+                    FilterChip(selected = filterVia == null, onClick = { filterVia = null }, label = { Text("All (${apps.size})") })
                 }
-                items(DisabledVia.entries) { via ->
+                items(DisabledVia.values().toList()) { via ->
                     val count = apps.count { it.disabledVia == via }
                     if (count > 0) {
                         FilterChip(
@@ -165,10 +255,10 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                                         Surface(
                                             shape = RoundedCornerShape(4.dp),
                                             color = when (app.disabledVia) {
-                                                DisabledVia.CANTA_BLOCKER -> MaterialTheme.colorScheme.primaryContainer
-                                                DisabledVia.ROOT -> MaterialTheme.colorScheme.errorContainer
-                                                DisabledVia.ADB -> MaterialTheme.colorScheme.tertiaryContainer
-                                                else -> MaterialTheme.colorScheme.surfaceVariant
+                                                DisabledVia.CANTA_BLOCKER   -> MaterialTheme.colorScheme.primaryContainer
+                                                DisabledVia.ROOT             -> MaterialTheme.colorScheme.errorContainer
+                                                DisabledVia.ADB              -> MaterialTheme.colorScheme.tertiaryContainer
+                                                else                         -> MaterialTheme.colorScheme.surfaceVariant
                                             },
                                         ) {
                                             Text(app.disabledVia.label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
@@ -181,11 +271,15 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                                         }
                                     }
                                 }
-                                TextButton(
-                                    onClick = { confirmEnableApp = app },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-                                ) {
-                                    Text("Enable", style = MaterialTheme.typography.labelMedium)
+                                if (enablingPkg == app.pkg) {
+                                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                } else {
+                                    TextButton(
+                                        onClick = { confirmEnableApp = app },
+                                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                    ) {
+                                        Text("Enable", style = MaterialTheme.typography.labelMedium)
+                                    }
                                 }
                             }
                         }
@@ -195,7 +289,6 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
         }
     }
 
-    // Confirm enable dialog
     val toEnable = confirmEnableApp
     if (toEnable != null) {
         AlertDialog(
@@ -204,27 +297,36 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
             title = { Text("Enable ${toEnable.name}?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will re-enable the app using ${if (toEnable.isSystem) "ACCU (pm enable)" else "Android API"}.", style = MaterialTheme.typography.bodySmall)
+                    Text("This will re-enable the app using pm enable via ACCU.", style = MaterialTheme.typography.bodySmall)
                     if (toEnable.isSystem) {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                             Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("System app — re-enabling may restore background services and data collection from this component.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                                Text("System app — re-enabling may restore background services and data collection.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        apps = apps.filter { it.pkg != toEnable.pkg }
-                        confirmEnableApp = null
-                        snackbar = "Enabled ${toEnable.name}"
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                ) { Text("Enable") }
+                Button(onClick = {
+                    val pkg = toEnable.pkg
+                    confirmEnableApp = null
+                    enablingPkg = pkg
+                    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                        val result = try { connectionManager.exec("pm enable $pkg 2>&1").output } catch (e: Exception) { e.message ?: "Error" }
+                        withContext(Dispatchers.Main) {
+                            enablingPkg = ""
+                            if (result.contains("enabled", ignoreCase = true) || result.contains("success", ignoreCase = true)) {
+                                apps = apps.filter { it.pkg != pkg }
+                                snackbar = "Enabled ${toEnable.name}"
+                            } else {
+                                snackbar = "Failed to enable: $result"
+                            }
+                        }
+                    }
+                }) { Text("Enable") }
             },
             dismissButton = { TextButton(onClick = { confirmEnableApp = null }) { Text("Cancel") } },
         )

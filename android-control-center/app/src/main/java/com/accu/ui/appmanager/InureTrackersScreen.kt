@@ -1,5 +1,7 @@
 package com.accu.ui.appmanager
 
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,11 +12,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class TrackerEntry(
     val appName: String,
@@ -22,107 +31,343 @@ data class TrackerEntry(
     val trackerCount: Int,
     val trackers: List<TrackerDetail>,
 )
-data class TrackerDetail(val name: String, val category: String, val signature: String, val isBlocked: Boolean = false)
+data class TrackerDetail(
+    val name: String,
+    val category: String,
+    val signature: String,
+    val isBlocked: Boolean = false,
+)
+
+private data class KnownTracker(
+    val name: String,
+    val category: String,
+    val classPathFragment: String,
+)
+
+private val KNOWN_TRACKERS = listOf(
+    KnownTracker("Google Analytics",         "Analytics",        "com/google/android/gms/analytics"),
+    KnownTracker("Firebase Analytics",        "Analytics",        "com/google/firebase/analytics"),
+    KnownTracker("Firebase Crashlytics",      "Crash Reporting",  "com/google/firebase/crashlytics"),
+    KnownTracker("Google AdMob",              "Advertising",      "com/google/android/gms/ads"),
+    KnownTracker("Google Ad ID",              "Advertising",      "com/google/android/gms/ads/identifier"),
+    KnownTracker("DoubleClick",               "Advertising",      "com/google/android/gms/ads/doubleclick"),
+    KnownTracker("Firebase Remote Config",    "Configuration",    "com/google/firebase/remoteconfig"),
+    KnownTracker("Facebook Analytics",        "Analytics",        "com/facebook/analytics"),
+    KnownTracker("Facebook Ads",              "Advertising",      "com/facebook/ads"),
+    KnownTracker("Meta Audience Network",     "Advertising",      "com/facebook/audiencenetwork"),
+    KnownTracker("Amplitude",                 "Analytics",        "com/amplitude/api"),
+    KnownTracker("Amplitude SDK",             "Analytics",        "com/amplitude/android"),
+    KnownTracker("AppsFlyer",                 "Attribution",      "com/appsflyer"),
+    KnownTracker("Mixpanel",                  "Analytics",        "com/mixpanel/android"),
+    KnownTracker("Branch",                    "Deep Linking",     "io/branch/referral"),
+    KnownTracker("Sentry",                    "Crash Reporting",  "io/sentry"),
+    KnownTracker("Flurry",                    "Analytics",        "com/flurry/android"),
+    KnownTracker("Adjust",                    "Attribution",      "com/adjust/sdk"),
+    KnownTracker("Segment",                   "Analytics",        "com/segment/analytics"),
+    KnownTracker("MoEngage",                  "Marketing",        "com/moengage"),
+    KnownTracker("Intercom",                  "CRM",              "io/intercom/android"),
+    KnownTracker("Heap Analytics",            "Analytics",        "com/heapanalytics"),
+    KnownTracker("Clevertap",                 "Marketing",        "com/clevertap/android"),
+    KnownTracker("Singular",                  "Attribution",      "com/singular/sdk"),
+    KnownTracker("Kochava",                   "Attribution",      "com/kochava/base"),
+    KnownTracker("Chartboost",               "Advertising",      "com/chartboost"),
+    KnownTracker("IronSource",               "Advertising",      "com/ironsource"),
+    KnownTracker("AppLovin",                  "Advertising",      "com/applovin"),
+    KnownTracker("Vungle",                    "Advertising",      "com/vungle"),
+    KnownTracker("InMobi",                    "Advertising",      "com/inmobi"),
+    KnownTracker("Unity Ads",                 "Advertising",      "com/unity3d/ads"),
+    KnownTracker("MoPub",                     "Advertising",      "com/mopub"),
+    KnownTracker("Bugsnag",                   "Crash Reporting",  "com/bugsnag/android"),
+    KnownTracker("Datadog",                   "Monitoring",       "com/datadog/android"),
+    KnownTracker("New Relic",                 "Monitoring",       "com/newrelic/agent"),
+    KnownTracker("Pendo",                     "Analytics",        "sdk/pendo"),
+    KnownTracker("Leanplum",                  "Marketing",        "com/leanplum"),
+    KnownTracker("Braze / Appboy",            "Marketing",        "com/appboy"),
+    KnownTracker("Localytics",                "Analytics",        "com/localytics"),
+    KnownTracker("Swrve",                     "Marketing",        "com/swrve/sdk"),
+)
+
+private suspend fun scanApkForTrackers(
+    apkPath: String,
+    connectionManager: com.accu.connection.AccuConnectionManager,
+): List<TrackerDetail> = withContext(Dispatchers.IO) {
+    val trackerDetails = mutableListOf<TrackerDetail>()
+    try {
+        // Try local ZipFile scan first (fast, no ADB overhead)
+        val zip = try {
+            java.util.zip.ZipFile(apkPath)
+        } catch (_: Exception) { null }
+
+        val entries = if (zip != null) {
+            zip.use { z -> z.entries().asSequence().map { it.name }.toList() }
+        } else {
+            // Fallback to ADB unzip -l
+            val raw = try {
+                connectionManager.exec("unzip -l '$apkPath' 2>/dev/null | awk '{print \$4}'").output
+            } catch (_: Exception) { "" }
+            raw.lines().filter { it.isNotBlank() }
+        }
+
+        KNOWN_TRACKERS.forEach { tracker ->
+            if (entries.any { e -> e.contains(tracker.classPathFragment, ignoreCase = true) }) {
+                trackerDetails += TrackerDetail(tracker.name, tracker.category, tracker.classPathFragment.replace('/', '.'))
+            }
+        }
+    } catch (_: Exception) {}
+    trackerDetails
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InureTrackersScreen(onBack: () -> Unit = {}) {
-    val apps = remember {
-        listOf(
-            TrackerEntry("YouTube", "com.google.android.youtube", 5, listOf(
-                TrackerDetail("Google Analytics", "Analytics", "com.google.android.gms.analytics"),
-                TrackerDetail("Firebase Analytics", "Analytics", "com.google.firebase.analytics"),
-                TrackerDetail("Google Crashlytics", "Crash Reporting", "com.google.firebase.crashlytics"),
-                TrackerDetail("DoubleClick", "Advertising", "com.google.android.gms.ads"),
-                TrackerDetail("Google Ads", "Advertising", "com.google.android.gms.ads.identifier"),
-            )),
-            TrackerEntry("Facebook/Meta", "com.facebook.katana", 8, listOf(
-                TrackerDetail("Facebook Analytics", "Analytics", "com.facebook.analytics"),
-                TrackerDetail("Facebook Ads", "Advertising", "com.facebook.ads"),
-                TrackerDetail("Amplitude", "Analytics", "com.amplitude.api"),
-                TrackerDetail("AppsFlyer", "Attribution", "com.appsflyer.sdk"),
-                TrackerDetail("Mixpanel", "Analytics", "com.mixpanel.android"),
-                TrackerDetail("Meta Pixel", "Advertising", "com.facebook.meta.pixel"),
-                TrackerDetail("Branch", "Deep Linking", "io.branch.referral"),
-                TrackerDetail("Sentry", "Crash Reporting", "io.sentry.android"),
-            )),
-            TrackerEntry("Instagram", "com.instagram.android", 6, listOf(
-                TrackerDetail("Facebook Analytics", "Analytics", "com.facebook.analytics"),
-                TrackerDetail("Facebook Ads", "Advertising", "com.facebook.ads"),
-                TrackerDetail("AppsFlyer", "Attribution", "com.appsflyer.sdk"),
-                TrackerDetail("Amplitude", "Analytics", "com.amplitude.api"),
-                TrackerDetail("Crashlytics", "Crash Reporting", "com.google.firebase.crashlytics"),
-                TrackerDetail("Firebase Remote Config", "Configuration", "com.google.firebase.remoteconfig"),
-            )),
-            TrackerEntry("WhatsApp", "com.whatsapp", 2, listOf(
-                TrackerDetail("Facebook Analytics", "Analytics", "com.facebook.analytics"),
-                TrackerDetail("Meta SDK", "Advertising", "com.facebook.meta"),
-            )),
-            TrackerEntry("Telegram", "org.telegram.messenger", 0, emptyList()),
-            TrackerEntry("Chrome", "com.android.chrome", 3, listOf(
-                TrackerDetail("Google Analytics", "Analytics", "com.google.android.gms.analytics"),
-                TrackerDetail("Firebase", "Analytics", "com.google.firebase"),
-                TrackerDetail("Google Ads", "Advertising", "com.google.android.gms.ads"),
-            )),
-        )
-    }
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    val context = LocalContext.current
+
+    var apps by remember { mutableStateOf<List<TrackerEntry>>(emptyList()) }
+    var isScanning by remember { mutableStateOf(false) }
+    var scanProgress by remember { mutableStateOf(0f) }
+    var scanStatus by remember { mutableStateOf("") }
     var search by remember { mutableStateOf("") }
     var expandedPkg by remember { mutableStateOf<String?>(null) }
+    var filterCategory by remember { mutableStateOf("All") }
+    var showSystemApps by remember { mutableStateOf(false) }
+    var hasScanned by remember { mutableStateOf(false) }
+    var snackbar by remember { mutableStateOf<String?>(null) }
+    val snackbarHost = remember { SnackbarHostState() }
 
-    val filtered = apps.filter { search.isBlank() || it.appName.contains(search, ignoreCase = true) }
+    LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
+
+    fun startScan() {
+        isScanning = true
+        hasScanned = false
+        apps = emptyList()
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            val pm = context.packageManager
+            val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                .filter { showSystemApps || (it.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) == 0) }
+
+            val result = mutableListOf<TrackerEntry>()
+            packages.forEachIndexed { idx, pi ->
+                val ai = pi.applicationInfo ?: return@forEachIndexed
+                val apkPath = ai.sourceDir ?: return@forEachIndexed
+                val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
+                withContext(Dispatchers.Main) {
+                    scanProgress = idx.toFloat() / packages.size
+                    scanStatus = "Scanning $appName…"
+                }
+                val trackers = scanApkForTrackers(apkPath, connectionManager)
+                result += TrackerEntry(appName, pi.packageName, trackers.size, trackers)
+            }
+            withContext(Dispatchers.Main) {
+                apps = result.sortedByDescending { it.trackerCount }
+                isScanning = false
+                hasScanned = true
+                scanProgress = 1f
+                scanStatus = "Scan complete — ${result.sumOf { it.trackerCount }} trackers in ${result.count { it.trackerCount > 0 }} apps"
+            }
+        }
+    }
+
+    val categories = listOf("All") + apps.flatMap { it.trackers.map { t -> t.category } }.distinct().sorted()
+
+    val filtered = apps.filter { app ->
+        (filterCategory == "All" || app.trackers.any { it.category == filterCategory }) &&
+        (search.isBlank() || app.appName.contains(search, ignoreCase = true) || app.pkg.contains(search, ignoreCase = true))
+    }
+
     val totalTrackers = apps.sumOf { it.trackerCount }
+    val appsWithTrackers = apps.count { it.trackerCount > 0 }
 
-    Scaffold(topBar = { ACCTopBar(title = "Tracker Detector", onBack = onBack) }) { padding ->
+    Scaffold(
+        topBar = {
+            ACCTopBar(
+                title = "Tracker Detector",
+                onBack = onBack,
+                actions = {
+                    if (!isScanning) {
+                        IconButton(onClick = { showSystemApps = !showSystemApps }) {
+                            Icon(
+                                if (showSystemApps) Icons.Default.Android else Icons.Default.PhoneAndroid,
+                                null,
+                                tint = if (showSystemApps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { if (!isScanning) startScan() }) {
+                        Icon(if (isScanning) Icons.Default.Sync else Icons.Default.DocumentScanner, "Scan")
+                    }
+                },
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHost) },
+    ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            ElevatedCard(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f))
-            ) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.TrackChanges, null, tint = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.width(8.dp))
-                    Column {
-                        Text("$totalTrackers trackers detected across ${apps.count { it.trackerCount > 0 }} apps", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onErrorContainer)
-                        Text("Data sourced from Exodus Privacy database", fontSize = 11.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+            if (isScanning) {
+                ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Scanning APKs for tracker signatures…", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        LinearProgressIndicator(progress = { scanProgress }, modifier = Modifier.fillMaxWidth())
+                        Text(scanStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
 
-            OutlinedTextField(search, { search = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), placeholder = { Text("Search apps…") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
-
-            LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
-                items(filtered, key = { it.pkg }) { app ->
-                    val isExpanded = expandedPkg == app.pkg
-                    ElevatedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).clickable {
-                        expandedPkg = if (isExpanded) null else app.pkg
-                    }) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(if (app.trackerCount == 0) Icons.Default.Security else Icons.Default.WarningAmber, null,
-                                    tint = if (app.trackerCount == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(app.appName, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                                Badge(
-                                    containerColor = if (app.trackerCount == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
-                                ) { Text("${app.trackerCount}", fontSize = 11.sp) }
-                                Icon(if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+            if (!hasScanned && !isScanning) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(32.dp),
+                    ) {
+                        Icon(Icons.Default.TrackChanges, null, modifier = Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Tracker Detector", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Scans all installed app APKs for ${KNOWN_TRACKERS.size} known tracker signatures (analytics, advertising, attribution, crash reporting).",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Android, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Toggle system apps with the phone icon", style = MaterialTheme.typography.bodySmall) }
+                                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Timer, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Scanning may take 1–3 minutes for many apps", style = MaterialTheme.typography.bodySmall) }
+                                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Security, null, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Database: ${KNOWN_TRACKERS.size} known tracker signatures", style = MaterialTheme.typography.bodySmall) }
                             }
-                            if (isExpanded && app.trackers.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
-                                app.trackers.forEach { tracker ->
-                                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Column(Modifier.weight(1f)) {
-                                            Text(tracker.name, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                            Text(tracker.signature, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Button(onClick = { startScan() }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.DocumentScanner, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Scan ${if (showSystemApps) "All" else "User"} Apps Now")
+                        }
+                    }
+                }
+                return@Scaffold
+            }
+
+            if (hasScanned) {
+                ElevatedCard(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = if (totalTrackers > 0) MaterialTheme.colorScheme.errorContainer.copy(0.6f)
+                        else MaterialTheme.colorScheme.primaryContainer,
+                    ),
+                ) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (totalTrackers > 0) Icons.Default.TrackChanges else Icons.Default.Security,
+                            null,
+                            tint = if (totalTrackers > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                "$totalTrackers trackers detected across $appsWithTrackers apps",
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (totalTrackers > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                            Text(
+                                "${apps.count { it.trackerCount == 0 }} clean apps · ${apps.size} scanned",
+                                fontSize = 11.sp,
+                                color = if (totalTrackers > 0) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = { startScan() }, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Default.Refresh, "Re-scan", modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    search, { search = it },
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                    placeholder = { Text("Search apps…") },
+                    leadingIcon = { Icon(Icons.Default.Search, null) },
+                    trailingIcon = { if (search.isNotEmpty()) IconButton({ search = "" }) { Icon(Icons.Default.Clear, null) } },
+                    singleLine = true,
+                )
+
+                if (categories.size > 1) {
+                    androidx.compose.foundation.lazy.LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(categories) { cat ->
+                            FilterChip(selected = filterCategory == cat, onClick = { filterCategory = cat }, label = { Text(cat, fontSize = 12.sp) })
+                        }
+                    }
+                }
+
+                LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                    items(filtered, key = { it.pkg }) { app ->
+                        val isExpanded = expandedPkg == app.pkg
+                        ElevatedCard(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
+                                .clickable { expandedPkg = if (isExpanded) null else app.pkg },
+                        ) {
+                            Column(Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        if (app.trackerCount == 0) Icons.Default.Security else Icons.Default.WarningAmber,
+                                        null,
+                                        tint = when {
+                                            app.trackerCount == 0   -> MaterialTheme.colorScheme.primary
+                                            app.trackerCount <= 3   -> MaterialTheme.colorScheme.secondary
+                                            else                    -> MaterialTheme.colorScheme.error
+                                        },
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(app.appName, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(app.pkg, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Badge(
+                                        containerColor = when {
+                                            app.trackerCount == 0 -> MaterialTheme.colorScheme.primaryContainer
+                                            app.trackerCount <= 3 -> MaterialTheme.colorScheme.secondaryContainer
+                                            else                  -> MaterialTheme.colorScheme.errorContainer
+                                        },
+                                        contentColor = when {
+                                            app.trackerCount == 0 -> MaterialTheme.colorScheme.primary
+                                            app.trackerCount <= 3 -> MaterialTheme.colorScheme.secondary
+                                            else                  -> MaterialTheme.colorScheme.error
+                                        },
+                                    ) { Text("${app.trackerCount}", fontSize = 11.sp) }
+                                    Icon(if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                                }
+                                if (isExpanded) {
+                                    Spacer(Modifier.height(8.dp))
+                                    if (app.trackers.isEmpty()) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("No known trackers detected", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                                         }
-                                        SuggestionChip(onClick = {}, label = { Text(tracker.category, fontSize = 10.sp) }, modifier = Modifier.height(20.dp))
+                                    } else {
+                                        HorizontalDivider()
+                                        Spacer(Modifier.height(8.dp))
+                                        app.trackers.forEach { tracker ->
+                                            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.Circle, null, modifier = Modifier.size(8.dp), tint = MaterialTheme.colorScheme.error)
+                                                Spacer(Modifier.width(8.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(tracker.name, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                                    Text(tracker.signature, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                }
+                                                SuggestionChip(
+                                                    onClick = {},
+                                                    label = { Text(tracker.category, fontSize = 10.sp) },
+                                                    modifier = Modifier.height(22.dp),
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                            if (isExpanded && app.trackerCount == 0) {
-                                Spacer(Modifier.height(4.dp))
-                                Text("No known trackers detected in this app.", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
