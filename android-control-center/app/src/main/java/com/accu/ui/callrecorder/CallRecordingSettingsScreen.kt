@@ -1,5 +1,7 @@
 package com.accu.ui.callrecorder
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -9,8 +11,12 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 enum class AudioSource(val label: String, val description: String) {
     MICROPHONE("Microphone", "Standard mic input — most compatible, stereo"),
@@ -43,21 +49,43 @@ enum class FilenameFormat(val label: String, val template: String, val example: 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CallRecordingSettingsScreen(onBack: () -> Unit) {
+fun CallRecordingSettingsScreen(
+    onBack: () -> Unit,
+    viewModel: CallRecorderViewModel = hiltViewModel(),
+) {
+    val state   by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
     var direction by remember { mutableStateOf(RecordingDirection.BOTH) }
     var audioSource by remember { mutableStateOf(AudioSource.MICROPHONE) }
     var encoding by remember { mutableStateOf(AudioEncoding.AAC) }
-    var bitrate by remember { mutableStateOf(128) } // kbps
+    var bitrate by remember { mutableStateOf(128) }
     var sampleRate by remember { mutableStateOf(44100) }
     var filenameFormat by remember { mutableStateOf(FilenameFormat.DATE_NUMBER) }
     var customTemplate by remember { mutableStateOf("{date}_{number}_{direction}") }
-    var saveLocation by remember { mutableStateOf("/sdcard/Recordings/ACC") }
     var showDisclaimerOnStart by remember { mutableStateOf(true) }
     var notifyOnRecord by remember { mutableStateOf(true) }
     var autoDeleteAfterDays by remember { mutableStateOf(0) }
     var contactFilterEnabled by remember { mutableStateOf(false) }
     var excludedContacts by remember { mutableStateOf(listOf<String>()) }
     var showContactDialog by remember { mutableStateOf(false) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+            val displayName = androidx.documentfile.provider.DocumentFile
+                .fromTreeUri(context, uri)?.name
+                ?: uri.lastPathSegment
+                ?: "Selected folder"
+            viewModel.setOutputFolderUri(uri, displayName)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -188,14 +216,45 @@ fun CallRecordingSettingsScreen(onBack: () -> Unit) {
 
             item {
                 SectionTitle("Storage")
-                OutlinedTextField(
-                    value = saveLocation,
-                    onValueChange = { saveLocation = it },
-                    label = { Text("Save Location") },
-                    leadingIcon = { Icon(Icons.Default.Folder, null) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                )
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    onClick = { folderPickerLauncher.launch(null) },
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            null,
+                            Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Save Location",
+                                style      = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                state.outputFolderName,
+                                style    = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color    = if (state.outputFolderUri.isBlank())
+                                               MaterialTheme.colorScheme.error
+                                           else
+                                               MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
 
             item {
