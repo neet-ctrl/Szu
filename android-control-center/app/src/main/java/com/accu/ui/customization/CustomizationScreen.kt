@@ -77,7 +77,7 @@ fun CustomizationScreen(
                 SectionHeader(
                     icon = Icons.Default.Palette,
                     title = "Theme Presets",
-                    subtitle = "12 hand-crafted full-app color schemes",
+                    subtitle = "Tap any preset — applies instantly",
                 )
             }
             item {
@@ -88,7 +88,7 @@ fun CustomizationScreen(
                     items(ACCThemePreset.entries) { preset ->
                         ThemePresetCard(
                             preset = preset,
-                            isSelected = state.monetStyle == preset.name,
+                            isSelected = state.preset == preset,
                             onClick = { viewModel.setPreset(preset) },
                         )
                     }

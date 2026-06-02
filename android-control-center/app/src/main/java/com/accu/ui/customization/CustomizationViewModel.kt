@@ -97,7 +97,59 @@ class CustomizationViewModel @Inject constructor(
     }
 
     // ── Theme Preset ──────────────────────────────────────
-    fun setPreset(preset: ACCThemePreset) = _state.update { it.copy(preset = preset) }
+    /**
+     * Apply a preset immediately: update state with preset-specific defaults
+     * AND persist to DataStore so the app re-composes with the new colors right away.
+     * No need to tap "Apply" separately.
+     */
+    fun setPreset(preset: ACCThemePreset) {
+        val (dark, amoled, dynamic) = when (preset) {
+            ACCThemePreset.DYNAMIC          -> Triple(true,  false, true)
+            ACCThemePreset.MIDNIGHT_AMOLED  -> Triple(true,  true,  false)
+            ACCThemePreset.NEON_MATRIX      -> Triple(true,  false, false)
+            ACCThemePreset.AURORA_BOREALIS  -> Triple(true,  false, false)
+            ACCThemePreset.VOLCANIC_FIRE    -> Triple(true,  false, false)
+            ACCThemePreset.GOLD_LUXURY      -> Triple(true,  false, false)
+            ACCThemePreset.SAKURA_PINK      -> Triple(false, false, false)
+            ACCThemePreset.OCEAN_DEPTH      -> Triple(true,  false, false)
+            ACCThemePreset.ROYAL_VIOLET     -> Triple(true,  false, false)
+            ACCThemePreset.FOREST_GROVE     -> Triple(true,  false, false)
+            ACCThemePreset.ROSE_GOLD        -> Triple(false, false, false)
+            ACCThemePreset.SLATE_MONOCHROME -> Triple(true,  false, false)
+        }
+        _state.update { s ->
+            s.copy(
+                preset          = preset,
+                isDark          = dark,
+                isAmoled        = amoled,
+                pitchBlack      = amoled,
+                useDynamicColor = dynamic,
+            )
+        }
+        // Persist immediately — no need to tap "Apply"
+        viewModelScope.launch {
+            val s = _state.value
+            themeManager.save(
+                ACCThemeConfig(
+                    preset                = s.preset,
+                    isDark                = s.isDark,
+                    useGlassEffect        = s.useGlassEffect,
+                    useDynamicColor       = s.useDynamicColor,
+                    isAmoled              = s.isAmoled,
+                    cornerRadiusScale     = s.cornerRadiusScale,
+                    elevationScale        = s.elevationScale,
+                    animationScale        = s.animationScale,
+                    fontScale             = s.fontScale,
+                    navBarStyle           = s.navBarStyle,
+                    cardStyle             = s.cardStyle,
+                    monetStyle            = s.monetStyle,
+                    useGradientBackground = s.useGradientBackground,
+                    accentIntensity       = s.accentIntensity,
+                )
+            )
+            _state.update { it.copy(snackbarMessage = "✅ ${preset.displayName} applied!") }
+        }
+    }
 
     // ── Display Mode ──────────────────────────────────────
     fun setDisplayMode(dark: Boolean, amoled: Boolean) = _state.update { it.copy(isDark = dark, isAmoled = amoled, pitchBlack = amoled) }

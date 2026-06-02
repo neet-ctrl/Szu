@@ -401,95 +401,117 @@ fun FileManagerScreen(
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = {
-                        if (showSearchBar) {
-                            OutlinedTextField(
-                                value = state.searchQuery,
-                                onValueChange = viewModel::setSearchQuery,
-                                placeholder = { Text("Search in ${File(state.currentPath).name}…") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(8.dp),
-                            )
-                        } else {
-                            Text("File Manager", fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            if (showSearchBar) { showSearchBar = false; viewModel.setSearchQuery("") }
-                            else if (state.breadcrumbs.size > 1) viewModel.navigateUp()
-                            else onBack()
-                        }) { Icon(Icons.Default.ArrowBack, "Back") }
-                    },
-                    actions = {
-                        if (state.isMultiSelect) {
-                            if (state.selectedFiles.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.copy(state.selectedFiles.toList()) }) { Icon(Icons.Default.ContentCopy, "Copy") }
-                                IconButton(onClick = { viewModel.cut(state.selectedFiles.toList()) }) { Icon(Icons.Default.ContentCut, "Cut") }
-                                IconButton(onClick = { deleteConfirmFiles = state.selectedFiles.toList() }) { Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) }
-                                IconButton(onClick = {
-                                    saveSourceFiles = state.selectedFiles.toList()
-                                    saveToControllerLauncher.launch(null)
-                                }) { Icon(Icons.Default.SaveAlt, "Save to Storage") }
-                            }
-                            IconButton(onClick = { viewModel.selectAll() }) { Icon(Icons.Default.SelectAll, "Select All") }
-                        }
-                        if (state.clipboard != null) {
-                            IconButton(onClick = { viewModel.paste() }) { Icon(Icons.Default.ContentPaste, "Paste") }
-                        }
-                        IconButton(onClick = { showSearchBar = !showSearchBar }) { Icon(Icons.Default.Search, "Search") }
-                        IconButton(onClick = { viewModel.toggleHidden() }) {
-                            Icon(if (state.showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
-                        }
-                        IconButton(onClick = { viewModel.toggleViewMode() }) {
-                            Icon(if (state.viewMode == ViewMode.LIST) Icons.Default.GridView else Icons.Default.ViewList, null)
-                        }
-                        IconButton(onClick = { viewModel.toggleMultiSelect() }) {
-                            Icon(if (state.isMultiSelect) Icons.Default.CheckCircle else Icons.Default.CheckBoxOutlineBlank, null)
-                        }
-                        Box {
-                            IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Sort") }
-                            DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                                FileSortBy.values().forEach { sort ->
-                                    DropdownMenuItem(
-                                        text = { Text(sort.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                                        leadingIcon = {
-                                            if (state.sortBy == sort) Icon(Icons.Default.Check, null, Modifier.size(16.dp))
-                                        },
-                                        onClick = { viewModel.toggleSort(sort); showSortMenu = false },
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = { showCreateFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, "New Folder") }
-                    },
-                )
-                // Selection summary bar
-                AnimatedVisibility(state.isMultiSelect) {
-                    Surface(
-                        Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                if (state.isMultiSelect) {
+                    // ── Contextual selection TopAppBar (Material 3 selection pattern) ──
+                    TopAppBar(
+                        title = {
                             Text(
-                                "${state.selectedFiles.size} of ${state.files.size} selected",
-                                Modifier.weight(1f),
-                                style = MaterialTheme.typography.labelMedium,
+                                if (state.selectedFiles.isEmpty()) "Select items"
+                                else "${state.selectedFiles.size} of ${state.files.size} selected",
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                             )
-                            TextButton(onClick = { viewModel.clearSelection() }, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                                Text("Clear", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { viewModel.toggleMultiSelect() }) {
+                                Icon(Icons.Default.Close, "Exit selection", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
-                        }
-                    }
+                        },
+                        actions = {
+                            if (state.selectedFiles.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.copy(state.selectedFiles.toList()) }) {
+                                    Icon(Icons.Default.ContentCopy, "Copy", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                                IconButton(onClick = { viewModel.cut(state.selectedFiles.toList()) }) {
+                                    Icon(Icons.Default.ContentCut, "Cut", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                                IconButton(onClick = { deleteConfirmFiles = state.selectedFiles.toList() }) {
+                                    Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                                IconButton(onClick = {
+                                    saveSourceFiles = state.selectedFiles.toList()
+                                    saveToControllerLauncher.launch(null)
+                                }) {
+                                    Icon(Icons.Default.SaveAlt, "Save to Storage", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
+                            IconButton(onClick = { viewModel.selectAll() }) {
+                                Icon(Icons.Default.SelectAll, "Select All", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            }
+                            if (state.selectedFiles.isNotEmpty()) {
+                                TextButton(
+                                    onClick = { viewModel.clearSelection() },
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                ) {
+                                    Text(
+                                        "Clear",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    )
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
+                    )
+                } else {
+                    // ── Normal TopAppBar ──
+                    TopAppBar(
+                        title = {
+                            if (showSearchBar) {
+                                OutlinedTextField(
+                                    value = state.searchQuery,
+                                    onValueChange = viewModel::setSearchQuery,
+                                    placeholder = { Text("Search in ${File(state.currentPath).name}…") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                            } else {
+                                Text("File Manager", fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                if (showSearchBar) { showSearchBar = false; viewModel.setSearchQuery("") }
+                                else if (state.breadcrumbs.size > 1) viewModel.navigateUp()
+                                else onBack()
+                            }) { Icon(Icons.Default.ArrowBack, "Back") }
+                        },
+                        actions = {
+                            if (state.clipboard != null) {
+                                IconButton(onClick = { viewModel.paste() }) { Icon(Icons.Default.ContentPaste, "Paste") }
+                            }
+                            IconButton(onClick = { showSearchBar = !showSearchBar }) { Icon(Icons.Default.Search, "Search") }
+                            IconButton(onClick = { viewModel.toggleHidden() }) {
+                                Icon(if (state.showHidden) Icons.Default.VisibilityOff else Icons.Default.Visibility, null)
+                            }
+                            IconButton(onClick = { viewModel.toggleViewMode() }) {
+                                Icon(if (state.viewMode == ViewMode.LIST) Icons.Default.GridView else Icons.Default.ViewList, null)
+                            }
+                            IconButton(onClick = { viewModel.toggleMultiSelect() }) {
+                                Icon(Icons.Default.CheckBoxOutlineBlank, "Select items")
+                            }
+                            Box {
+                                IconButton(onClick = { showSortMenu = true }) { Icon(Icons.Default.Sort, "Sort") }
+                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                    FileSortBy.values().forEach { sort ->
+                                        DropdownMenuItem(
+                                            text = { Text(sort.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                            leadingIcon = {
+                                                if (state.sortBy == sort) Icon(Icons.Default.Check, null, Modifier.size(16.dp))
+                                            },
+                                            onClick = { viewModel.toggleSort(sort); showSortMenu = false },
+                                        )
+                                    }
+                                }
+                            }
+                            IconButton(onClick = { showCreateFolderDialog = true }) { Icon(Icons.Default.CreateNewFolder, "New Folder") }
+                        },
+                    )
                 }
-                // Breadcrumbs
+                // Breadcrumbs — always visible
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
