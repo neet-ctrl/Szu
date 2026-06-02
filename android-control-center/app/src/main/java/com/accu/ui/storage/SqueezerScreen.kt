@@ -1,5 +1,7 @@
 package com.accu.ui.storage
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,17 +45,21 @@ fun SqueezerScreen(onBack: () -> Unit = {}) {
     var skipCompressed by remember { mutableStateOf(true) }
     var writeExif by remember { mutableStateOf(true) }
 
-    var files by remember {
-        mutableStateOf(listOf(
-            CompressibleFile("IMG_20240530_143022.jpg", "/sdcard/DCIM/Camera/IMG_20240530.jpg", "JPEG", "8.4 MB", null, null, false),
-            CompressibleFile("IMG_20240529_091541.jpg", "/sdcard/DCIM/Camera/IMG_20240529.jpg", "JPEG", "6.2 MB", null, null, false),
-            CompressibleFile("photo_2024_vacation.jpg", "/sdcard/Pictures/photo_vacation.jpg", "JPEG", "12.1 MB", null, null, false),
-            CompressibleFile("screenshot_2024.webp", "/sdcard/Pictures/Screenshots/ss.webp", "WebP", "3.8 MB", null, null, false),
-            CompressibleFile("IMG_20240528.jpg", "/sdcard/DCIM/Camera/IMG_20240528.jpg", "JPEG", "9.7 MB", null, null, false),
-            CompressibleFile("profile_photo.jpg", "/sdcard/Pictures/profile.jpg", "JPEG", "5.3 MB", null, null, false),
-            CompressibleFile("download_image.webp", "/sdcard/Downloads/img.webp", "WebP", "2.1 MB", null, null, false),
-        ))
+    var scanFolderUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val scanFolderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            scanFolderUri = uri
+            // Grant persistent read/write access to the picked folder
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
     }
+    var files by remember { mutableStateOf(emptyList<CompressibleFile>()) }
 
     val selectedCount = files.count { it.selected }
     val allSelected = files.isNotEmpty() && files.all { it.selected }
@@ -102,12 +109,12 @@ fun SqueezerScreen(onBack: () -> Unit = {}) {
             // Scan / Compress buttons
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { isScanning = true; hasScanned = true; isScanning = false },
+                    onClick = { scanFolderLauncher.launch(scanFolderUri) },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Search, null, Modifier.size(16.dp))
+                    Icon(Icons.Default.FolderOpen, null, Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Scan")
+                    Text(if (scanFolderUri != null) "Re-pick Folder" else "Pick Folder")
                 }
                 Button(
                     onClick = {

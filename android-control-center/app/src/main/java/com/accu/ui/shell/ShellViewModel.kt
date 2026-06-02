@@ -243,22 +243,6 @@ class ShellViewModel @Inject constructor(
         return emptyList()
     }
 
-    fun saveOutputToFile(filename: String, content: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val file = java.io.File("/sdcard/$filename")
-                file.writeText(content)
-                withContext(Dispatchers.Main) {
-                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Saved to /sdcard/$filename"))
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Save failed: ${e.message}", isError = true))
-                }
-            }
-        }
-    }
-
     fun saveOutputToUri(context: android.content.Context, treeUri: android.net.Uri, filename: String, content: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

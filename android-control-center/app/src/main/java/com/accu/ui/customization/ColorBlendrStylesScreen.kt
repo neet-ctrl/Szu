@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -203,16 +202,9 @@ fun ColorBlendrStylesScreen(onBack: () -> Unit) {
                         importLauncher.launch(intent)
                     }) { Icon(Icons.Default.FileDownload, "Import") }
                     IconButton(onClick = {
-                        try {
-                            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                            dir.mkdirs()
-                            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                            val file = File(dir, "accu_colorblendr_styles_$ts.json")
-                            file.writeText(savedStyles.toList().toJsonArray())
-                            snackbar = "Exported ${savedStyles.size} style(s) → Downloads/${file.name}"
-                        } catch (e: Exception) {
-                            snackbar = "Export failed: ${e.message}"
-                        }
+                        val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                        pendingExportJson = savedStyles.toList().toJsonArray()
+                        exportLauncher.launch("accu_colorblendr_styles_$ts.json")
                     }) { Icon(Icons.Default.IosShare, "Export") }
                     IconButton(onClick = { showExclusionsManager = true }) { Icon(Icons.Default.Block, "Exclusions") }
                     IconButton(onClick = { showCreateDialog = true }) { Icon(Icons.Default.Add, "New Style") }
