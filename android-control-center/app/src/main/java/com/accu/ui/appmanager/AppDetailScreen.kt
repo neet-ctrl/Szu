@@ -32,10 +32,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import com.accu.ui.theme.AccentCyan
 import com.accu.ui.theme.AccentGreen
 import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentRed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -43,7 +46,7 @@ import java.util.*
 //  Inure — App Detail (all sections)
 // ──────────────────────────────────────────────
 
-enum class AppDetailTab { INFO, COMPONENTS, PERMISSIONS, TRACKERS, CERTIFICATES, APPOPS, NOTES }
+enum class AppDetailTab { INFO, COMPONENTS, PERMISSIONS, TRACKERS, CERTIFICATES, APPOPS, NOTES, SHARED_LIBS, DEX_CLASSES, SHARED_PREFS, RESOURCES, APK_FILES }
 
 // Well-known tracker SDKs (subset of Exodus Privacy tracker list)
 private val KNOWN_TRACKERS = listOf(
@@ -178,6 +181,11 @@ fun AppDetailScreen(
                                 AppDetailTab.CERTIFICATES -> "Certificates"
                                 AppDetailTab.APPOPS       -> "App Ops"
                                 AppDetailTab.NOTES        -> "Notes"
+                                AppDetailTab.SHARED_LIBS  -> "Libraries"
+                                AppDetailTab.DEX_CLASSES  -> "DEX Classes"
+                                AppDetailTab.SHARED_PREFS -> "Shared Prefs"
+                                AppDetailTab.RESOURCES    -> "Resources"
+                                AppDetailTab.APK_FILES    -> "APK Files"
                             }, fontSize = 11.sp) },
                         )
                     }
@@ -231,6 +239,11 @@ fun AppDetailScreen(
                 AppDetailTab.CERTIFICATES -> CertificatesTab(packageName, context, padding)
                 AppDetailTab.APPOPS       -> AppOpsTab(packageName, state, viewModel, padding)
                 AppDetailTab.NOTES        -> NotesTab(packageName, padding)
+                AppDetailTab.SHARED_LIBS  -> SharedLibsTab(packageName, context, padding)
+                AppDetailTab.DEX_CLASSES  -> DexClassesTab(packageName, context, padding)
+                AppDetailTab.SHARED_PREFS -> SharedPrefsTab(packageName, padding)
+                AppDetailTab.RESOURCES    -> ResourcesTab(packageName, context, padding)
+                AppDetailTab.APK_FILES    -> ApkFilesTab(packageName, context, padding)
             }
         }
     }
@@ -660,6 +673,490 @@ private fun NotesTab(packageName: String, padding: PaddingValues) {
                     Spacer(Modifier.width(8.dp))
                     Text("Note saved for $packageName", style = MaterialTheme.typography.bodySmall)
                 }
+            }
+        }
+    }
+}
+
+// ─── Tab 8: Shared Libraries ───
+@Composable
+private fun SharedLibsTab(packageName: String, context: android.content.Context, padding: PaddingValues) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var libs by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) } // name, source
+    var loading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val result = mutableListOf<Pair<String, String>>()
+                // 1. Declared shared libraries from manifest
+                val pm = context.packageManager
+                val ai = pm.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES)
+                ai.sharedLibraryFiles?.forEach { path ->
+                    result += path.substringAfterLast("/") to "System Library"
+                }
+                // 2. Native .so libraries in APK
+                val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                if (apkPath.isNotEmpty()) {
+                    val soFiles = connectionManager.exec("unzip -l \"$apkPath\" 2>/dev/null | grep '\\.so'").output
+                    soFiles.lines().forEach { line ->
+                        val parts = line.trim().split("\\s+".toRegex())
+                        val name = parts.lastOrNull() ?: return@forEach
+                        if (name.endsWith(".so")) {
+                            val libName = name.substringAfterLast("/")
+                            val arch = when {
+                                name.contains("arm64") -> "arm64-v8a"
+                                name.contains("armeabi-v7a") || name.contains("armeabi") -> "armeabi"
+                                name.contains("x86_64") -> "x86_64"
+                                name.contains("x86") -> "x86"
+                                else -> "native"
+                            }
+                            if (result.none { it.first == libName }) result += libName to arch
+                        }
+                    }
+                }
+                // 3. From pm dump
+                val dump = connectionManager.exec("pm dump $packageName 2>/dev/null | grep -i 'usesLibrary\\|library'").output
+                dump.lines().forEach { line ->
+                    val lib = line.substringAfter(":").trim().takeIf { it.isNotBlank() && it.contains(".") } ?: return@forEach
+                    if (result.none { it.first == lib }) result += lib to "Uses-Library"
+                }
+                libs = result
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    val filtered = remember(libs, searchQuery) {
+        if (searchQuery.isBlank()) libs else libs.filter { it.first.contains(searchQuery, true) }
+    }
+
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        OutlinedTextField(searchQuery, { searchQuery = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("Search libraries…") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+
+        if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return@Column }
+
+        if (filtered.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.Dns, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No shared libraries found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            return@Column
+        }
+
+        LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            item { Text("${filtered.size} librar${if (filtered.size != 1) "ies" else "y"}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp)) }
+            items(filtered, key = { it.first }) { (name, source) ->
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.Dns, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = MaterialTheme.shapes.small) {
+                            Text(source, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab 9: DEX Classes ───
+@Composable
+private fun DexClassesTab(packageName: String, context: android.content.Context, padding: PaddingValues) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var classes by remember { mutableStateOf<List<String>>(emptyList()) }
+    var dexFiles by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) } // name, size
+    var loading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+    var showingClasses by remember { mutableStateOf(false) }
+
+    LaunchedEffect(packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                if (apkPath.isNotEmpty()) {
+                    // List DEX files
+                    val dexList = connectionManager.exec("unzip -l \"$apkPath\" 2>/dev/null | grep '\\.dex'").output
+                    dexFiles = dexList.lines().mapNotNull { line ->
+                        val parts = line.trim().split("\\s+".toRegex())
+                        val name = parts.lastOrNull()?.takeIf { it.endsWith(".dex") } ?: return@mapNotNull null
+                        val size = parts.firstOrNull()?.toLongOrNull() ?: 0L
+                        name.substringAfterLast("/") to size
+                    }
+                    // Extract class descriptors using strings command (gets class names from DEX)
+                    val raw = connectionManager.exec(
+                        "strings \"$apkPath\" 2>/dev/null | grep -E '^L[a-zA-Z][a-zA-Z0-9\$/]+;$' | sort -u | head -500"
+                    ).output
+                    classes = raw.lines()
+                        .filter { it.startsWith("L") && it.endsWith(";") && it.length > 3 }
+                        .map { it.drop(1).dropLast(1).replace("/", ".") }
+                        .filter { it.contains(".") }
+                        .sorted()
+                }
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    val filteredClasses = remember(classes, searchQuery) {
+        if (searchQuery.isBlank()) classes else classes.filter { it.contains(searchQuery, true) }
+    }
+
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return@Column }
+
+        // DEX Files Summary
+        if (dexFiles.isNotEmpty()) {
+            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("DEX Files (${dexFiles.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    dexFiles.forEach { (name, size) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                            Text(if (size >= 1024) "${"%.1f".format(size / 1024.0)} KB" else "$size B", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Classes section
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("${classes.size} classes extracted", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            TextButton(onClick = { showingClasses = !showingClasses }) { Text(if (showingClasses) "Hide" else "Browse") }
+        }
+
+        if (showingClasses) {
+            OutlinedTextField(searchQuery, { searchQuery = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                placeholder = { Text("Filter classes…") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+
+            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+                items(filteredClasses.take(300), key = { it }) { cls ->
+                    val pkg = cls.substringBeforeLast(".")
+                    val name = cls.substringAfterLast(".")
+                    ListItem(
+                        headlineContent = { Text(name, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) },
+                        supportingContent = { Text(pkg, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace) },
+                        leadingContent = { Icon(Icons.Default.Code, null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(20.dp)) },
+                    )
+                    HorizontalDivider(thickness = 0.5.dp)
+                }
+                if (filteredClasses.size > 300) {
+                    item { Text("… and ${filteredClasses.size - 300} more", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall) }
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab 10: Shared Preferences ───
+@Composable
+private fun SharedPrefsTab(packageName: String, padding: PaddingValues) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var files by remember { mutableStateOf<List<String>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var selectedFile by remember { mutableStateOf<String?>(null) }
+    var fileContent by remember { mutableStateOf("") }
+    var contentLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val raw = connectionManager.exec("ls /data/data/$packageName/shared_prefs/ 2>/dev/null").output
+                files = raw.lines().filter { it.endsWith(".xml") || it.isNotBlank() }.filter { it.isNotEmpty() }
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    LaunchedEffect(selectedFile) {
+        val f = selectedFile ?: return@LaunchedEffect
+        contentLoading = true
+        fileContent = ""
+        withContext(Dispatchers.IO) {
+            try {
+                fileContent = connectionManager.exec("cat /data/data/$packageName/shared_prefs/$f 2>/dev/null").output
+            } catch (_: Exception) { fileContent = "Error reading file (requires root)" }
+            contentLoading = false
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        // Root required banner
+        Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text("Requires root access. SharedPrefs stored in /data/data/$packageName/shared_prefs/", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+        }
+
+        if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return@Column }
+
+        if (files.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.FolderOff, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No shared preference files found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Root access required to read prefs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            return@Column
+        }
+
+        Row(Modifier.fillMaxSize()) {
+            // File list
+            LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                item { Text("${files.size} file${if (files.size != 1) "s" else ""}", style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                items(files, key = { it }) { file ->
+                    Card(
+                        onClick = { selectedFile = file },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedFile == file) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                    ) {
+                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.Description, null, modifier = Modifier.size(20.dp), tint = if (selectedFile == file) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(file.removeSuffix(".xml"), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+
+            VerticalDivider()
+
+            // Content viewer
+            Box(Modifier.weight(2f).fillMaxSize()) {
+                if (selectedFile == null) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Select a file to view", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (contentLoading) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                } else {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp)) {
+                        item {
+                            Text(selectedFile ?: "", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+                            SelectionContainer {
+                                Text(fileContent, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab 11: Resources ───
+@Composable
+private fun ResourcesTab(packageName: String, context: android.content.Context, padding: PaddingValues) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var resources by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
+    var loading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+    var expandedType by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                if (apkPath.isNotEmpty()) {
+                    val raw = connectionManager.exec("unzip -l \"$apkPath\" 2>/dev/null | grep -E '^.*res/'").output
+                    val byType = mutableMapOf<String, MutableList<String>>()
+                    raw.lines().forEach { line ->
+                        val parts = line.trim().split("\\s+".toRegex())
+                        val path = parts.lastOrNull()?.takeIf { it.startsWith("res/") } ?: return@forEach
+                        val type = path.removePrefix("res/").substringBefore("/").trimEnd('-').replace(Regex("-.*"), "")
+                        val name = path.substringAfterLast("/")
+                        if (name.isNotEmpty()) byType.getOrPut(type) { mutableListOf() }.add(name)
+                    }
+                    resources = byType.toSortedMap()
+                }
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        OutlinedTextField(searchQuery, { searchQuery = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("Search resources…") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+
+        if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return@Column }
+
+        if (resources.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.FolderOff, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No resources found in APK", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            return@Column
+        }
+
+        val typeIcon = { type: String -> when {
+            type.startsWith("drawable") || type.startsWith("mipmap") -> Icons.Default.Image
+            type.startsWith("layout") -> Icons.Default.DashboardCustomize
+            type.startsWith("values") || type.startsWith("raw") -> Icons.Default.DataObject
+            type.startsWith("anim") || type.startsWith("animator") -> Icons.Default.Animation
+            type.startsWith("font") -> Icons.Default.TextFields
+            type.startsWith("xml") -> Icons.Default.Code
+            type.startsWith("menu") -> Icons.Default.Menu
+            else -> Icons.Default.FolderOpen
+        }}
+
+        LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            item { Text("${resources.values.sumOf { it.size }} resources in ${resources.size} types", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp)) }
+            resources.forEach { (type, files) ->
+                val filteredFiles = if (searchQuery.isBlank()) files else files.filter { it.contains(searchQuery, true) }
+                if (filteredFiles.isEmpty()) return@forEach
+                item(key = "header_$type") {
+                    Card(
+                        onClick = { expandedType = if (expandedType == type) null else type },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = if (expandedType == type) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow),
+                    ) {
+                        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(typeIcon(type), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(type, fontWeight = FontWeight.SemiBold)
+                                Text("${filteredFiles.size} files", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(if (expandedType == type) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                        }
+                    }
+                }
+                if (expandedType == type) {
+                    items(filteredFiles.take(100), key = { "res_${type}_$it" }) { file ->
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Default.InsertDriveFile, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(file, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (filteredFiles.size > 100) {
+                        item(key = "more_$type") {
+                            Text("… ${filteredFiles.size - 100} more", modifier = Modifier.padding(start = 16.dp, top = 4.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── Tab 12: APK Files (Unpack) ───
+@Composable
+private fun ApkFilesTab(packageName: String, context: android.content.Context, padding: PaddingValues) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var files by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) } // path, size
+    var loading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+    var filterExt by remember { mutableStateOf("All") }
+    var totalSize by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(packageName) {
+        withContext(Dispatchers.IO) {
+            try {
+                val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                if (apkPath.isNotEmpty()) {
+                    val raw = connectionManager.exec("unzip -l \"$apkPath\" 2>/dev/null").output
+                    var total = 0L
+                    val result = mutableListOf<Pair<String, Long>>()
+                    raw.lines().forEach { line ->
+                        val t = line.trim()
+                        if (t.isEmpty() || t.startsWith("Archive:") || t.startsWith("Length") || t.startsWith("----") || t.startsWith("Total")) return@forEach
+                        val parts = t.split("\\s+".toRegex())
+                        if (parts.size >= 4) {
+                            val size = parts[0].toLongOrNull() ?: return@forEach
+                            val path = parts.last()
+                            if (path.isNotEmpty() && !path.endsWith("/")) {
+                                result += path to size
+                                total += size
+                            }
+                        }
+                    }
+                    files = result.sortedByDescending { it.second }
+                    totalSize = total
+                }
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    val extensions = remember(files) { listOf("All") + files.map { it.first.substringAfterLast(".").lowercase() }.filter { it.length in 2..5 }.distinct().sorted() }
+
+    val filtered = remember(files, searchQuery, filterExt) {
+        files.filter {
+            (filterExt == "All" || it.first.endsWith(".$filterExt", true)) &&
+            (searchQuery.isBlank() || it.first.contains(searchQuery, true))
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(padding)) {
+        if (!loading && files.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("${files.size} files", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (totalSize >= 1_048_576) "${"%.1f".format(totalSize / 1_048_576.0)} MB total" else "${"%.0f".format(totalSize / 1_024.0)} KB total", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        OutlinedTextField(searchQuery, { searchQuery = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            placeholder = { Text("Search files…") }, leadingIcon = { Icon(Icons.Default.Search, null) }, singleLine = true)
+
+        if (extensions.size > 1) {
+            LazyRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(extensions.take(10), key = { it }) { ext ->
+                    FilterChip(filterExt == ext, { filterExt = ext }, { Text(ext.uppercase()) }, Modifier.height(30.dp))
+                }
+            }
+        }
+
+        if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return@Column }
+
+        if (filtered.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No files found", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            return@Column
+        }
+
+        LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)) {
+            items(filtered.take(500), key = { it.first }) { (path, size) ->
+                val name = path.substringAfterLast("/")
+                val icon = when {
+                    name.endsWith(".dex") -> Icons.Default.Code
+                    name.endsWith(".so") -> Icons.Default.Dns
+                    name.endsWith(".xml") -> Icons.Default.Description
+                    name.endsWith(".png") || name.endsWith(".webp") || name.endsWith(".jpg") -> Icons.Default.Image
+                    name.endsWith(".class") || name.endsWith(".kotlin_module") -> Icons.Default.DataObject
+                    name.endsWith(".ttf") || name.endsWith(".otf") -> Icons.Default.TextFields
+                    else -> Icons.Default.InsertDriveFile
+                }
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(icon, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Column(Modifier.weight(1f)) {
+                        Text(name, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(path, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(if (size >= 1024) "${"%.1f".format(size / 1024.0)} KB" else "$size B", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             }
         }
     }

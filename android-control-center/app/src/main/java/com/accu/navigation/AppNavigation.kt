@@ -87,6 +87,12 @@ import com.accu.ui.appmanager.InureApksScreen
 import com.accu.ui.appmanager.InureTrackersScreen
 import com.accu.ui.appmanager.InureUsageStatsScreen
 import com.accu.ui.appmanager.InureDisabledAppsScreen
+import com.accu.ui.appmanager.InureMostUsedScreen
+import com.accu.ui.appmanager.InureRecentlyInstalledScreen
+import com.accu.ui.appmanager.InureUninstalledScreen
+import com.accu.ui.appmanager.InureTagsScreen
+import com.accu.ui.appmanager.InureFossScreen
+import com.accu.ui.appmanager.InureUnpackScreen
 import com.accu.ui.appmanager.BlockerComponentSearchScreen
 // ColorBlendr
 import com.accu.ui.customization.PerAppThemingScreen
@@ -609,6 +615,12 @@ fun AppNavigation(initialRoute: String? = null) {
                     onNavigateToTrackers = { navController.navigate(Screen.InureTrackers.route) },
                     onNavigateToUsageStats = { navController.navigate(Screen.InureUsageStats.route) },
                     onNavigateToDisabled = { navController.navigate(Screen.InureDisabledApps.route) },
+                    onNavigateToMostUsed = { navController.navigate(Screen.InureMostUsed.route) },
+                    onNavigateToRecentlyInstalled = { navController.navigate(Screen.InureRecentlyInstalled.route) },
+                    onNavigateToUninstalled = { navController.navigate(Screen.InureUninstalled.route) },
+                    onNavigateToTags = { navController.navigate(Screen.InureTags.route) },
+                    onNavigateToFoss = { navController.navigate(Screen.InureFoss.route) },
+                    onNavigateToAnalytics = { navController.navigate(Screen.InureAnalytics.route) },
                     onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
                 )
             }
@@ -651,6 +663,49 @@ fun AppNavigation(initialRoute: String? = null) {
             // Inure — Disabled Apps
             composable(Screen.InureDisabledApps.route) {
                 InureDisabledAppsScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — Most Used
+            composable(Screen.InureMostUsed.route) {
+                InureMostUsedScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
+            }
+
+            // Inure — Recently Installed / Updated
+            composable(Screen.InureRecentlyInstalled.route) {
+                InureRecentlyInstalledScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
+            }
+
+            // Inure — Uninstalled History
+            composable(Screen.InureUninstalled.route) {
+                InureUninstalledScreen(onBack = { navController.popBackStack() })
+            }
+
+            // Inure — App Tags
+            composable(Screen.InureTags.route) {
+                InureTagsScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
+            }
+
+            // Inure — FOSS Apps
+            composable(Screen.InureFoss.route) {
+                InureFossScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToAppDetail = { pkg -> navController.navigate(Screen.AppDetail.withPackage(pkg)) },
+                )
+            }
+
+            // Inure — APK Explorer (Unpack)
+            composable(Screen.InureUnpack.route) { backStackEntry ->
+                val packageName = backStackEntry.arguments?.getString("packageName") ?: ""
+                InureUnpackScreen(packageName = packageName, onBack = { navController.popBackStack() })
             }
 
             // Blocker — Component Search

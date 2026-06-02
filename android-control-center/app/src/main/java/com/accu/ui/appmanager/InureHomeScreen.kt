@@ -12,7 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +34,12 @@ fun InureHomeScreen(
     onNavigateToTrackers: () -> Unit = {},
     onNavigateToUsageStats: () -> Unit = {},
     onNavigateToDisabled: () -> Unit = {},
+    onNavigateToMostUsed: () -> Unit = {},
+    onNavigateToRecentlyInstalled: () -> Unit = {},
+    onNavigateToUninstalled: () -> Unit = {},
+    onNavigateToTags: () -> Unit = {},
+    onNavigateToFoss: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {},
     onNavigateToAppDetail: (String) -> Unit = {},
 ) {
     val mostUsed = remember {
@@ -69,6 +77,24 @@ fun InureHomeScreen(
         listOf("Settings", "Calculator", "Clock", "Camera").map { AppSummary(it, "com.android.$it") }
     }
 
+    // Quick panel entries — all screens now wired
+    val quickPanels: List<Triple<String, ImageVector, () -> Unit>> = listOf(
+        Triple("Battery Opt.",       Icons.Default.BatteryChargingFull,   onNavigateToBatteryOpt),
+        Triple("Boot Manager",       Icons.Default.PowerSettingsNew,       onNavigateToBootManager),
+        Triple("Usage Stats",        Icons.Default.BarChart,               onNavigateToUsageStats),
+        Triple("Most Used",          Icons.Default.TrendingUp,             onNavigateToMostUsed),
+        Triple("Trackers",           Icons.Default.TrackChanges,           onNavigateToTrackers),
+        Triple("Disabled Apps",      Icons.Default.Block,                  onNavigateToDisabled),
+        Triple("FOSS Apps",          Icons.Default.VolunteerActivism,      onNavigateToFoss),
+        Triple("App Tags",           Icons.Default.Label,                  onNavigateToTags),
+        Triple("Recently Installed", Icons.Default.InstallMobile,          onNavigateToRecentlyInstalled),
+        Triple("Uninstalled",        Icons.Default.DeleteOutline,          onNavigateToUninstalled),
+        Triple("APK Scanner",        Icons.Default.FindInPage,             onNavigateToApks),
+        Triple("Analytics",          Icons.Default.PieChart,               onNavigateToAnalytics),
+        Triple("Notes",              Icons.Default.Note,                   onNavigateToNotes),
+        Triple("Music",              Icons.Default.MusicNote,              onNavigateToMusic),
+    )
+
     Scaffold(
         topBar = {
             if (showSearch) {
@@ -94,21 +120,12 @@ fun InureHomeScreen(
                 Text("Manage", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp))
                 Spacer(Modifier.height(8.dp))
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf(
-                        Triple("Battery Opt.", Icons.Default.BatteryChargingFull, onNavigateToBatteryOpt),
-                        Triple("Boot Manager", Icons.Default.PowerSettingsNew, onNavigateToBootManager),
-                        Triple("Usage Stats", Icons.Default.BarChart, onNavigateToUsageStats),
-                        Triple("Trackers", Icons.Default.TrackChanges, onNavigateToTrackers),
-                        Triple("Disabled Apps", Icons.Default.Block, onNavigateToDisabled),
-                        Triple("APK Scanner", Icons.Default.FindInPage, onNavigateToApks),
-                        Triple("Notes", Icons.Default.Note, onNavigateToNotes),
-                        Triple("Music", Icons.Default.MusicNote, onNavigateToMusic),
-                    )) { (label, icon, action) ->
+                    items(quickPanels) { (label, icon, action) ->
                         ElevatedCard(Modifier.width(100.dp).clickable { action() }) {
                             Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(Modifier.height(4.dp))
-                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -135,7 +152,7 @@ fun InureHomeScreen(
             // Most Used
             item {
                 Spacer(Modifier.height(12.dp))
-                SectionHeader("Most Used Today") { onNavigateToUsageStats() }
+                SectionHeader("Most Used Today") { onNavigateToMostUsed() }
             }
             items(mostUsed, key = { "used_${it.pkg}" }) { app ->
                 ListItem(
@@ -151,7 +168,7 @@ fun InureHomeScreen(
             item {
                 Spacer(Modifier.height(4.dp))
                 HorizontalDivider()
-                SectionHeader("Recently Installed") {}
+                SectionHeader("Recently Installed") { onNavigateToRecentlyInstalled() }
             }
             items(recentlyInstalled, key = { "installed_${it.pkg}" }) { app ->
                 ListItem(
@@ -165,7 +182,7 @@ fun InureHomeScreen(
             // Recently Updated
             item {
                 HorizontalDivider()
-                SectionHeader("Recently Updated") {}
+                SectionHeader("Recently Updated") { onNavigateToRecentlyInstalled() }
             }
             items(recentlyUpdated, key = { "updated_${it.pkg}" }) { app ->
                 ListItem(
@@ -179,13 +196,13 @@ fun InureHomeScreen(
             // FOSS
             item {
                 HorizontalDivider()
-                SectionHeader("FOSS Apps") {}
+                SectionHeader("FOSS Apps") { onNavigateToFoss() }
             }
             items(fossList, key = { "foss_${it.pkg}" }) { app ->
                 ListItem(
                     headlineContent = { Text(app.name) },
                     supportingContent = { Text("Open Source") },
-                    leadingContent = { Icon(Icons.Default.Code, null, tint = Color(0xFF22C55E)) },
+                    leadingContent = { Icon(Icons.Default.VolunteerActivism, null, tint = Color(0xFF22C55E)) },
                     modifier = Modifier.clickable { onNavigateToAppDetail(app.pkg) }
                 )
             }

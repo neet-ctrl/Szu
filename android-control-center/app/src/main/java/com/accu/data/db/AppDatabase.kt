@@ -23,8 +23,11 @@ import com.accu.data.db.entities.*
         DebloatPresetEntity::class,
         InstallSessionEntity::class,
         CrashEntity::class,
+        AppTagEntity::class,
+        TaggedPackageEntity::class,
+        UninstalledHistoryEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(DbConverters::class)
@@ -46,4 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun debloatPresetDao(): DebloatPresetDao
     abstract fun installSessionDao(): InstallSessionDao
     abstract fun crashDao(): CrashDao
+    abstract fun appTagDao(): AppTagDao
+    abstract fun taggedPackageDao(): TaggedPackageDao
+    abstract fun uninstalledHistoryDao(): UninstalledHistoryDao
 }

@@ -199,6 +199,40 @@ interface CustomThemeDao {
     @Delete suspend fun delete(t: CustomThemeEntity)
 }
 
+// ── Inure Tags ────────────────────────────────────────────────────────────────
+
+@Dao
+interface AppTagDao {
+    @Query("SELECT * FROM app_tags ORDER BY name ASC") fun observeAll(): Flow<List<AppTagEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(tag: AppTagEntity): Long
+    @Update suspend fun update(tag: AppTagEntity)
+    @Delete suspend fun delete(tag: AppTagEntity)
+    @Query("SELECT COUNT(*) FROM app_tags") suspend fun count(): Int
+}
+
+@Dao
+interface TaggedPackageDao {
+    @Query("SELECT * FROM tagged_packages WHERE tagId = :tagId ORDER BY appName ASC") fun observeForTag(tagId: Long): Flow<List<TaggedPackageEntity>>
+    @Query("SELECT * FROM tagged_packages WHERE packageName = :pkg") fun observeForPackage(pkg: String): Flow<List<TaggedPackageEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(tp: TaggedPackageEntity)
+    @Query("DELETE FROM tagged_packages WHERE tagId = :tagId AND packageName = :pkg") suspend fun delete(tagId: Long, pkg: String)
+    @Query("DELETE FROM tagged_packages WHERE tagId = :tagId") suspend fun deleteForTag(tagId: Long)
+    @Query("DELETE FROM tagged_packages WHERE packageName = :pkg") suspend fun deleteForPackage(pkg: String)
+}
+
+// ── Uninstalled History ───────────────────────────────────────────────────────
+
+@Dao
+interface UninstalledHistoryDao {
+    @Query("SELECT * FROM uninstalled_history ORDER BY uninstalledAt DESC") fun observeAll(): Flow<List<UninstalledHistoryEntity>>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(u: UninstalledHistoryEntity)
+    @Delete suspend fun delete(u: UninstalledHistoryEntity)
+    @Query("DELETE FROM uninstalled_history WHERE packageName = :pkg") suspend fun deleteByPackage(pkg: String)
+    @Query("SELECT * FROM uninstalled_history WHERE packageName = :pkg") suspend fun get(pkg: String): UninstalledHistoryEntity?
+    @Query("UPDATE uninstalled_history SET restoredAt = :time WHERE packageName = :pkg") suspend fun markRestored(pkg: String, time: Long = System.currentTimeMillis())
+    @Query("SELECT COUNT(*) FROM uninstalled_history") suspend fun count(): Int
+}
+
 // ── Install Sessions ──────────────────────────────────────────────────────────
 
 @Dao

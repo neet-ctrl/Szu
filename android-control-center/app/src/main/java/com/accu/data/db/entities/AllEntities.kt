@@ -277,6 +277,39 @@ data class CustomThemeEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+// ── Inure Tags ────────────────────────────────────────────────────────────────
+
+@Entity(tableName = "app_tags")
+data class AppTagEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val color: String = "#6750A4",  // Material 3 primary
+    val createdAt: Long = System.currentTimeMillis(),
+    val appCount: Int = 0,
+)
+
+@Entity(tableName = "tagged_packages", primaryKeys = ["tagId", "packageName"])
+data class TaggedPackageEntity(
+    val tagId: Long,
+    val packageName: String,
+    val appName: String = "",
+    val taggedAt: Long = System.currentTimeMillis(),
+)
+
+// ── Uninstalled History ───────────────────────────────────────────────────────
+
+@Entity(tableName = "uninstalled_history")
+data class UninstalledHistoryEntity(
+    @PrimaryKey val packageName: String,
+    val appName: String = "",
+    val versionName: String = "",
+    val isSystemApp: Boolean = false,
+    val uninstalledAt: Long = System.currentTimeMillis(),
+    val uninstallSource: String = "accu",  // accu | system | playstore | unknown
+    val restoredAt: Long = 0L,
+    val notes: String = "",
+)
+
 // ── Installer ─────────────────────────────────────────────────────────────────
 
 @Entity(tableName = "install_sessions")

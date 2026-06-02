@@ -130,15 +130,23 @@ sealed class Screen(val route: String) {
     data object KeyMapperSettings   : Screen("keymapper_settings")
 
     // Inure
-    data object InureHome           : Screen("inure_home")
-    data object InureBatteryOpt     : Screen("inure_battery_opt")
-    data object InureBootManager    : Screen("inure_boot_manager")
-    data object InureNotes          : Screen("inure_notes")
-    data object InureMusic          : Screen("inure_music")
-    data object InureApks           : Screen("inure_apks")
-    data object InureTrackers       : Screen("inure_trackers")
-    data object InureUsageStats     : Screen("inure_usage_stats")
-    data object InureDisabledApps   : Screen("inure_disabled_apps")
+    data object InureHome              : Screen("inure_home")
+    data object InureBatteryOpt        : Screen("inure_battery_opt")
+    data object InureBootManager       : Screen("inure_boot_manager")
+    data object InureNotes             : Screen("inure_notes")
+    data object InureMusic             : Screen("inure_music")
+    data object InureApks              : Screen("inure_apks")
+    data object InureTrackers          : Screen("inure_trackers")
+    data object InureUsageStats        : Screen("inure_usage_stats")
+    data object InureDisabledApps      : Screen("inure_disabled_apps")
+    data object InureMostUsed          : Screen("inure_most_used")
+    data object InureRecentlyInstalled : Screen("inure_recently_installed")
+    data object InureUninstalled       : Screen("inure_uninstalled")
+    data object InureTags              : Screen("inure_tags")
+    data object InureFoss              : Screen("inure_foss")
+    data object InureUnpack            : Screen("inure_unpack/{packageName}") {
+        fun withPackage(pkg: String) = "inure_unpack/$pkg"
+    }
 
     // ColorBlendr
     data object PerAppTheming       : Screen("per_app_theming")

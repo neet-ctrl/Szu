@@ -152,7 +152,7 @@ data class AdbDevice(
 class ShizukuViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val shizukuUtils: ShizukuUtils,
-    private val connectionManager: AccuConnectionManager,
+    val connectionManager: AccuConnectionManager,
     private val themeManager: ThemeManager,
 ) : ViewModel() {
 
