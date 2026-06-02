@@ -683,21 +683,24 @@ class ShellQsTileDashboardViewModel @Inject constructor(
         destName: String,
         docFile: androidx.documentfile.provider.DocumentFile,
     ) {
-        // Guard: skip files larger than 100 MB to avoid OOM
-        val sizeStr = connectionManager.exec("stat -c %s \"$srcPath\" 2>/dev/null").output.trim()
-        val size    = sizeStr.toLongOrNull() ?: 0L
-        if (size > 100_000_000L) {
-            _completionEvent.tryEmit(
-                "File too large to auto-copy (${size / 1_000_000}MB) — find it at $srcPath"
-            )
+        // Use shell `cp` to app-private cache, then stream to SAF.
+        // This works for any file size (no OOM), for scoped-storage-protected files,
+        // and for files on remote ADB targets that don't exist on the host filesystem.
+        val tmpFile = java.io.File(context.cacheDir, "pull_tmp/$destName")
+        tmpFile.parentFile?.mkdirs()
+        tmpFile.delete()
+        val cpResult = connectionManager.exec(
+            "cp \"$srcPath\" \"${tmpFile.absolutePath}\" 2>/dev/null && chmod 644 \"${tmpFile.absolutePath}\""
+        )
+        if (!cpResult.isSuccess || !tmpFile.exists() || tmpFile.length() == 0L) {
+            tmpFile.delete()
+            _completionEvent.tryEmit("Failed to copy $destName — check ACCU connection")
             return
         }
-        val b64 = connectionManager.exec("base64 \"$srcPath\" 2>/dev/null").output
-        if (b64.isBlank()) return
-        val bytes = try {
-            Base64.decode(b64.replace("\n", "").replace(" ", ""), Base64.DEFAULT)
-        } catch (_: Exception) { return }
-        context.contentResolver.openOutputStream(docFile.uri)?.use { it.write(bytes) }
+        context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
+            tmpFile.inputStream().use { it.copyTo(out) }
+        }
+        tmpFile.delete()
         _completionEvent.tryEmit("Saved $destName to folder ✓")
     }
 

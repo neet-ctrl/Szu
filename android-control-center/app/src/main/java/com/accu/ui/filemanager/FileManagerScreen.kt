@@ -57,6 +57,10 @@ data class FileManagerState(
     val clipboard: ClipboardAction? = null,
     val searchQuery: String = "",
     val snackbarMessage: String? = null,
+    // Set while copying a file to cache before opening the viewer
+    val isCachingFile: Boolean = false,
+    // Non-null when a cached file is ready for the viewer to navigate to
+    val pendingViewerPath: String? = null,
 )
 
 data class FileItem(
@@ -164,39 +168,70 @@ class FileManagerViewModel @Inject constructor(
 
     fun saveToControllerStorage(files: List<String>, destFolderUri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                var success = 0
-                files.forEach { srcPath ->
-                    val srcFile = File(srcPath)
-                    val resolver = context.contentResolver
-                    val destDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, destFolderUri) ?: return@forEach
-                    val mime = getMimeTypeStr(srcFile)
-                    if (srcFile.isDirectory) {
-                        val newDir = destDir.createDirectory(srcFile.name) ?: return@forEach
-                        srcFile.walkTopDown().drop(1).forEach { child ->
-                            if (child.isFile) {
-                                val relative = child.relativeTo(srcFile)
-                                newDir.createFile(getMimeTypeStr(child), relative.path)?.let { docFile ->
-                                    resolver.openOutputStream(docFile.uri)?.use { out ->
-                                        child.inputStream().use { it.copyTo(out) }
-                                    }
-                                }
-                            }
-                        }
-                        success++
-                    } else {
-                        val docFile = destDir.createFile(mime, srcFile.name) ?: return@forEach
-                        resolver.openOutputStream(docFile.uri)?.use { out ->
-                            srcFile.inputStream().use { it.copyTo(out) }
-                        }
-                        success++
-                    }
+            var success = 0
+            var failed = 0
+            files.forEach { srcPath ->
+                val srcName = File(srcPath).name
+                val resolver = context.contentResolver
+                val destDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, destFolderUri) ?: return@forEach
+                val mime = getMimeTypeStr(File(srcPath))
+                // Strategy: shell `cp` to app-private cache (root/ADB can write there, app can always read it),
+                // then stream from cache to SAF. This bypasses scoped-storage restrictions
+                // and works for files on remote ADB targets too.
+                val tmpFile = File(context.cacheDir, "save_tmp/$srcName")
+                tmpFile.parentFile?.mkdirs()
+                tmpFile.delete()
+                val cpResult = shizukuUtils.execShizuku(
+                    "cp -r \"$srcPath\" \"${tmpFile.absolutePath}\" 2>/dev/null && chmod -R 644 \"${tmpFile.absolutePath}\""
+                )
+                if (!cpResult.isSuccess || !tmpFile.exists() || tmpFile.length() == 0L) {
+                    failed++
+                    tmpFile.delete()
+                    return@forEach
                 }
-                _state.update { it.copy(snackbarMessage = "Saved $success item(s) to controller storage", selectedFiles = emptySet(), isMultiSelect = false) }
-            } catch (e: Exception) {
-                _state.update { it.copy(snackbarMessage = "Save failed: ${e.message}") }
+                val docFile = destDir.createFile(mime, srcName) ?: run { tmpFile.delete(); return@forEach }
+                resolver.openOutputStream(docFile.uri)?.use { out ->
+                    tmpFile.inputStream().use { it.copyTo(out) }
+                }
+                tmpFile.delete()
+                success++
             }
+            val msg = when {
+                failed > 0 && success > 0 -> "Saved $success item(s), $failed failed — check connection"
+                failed > 0                -> "Save failed for $failed item(s) — check ACCU connection"
+                else                      -> "Saved $success item(s) to controller storage"
+            }
+            _state.update { it.copy(snackbarMessage = msg, selectedFiles = emptySet(), isMultiSelect = false) }
         }
+    }
+
+    /**
+     * Copy [path] to app-private cache via the privileged shell, then signal the UI to
+     * open the cached copy in the file viewer.  Using shell `cp` means root and ADB can
+     * reach files that the app process cannot read directly (scoped storage, remote ADB).
+     */
+    fun cacheFileForViewer(path: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.update { it.copy(isCachingFile = true) }
+            val name = File(path).name
+            val cacheFile = File(context.cacheDir, "viewer/$name")
+            cacheFile.parentFile?.mkdirs()
+            cacheFile.delete()
+            val cpResult = shizukuUtils.execShizuku(
+                "cp \"$path\" \"${cacheFile.absolutePath}\" 2>/dev/null && chmod 644 \"${cacheFile.absolutePath}\""
+            )
+            val finalPath = if (cpResult.isSuccess && cacheFile.exists() && cacheFile.length() > 0) {
+                cacheFile.absolutePath
+            } else {
+                // Fallback: let viewer try the original path (same-device accessible files)
+                path
+            }
+            _state.update { it.copy(isCachingFile = false, pendingViewerPath = finalPath) }
+        }
+    }
+
+    fun clearPendingViewerPath() {
+        _state.update { it.copy(pendingViewerPath = null) }
     }
 
     fun importFromController(sourceUris: List<Uri>, destFolder: String) {
@@ -421,6 +456,14 @@ fun FileManagerScreen(
         state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() }
     }
 
+    // When cacheFileForViewer() finishes copying to app cache, navigate to the viewer.
+    LaunchedEffect(state.pendingViewerPath) {
+        state.pendingViewerPath?.let { path ->
+            onNavigateToFileViewer(path)
+            viewModel.clearPendingViewerPath()
+        }
+    }
+
     Scaffold(
         topBar = {
             Column {
@@ -563,6 +606,27 @@ fun FileManagerScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
+        // Scrim + spinner while copying a file to app cache before opening the viewer
+        if (state.isCachingFile) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.4f)),
+                Alignment.Center,
+            ) {
+                Card(shape = MaterialTheme.shapes.medium) {
+                    Column(
+                        Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator()
+                        Text("Opening file…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
         when {
             state.isLoading -> Box(Modifier.fillMaxSize().padding(padding), Alignment.Center) { CircularProgressIndicator() }
             state.files.isEmpty() -> EmptyFolderState(Modifier.fillMaxSize().padding(padding))
@@ -715,7 +779,7 @@ private fun FileListView(
                 onClick = {
                     if (state.isMultiSelect) viewModel.toggleSelection(file.path)
                     else if (file.isDirectory) viewModel.navigateTo(file.path)
-                    else onOpenFile(file.path)
+                    else viewModel.cacheFileForViewer(file.path)
                 },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -845,7 +909,7 @@ private fun FileGridView(
                 onClick = {
                     if (state.isMultiSelect) viewModel.toggleSelection(file.path)
                     else if (file.isDirectory) viewModel.navigateTo(file.path)
-                    else onOpenFile(file.path)
+                    else viewModel.cacheFileForViewer(file.path)
                 },
                 onLongClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
