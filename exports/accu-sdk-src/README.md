@@ -2,8 +2,8 @@
 
 **Android Control Center Ultimate — Third-Party Integration SDK**
 
-This package contains everything you need to integrate any Android app
-with **ACCU System Service**, gaining privileged system access
+This package contains everything a third-party Android app needs to integrate with
+**ACCU System Service**, gaining privileged system access
 (shell execution, package management, runtime permissions, system settings)
 with the user's informed consent.
 
@@ -12,13 +12,34 @@ with the user's informed consent.
 ## What is ACCU?
 
 Android Control Center Ultimate (ACCU) is an Android app that acts as a
-privilege broker, similar to Shizuku. ACCU exposes a Binder IPC interface
+privilege broker, exactly like Shizuku. ACCU exposes a Binder IPC interface
 that third-party apps can bind to and call privileged APIs on.
+
+The user must:
+1. Have ACCU (`com.accu.controlcenter`) installed
+2. Enable **AccuSystemService** inside ACCU (ACCU → System Service → toggle ON)
+3. Grant your app permission the first time it requests it — ACCU shows a Material 3 bottom-sheet
 
 ACCU uses a **scope-based permission model** — users can grant or restrict
 individual categories of access (Shell, Package Management, Permissions,
-Settings, Locale) on a per-app basis. A Material 3 bottom-sheet dialog
-guides them through the grant process.
+Settings, Locale) on a per-app basis.
+
+---
+
+## How Third-Party Apps Connect
+
+```
+Your App (any Android app)       ACCU (com.accu.controlcenter)
+────────────────────────         ──────────────────────────────
+1. Add <queries> block           AccuSystemService running as root/Shizuku
+2. AccuClient(context)
+3. accu.connect()   ──────────►  bindService(com.accu.api.AccuSystemService)
+                    ◄──────────  onServiceConnected → IAccuService binder
+4. accu.requestPermission() ──►  Shows bottom-sheet dialog to user
+                            ◄──  IAccuPermissionCallback.onPermissionResult()
+5. accu.exec("id")  ──────────►  sh -c "id" run with root/Shizuku privilege
+                    ◄──────────  AccuExecResult(stdout, stderr, exitCode)
+```
 
 ---
 
@@ -30,10 +51,10 @@ accu-sdk/
 ├── README.md                          ← You are here
 │
 ├── docs/
-│   ├── ACCU_THIRD_PARTY_DEVELOPER_GUIDE.md   ← Start here
-│   ├── ACCU_API_REFERENCE.md                 ← All 25 API methods
+│   ├── ACCU_THIRD_PARTY_DEVELOPER_GUIDE.md   ← Start here — full integration guide
+│   ├── ACCU_API_REFERENCE.md                 ← All 25 API methods documented
 │   ├── ACCU_ARCHITECTURE.md                  ← IPC flow diagrams
-│   ├── ACCU_TROUBLESHOOTING.md               ← Common issues + fixes
+│   ├── ACCU_TROUBLESHOOTING.md               ← Common errors and fixes
 │   ├── ACCU_MIGRATION_FROM_SHIZUKU.md        ← Coming from Shizuku?
 │   └── ACCU_INTEGRATION_CHECKLIST.md         ← Verification checklist
 │
@@ -63,7 +84,7 @@ accu-sdk/
     ├── ShellSample/                          ← Terminal UI with exec + execAsync
     ├── PackageManagerSample/                 ← Disable/enable/hide/grant perms
     ├── SettingsSample/                       ← Read/write system settings + locale
-    └── FullDemoApp/                          ← Complete demo covering all APIs
+    └── FullDemoApp/                          ← Complete demo covering all APIs (14 screens)
 ```
 
 ---
@@ -73,6 +94,7 @@ accu-sdk/
 ### Step 1 — Copy AIDL files
 
 Create `app/src/main/aidl/com/accu/api/` and copy all three `.aidl` files there.
+**Do not change package names or method signatures.**
 
 ### Step 2 — Copy SDK files
 
@@ -94,7 +116,11 @@ dependencies {
 
 ```xml
 <queries>
+    <!-- Required — without this bindService() returns false on Android 11+ -->
     <package android:name="com.accu.controlcenter" />
+    <intent>
+        <action android:name="com.accu.api.AccuSystemService" />
+    </intent>
 </queries>
 ```
 
@@ -103,17 +129,17 @@ dependencies {
 ```kotlin
 // In your ViewModel
 private val accu = AccuClient(applicationContext)
-val state = accu.state
+val state = accu.state  // StateFlow<AccuConnectionState>
 
 init { accu.connect() }
 override fun onCleared() { accu.disconnect() }
 
 fun requestPermission() {
     viewModelScope.launch {
-        val result = accu.requestPermission()
-        if (result == AccuConstants.PERMISSION_GRANTED) {
-            val id = withContext(Dispatchers.IO) { accu.exec("id") }
-            // id.stdout = "uid=0(root) gid=0(root)..."
+        val result = accu.requestPermission()   // shows ACCU dialog
+        if (result.isGranted()) {
+            val output = withContext(Dispatchers.IO) { accu.exec("id") }
+            // output.stdout = "uid=0(root) gid=0(root)..."
         }
     }
 }
@@ -133,17 +159,31 @@ fun requestPermission() {
 | Locale | `setApplicationLocale` |
 | Settings | `writeSecureSetting`, `readSecureSetting`, `writeGlobalSetting`, `readGlobalSetting`, `writeSystemSetting`, `readSystemSetting` |
 
-Full documentation in `docs/ACCU_API_REFERENCE.md`.
+Full documentation → `docs/ACCU_API_REFERENCE.md`
 
 ---
 
 ## Requirements
 
-- ACCU (`com.accu.controlcenter`) installed on device
-- AccuSystemService enabled in ACCU
-- Android 10+ (API 29+)
-- `aidl = true` in your Gradle build features
+| Requirement | Value |
+|---|---|
+| ACCU app (`com.accu.controlcenter`) | Must be installed on device |
+| AccuSystemService | Must be enabled by user in ACCU |
+| Android | 10+ (API 29+) |
+| Gradle build feature | `aidl = true` |
+| Coroutines | `kotlinx-coroutines-android` |
 
 ---
 
-## For detailed integration instructions: `docs/ACCU_THIRD_PARTY_DEVELOPER_GUIDE.md`
+## Common Errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `bindService() returned false` | AccuSystemService not enabled | User: open ACCU → System Service → Enable |
+| `bindService() returned false` | `<queries>` block missing | Add `<queries>` to AndroidManifest |
+| `checkPermission() = SERVICE_UNAVAILABLE` | Not yet connected | Wait for `AccuConnectionState.Connected` |
+| `AccuNotConnectedException` | API called before binder ready | Guard calls with connection state check |
+
+---
+
+## Full Integration Guide: `docs/ACCU_THIRD_PARTY_DEVELOPER_GUIDE.md`

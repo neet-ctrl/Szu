@@ -450,8 +450,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             appendLine("── LOG SUMMARY ──")
             appendLine("Total entries: ${LogManager.logs.value.size}  |  Crashes: ${CrashManager.crashes.value.size}")
             appendLine()
-            appendLine("── RECENT LOGS (last 30) ──")
-            LogManager.logs.value.takeLast(30).forEach { log -> appendLine("  [${log.level.name.padEnd(7)}] [${log.tag}] ${log.message}") }
+            appendLine("── FULL LOG (${LogManager.logs.value.size} entries) ──")
+            LogManager.logs.value.forEach { log -> appendLine("  [${log.formattedDate}] [${log.level.name.padEnd(7)}] [${log.tag}] ${log.message}") }
         }
     }
 
@@ -462,16 +462,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         catch (e: Exception) { CrashManager.record(label, e); LogManager.error(label, "${e.javaClass.simpleName}: ${e.message}"); null }
 
     private fun buildInitialDiagnostics() = listOf(
-        DiagnosticItem(0, "ACCU Installed",       "com.accu.controlcenter exists on device"),
-        DiagnosticItem(1, "Package Visibility",   "<queries> block allows app to see ACCU"),
-        DiagnosticItem(2, "Binder Connected",     "bindService() OK, IAccuService available"),
-        DiagnosticItem(3, "Binder Alive",         "ping() returns true"),
-        DiagnosticItem(4, "Protocol Version",     "getVersion() == ${AccuConstants.PROTOCOL_VERSION}"),
-        DiagnosticItem(5, "Permission Granted",   "checkPermission() == PERMISSION_GRANTED"),
-        DiagnosticItem(6, "Scopes Available",     "All 5 scopes granted by user"),
-        DiagnosticItem(7, "ACCU App Version",     "getAccuVersion() readable"),
-        DiagnosticItem(8, "Backend Type",         "getUid() — 0=root, 2000=shizuku"),
-        DiagnosticItem(9, "Service PID",          "getPid() returns valid process ID"),
+        DiagnosticItem(0, "ACCU Installed",       "PackageManager.getPackageInfo(com.accu.controlcenter)"),
+        DiagnosticItem(1, "Package Visibility",   "<queries> entry in AndroidManifest lets your app see ACCU"),
+        DiagnosticItem(2, "Binder Connected",     "bindService() → onServiceConnected() fired, IAccuService obtained"),
+        DiagnosticItem(3, "Binder Alive",         "ping() called on live binder — must return true"),
+        DiagnosticItem(4, "Protocol Version",     "getVersion() — expected ${AccuConstants.PROTOCOL_VERSION}"),
+        DiagnosticItem(5, "Permission Granted",   "checkPermission() — must be PERMISSION_GRANTED (0)"),
+        DiagnosticItem(6, "Scopes Available",     "hasScope() checked for all 5 scopes (SHELL, PKG, PERMS, SETTINGS, LOCALE)"),
+        DiagnosticItem(7, "ACCU App Version",     "getAccuVersion() — readable non-empty string"),
+        DiagnosticItem(8, "Backend Type",         "getUid() — uid=0 means root, uid=2000 means Shizuku/ADB"),
+        DiagnosticItem(9, "Service PID",          "getPid() — positive PID of AccuSystemService process"),
     )
 
     private fun buildInitialTests() = listOf(

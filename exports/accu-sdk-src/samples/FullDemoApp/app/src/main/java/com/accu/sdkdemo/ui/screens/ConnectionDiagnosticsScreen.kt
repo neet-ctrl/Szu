@@ -9,6 +9,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.accu.sdk.AccuConnectionState
@@ -22,6 +24,8 @@ fun ConnectionDiagnosticsScreen(vm: MainViewModel) {
     val diagnostics by vm.diagnostics.collectAsState()
     val isRunning   by vm.isDiagRunning.collectAsState()
     val accuState   by vm.accuState.collectAsState()
+    val clipboard   = LocalClipboardManager.current
+    var copied      by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         // Action bar
@@ -34,6 +38,20 @@ fun ConnectionDiagnosticsScreen(vm: MainViewModel) {
                         Spacer(Modifier.width(6.dp))
                         Text(if (isRunning) "Running…" else "Run Diagnostics")
                     }
+                    // Copy diagnostics report
+                    IconButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(vm.buildDiagnosticsReport()))
+                            copied = true
+                        },
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            if (copied) Icons.Default.CheckCircle else Icons.Default.ContentCopy,
+                            "Copy diagnostics",
+                            tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { vm.connect() },    modifier = Modifier.weight(1f)) { Text("Connect") }
@@ -44,6 +62,9 @@ fun ConnectionDiagnosticsScreen(vm: MainViewModel) {
                     Icon(Icons.Default.Sensors, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Ping Service")
+                }
+                if (copied) {
+                    Text("✓ Diagnostics report copied to clipboard", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }

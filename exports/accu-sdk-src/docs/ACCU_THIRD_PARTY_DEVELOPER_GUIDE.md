@@ -15,10 +15,32 @@ permission dialog system with per-scope granularity.
 
 | Requirement | Details |
 |---|---|
-| ACCU installed | The user must have ACCU (com.accu.controlcenter) installed |
-| AccuSystemService enabled | User must open ACCU → System Service → toggle ON |
+| ACCU installed | The user must have ACCU (`com.accu.controlcenter`) installed |
+| AccuSystemService enabled | User must open ACCU → System Service → toggle **ON** (shows a persistent notification when running) |
 | minSdk 29 | Android 10+ required |
 | AIDL enabled in Gradle | `buildFeatures { aidl = true }` |
+
+---
+
+## How Connection Works (Overview)
+
+```
+Your App                          ACCU (com.accu.controlcenter)
+────────────────────              ──────────────────────────────────
+AccuClient.connect()   ────────►  AccuSystemService (running as root/Shizuku)
+bindService(intent)               │
+onServiceConnected()  ◄────────   IAccuService AIDL binder
+IAccuService obtained             │
+                                  │
+accu.requestPermission() ──────►  Shows permission dialog to user
+IAccuPermissionCallback  ◄──────  User grants or denies
+                                  │
+accu.exec("id")          ──────►  Runs privileged shell command
+AccuExecResult           ◄──────  stdout / stderr / exitCode
+```
+
+The key insight: **your app never needs root itself**. ACCU holds the
+privilege and runs your commands on your behalf, after the user consents.
 
 ---
 
@@ -81,199 +103,255 @@ See `templates/BuildGradle_Template.kts` for a complete template.
 
 ## Step 4 — Update AndroidManifest.xml
 
-Add the `<queries>` block so Android 11+ (API 30+) allows your app to
-see and bind to the ACCU service:
+Add the `<queries>` block so Android lets your app see the ACCU package.
+Without this your `bindService()` will return `false` on Android 11+:
 
 ```xml
-<manifest ...>
+<manifest …>
 
-    <!-- Required on API 30+ for package visibility -->
     <queries>
+        <!-- Required: tells Android your app is allowed to see ACCU -->
         <package android:name="com.accu.controlcenter" />
+        <!-- Optional but recommended: also declare the service action -->
+        <intent>
+            <action android:name="com.accu.api.AccuSystemService" />
+        </intent>
     </queries>
 
-    ...
+    <application …>
+        …
+    </application>
 </manifest>
 ```
 
-No special permissions are required in YOUR manifest. ACCU handles all
-privileged operations inside its own process.
-
 ---
 
-## Step 5 — Connect to AccuSystemService
+## Step 5 — Connect, Request Permission, and Call APIs
 
-### Recommended: AccuClient + ViewModel
+### ViewModel pattern (recommended)
 
 ```kotlin
 class MyViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val accu = AccuClient(app.applicationContext)
-    val accuState: StateFlow<AccuConnectionState> = accu.state
+    // 1. Create the client
+    private val accu = AccuClient(app)
+
+    // 2. Expose connection state as a Flow for your UI to observe
+    val connectionState: StateFlow<AccuConnectionState> = accu.state
 
     init {
-        accu.connect()   // Call in init or onStart
+        // 3. Connect on creation — bindService() is called here
+        accu.connect()
     }
 
     override fun onCleared() {
-        accu.disconnect()  // Always disconnect in onCleared
+        // 4. Always disconnect to release the binder
+        accu.disconnect()
+    }
+
+    // 5. Request permission — shows ACCU's bottom-sheet dialog to the user
+    fun requestPermission() {
+        viewModelScope.launch {
+            val result = accu.requestPermission()
+            when {
+                result.isGranted() -> {
+                    // Permission granted — safe to call privileged APIs
+                    val output = withContext(Dispatchers.IO) {
+                        accu.exec("id")
+                    }
+                    println(output.stdout) // uid=0(root) gid=0(root)...
+                }
+                result == AccuConstants.PERMISSION_DENIED -> {
+                    // User explicitly denied — tell them why you need it
+                }
+                result == AccuConstants.PERMISSION_SERVICE_UNAVAILABLE -> {
+                    // ACCU not connected — check connection state
+                }
+            }
+        }
+    }
+
+    // 6. Call a privileged API
+    fun disableApp(packageName: String) {
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                accu.disablePackage(packageName)
+            }
+            // success == true → package is now disabled
+        }
     }
 }
 ```
 
-### In your Activity or Composable
+### Observing connection state in Compose
 
 ```kotlin
 @Composable
-fun MyScreen(viewModel: MyViewModel) {
-    val state by viewModel.accuState.collectAsState()
+fun MyScreen(vm: MyViewModel = viewModel()) {
+    val state by vm.connectionState.collectAsState()
 
     when (state) {
-        is AccuConnectionState.Connected    -> Text("Connected ✅")
-        is AccuConnectionState.Connecting   -> CircularProgressIndicator()
-        is AccuConnectionState.Error        -> Text("Error: ${(state as AccuConnectionState.Error).reason}")
-        is AccuConnectionState.Disconnected -> Text("Reconnecting...")
-        is AccuConnectionState.Idle         -> Text("Not started")
-    }
-}
-```
-
----
-
-## Step 6 — Request Permission
-
-**This must happen before any privileged call.** Show the user a button:
-
-```kotlin
-// In your ViewModel
-fun requestPermission() {
-    viewModelScope.launch {
-        val result = accu.requestPermission()  // Suspends until user responds
-        when (result) {
-            AccuConstants.PERMISSION_GRANTED -> { /* proceed */ }
-            AccuConstants.PERMISSION_DENIED  -> { /* show "access denied" UI */ }
-            else                              -> { /* service unavailable */ }
+        is AccuConnectionState.Connected -> {
+            val c = state as AccuConnectionState.Connected
+            Text("Connected — ACCU ${c.accuVersion}")
+            Text("Permission: ${c.permissionCode.toPermissionLabel()}")
         }
+        AccuConnectionState.Connecting    -> Text("Connecting to ACCU…")
+        AccuConnectionState.Disconnected  -> Text("Disconnected")
+        is AccuConnectionState.Error      -> Text("Error: ${(state as AccuConnectionState.Error).reason}")
+        else                              -> Text("Idle")
     }
 }
 ```
 
-ACCU will display its permission bottom-sheet dialog to the user. They can
-toggle individual scopes on/off before granting.
-
-**If permission is already stored from a previous session, the callback fires
-immediately with PERMISSION_GRANTED — no dialog appears.**
-
 ---
 
-## Step 7 — Check Permission Status
+## Connection States
 
-```kotlin
-val code = accu.checkPermission()
-
-when (code) {
-    AccuConstants.PERMISSION_GRANTED           -> { /* can call APIs */ }
-    AccuConstants.PERMISSION_DENIED            -> { /* user denied */ }
-    AccuConstants.PERMISSION_NOT_YET_REQUESTED -> { /* call requestPermission first */ }
-    AccuConstants.PERMISSION_SERVICE_UNAVAILABLE -> { /* service not running */ }
-}
+```
+Idle ──► Connecting ──► Connected ──► Disconnected
+                  │                        │
+                  └──► Error               └──► Connecting (auto-retry)
 ```
 
+| State | Meaning |
+|---|---|
+| `Idle` | `connect()` not yet called |
+| `Connecting` | `bindService()` sent, waiting for `onServiceConnected()` |
+| `Connected` | Binder alive, APIs callable |
+| `Disconnected` | Service died or `disconnect()` called; auto-retries |
+| `Error` | `bindService()` returned `false` — ACCU not installed or service not enabled |
+
+### Error: `bindService() returned false`
+
+This is the most common error developers see. It means one of:
+
+1. **ACCU is not installed** — `com.accu.controlcenter` not found on device
+2. **AccuSystemService is not enabled** — user must open ACCU → System Service → toggle ON
+3. **`<queries>` block missing** — your app can't see ACCU on Android 11+
+4. **Wrong intent action** — `AccuConstants.SERVICE_ACTION` must match what ACCU exports
+
+Check with the diagnostics in the `FullDemoApp` sample to identify the exact cause.
+
 ---
 
-## Step 8 — Check Which Scopes You Have
+## Permission Model
 
+ACCU uses a two-level permission system:
+
+### Level 1: App Permission
+Your app must be granted access to ACCU at all:
+```kotlin
+val code = accu.requestPermission()    // shows dialog
+val code = accu.checkPermission()      // no dialog
+```
+
+| Code | Constant | Meaning |
+|---|---|---|
+| `0` | `PERMISSION_GRANTED` | Full access — all API calls work |
+| `1` | `PERMISSION_DENIED` | User explicitly denied |
+| `2` | `PERMISSION_NOT_YET_REQUESTED` | Dialog not yet shown |
+| `3` | `PERMISSION_SERVICE_UNAVAILABLE` | ACCU not connected |
+
+### Level 2: Scopes
+Even with `PERMISSION_GRANTED`, each API category is gated by a scope:
+
+| Scope constant | API category | What it covers |
+|---|---|---|
+| `AccuScopes.SHELL` | Shell execution | `exec`, `execAsync`, `execAndGetOutput` |
+| `AccuScopes.PACKAGE_MANAGE` | Package management | install, enable, disable, hide, suspend, clear, forceStop, component |
+| `AccuScopes.PERMISSIONS` | Runtime permissions | `grantPermission`, `revokePermission`, `setAppOp`, `getAppOp` |
+| `AccuScopes.SETTINGS` | System settings | read/write Secure, Global, System settings |
+| `AccuScopes.LOCALE` | Per-app locale | `setApplicationLocale` |
+
+Check scopes before calling gated APIs:
 ```kotlin
 if (accu.hasScope(AccuScopes.SHELL)) {
-    // Can call exec(), execAsync(), execAndGetOutput()
-}
-
-if (accu.hasScope(AccuScopes.PACKAGE_MANAGE)) {
-    // Can call installApk(), disablePackage(), etc.
-}
-
-if (accu.hasScope(AccuScopes.PERMISSIONS)) {
-    // Can call grantPermission(), revokePermission(), setAppOp()
-}
-
-if (accu.hasScope(AccuScopes.SETTINGS)) {
-    // Can call writeSecureSetting(), readGlobalSetting(), etc.
-}
-
-if (accu.hasScope(AccuScopes.LOCALE)) {
-    // Can call setApplicationLocale()
+    val result = accu.exec("id")
 }
 ```
 
 ---
 
-## Step 9 — Call APIs
+## API Quick Reference
 
-**Always call on a background thread (Dispatchers.IO):**
-
+### Shell
 ```kotlin
-// Shell execution
-viewModelScope.launch {
-    val result = withContext(Dispatchers.IO) {
-        accu.exec("pm list packages -3")
-    }
-    val packages = result.stdout.lines()
-    val exitOk = result.isSuccess
-}
+// Synchronous — blocks until command exits
+val result: AccuExecResult = accu.exec("pm list packages")
+println(result.stdout)    // all output
+println(result.exitCode)  // 0 = success
 
-// Streaming shell
-viewModelScope.launch {
-    withContext(Dispatchers.IO) {
-        accu.execAsync(
-            command  = "logcat -T 100",
-            onStdout = { line -> /* handle output line */ },
-            onStderr = { line -> /* handle error line */ },
-            onExit   = { code -> /* command finished */ },
-        )
-    }
-}
+// Async streaming — line-by-line callback (great for long-running commands)
+accu.execAsync(
+    command  = "logcat -t 50",
+    onStdout = { line -> println(line) },
+    onStderr = { line -> println("[ERR] $line") },
+    onExit   = { code -> println("Exit: $code") },
+)
 
-// Package management
-viewModelScope.launch {
-    val ok = withContext(Dispatchers.IO) {
-        accu.disablePackage("com.example.bloatware")
-    }
-}
+// Simple — returns combined stdout as String
+val output: String = accu.execAndGetOutput("echo hello")
+```
 
-// Settings
-viewModelScope.launch {
-    withContext(Dispatchers.IO) {
-        accu.writeGlobalSetting("animator_duration_scale", "0")
-        val brightness = accu.readSystemSetting("screen_brightness")
-    }
-}
+### Package Management
+```kotlin
+accu.disablePackage("com.bloat.app")       // pm disable-user --user 0
+accu.enablePackage("com.bloat.app")        // pm enable --user 0
+accu.hidePackage("com.bloat.app")          // pm hide
+accu.unhidePackage("com.bloat.app")        // pm unhide
+accu.suspendPackage("com.bloat.app")       // pm suspend
+accu.unsuspendPackage("com.bloat.app")     // pm unsuspend
+accu.clearPackageData("com.bloat.app")     // pm clear
+accu.forceStop("com.bloat.app")            // am force-stop
+accu.installApk("/sdcard/my.apk")         // pm install
+accu.uninstallPackage("com.bloat.app")     // pm uninstall
+```
 
-// Locale
-viewModelScope.launch {
-    withContext(Dispatchers.IO) {
-        accu.setApplicationLocale("com.android.chrome", "ja-JP")
-    }
-}
+### Runtime Permissions
+```kotlin
+accu.grantPermission("com.myapp", "android.permission.CAMERA")
+accu.revokePermission("com.myapp", "android.permission.CAMERA")
+accu.setAppOp("com.myapp", "RUN_IN_BACKGROUND", "deny")
+val mode: String = accu.getAppOp("com.myapp", "RUN_IN_BACKGROUND")
+```
+
+### System Settings
+```kotlin
+// Read
+val brightness = accu.readSystemSetting("screen_brightness")
+val btOn       = accu.readSecureSetting("bluetooth_on")
+val adbEnabled = accu.readGlobalSetting("adb_enabled")
+
+// Write
+accu.writeSystemSetting("screen_brightness", "200")
+accu.writeSecureSetting("bluetooth_on", "1")
+accu.writeGlobalSetting("adb_enabled", "1")
+```
+
+### Locale
+```kotlin
+accu.setApplicationLocale("com.myapp", "en-US")   // set locale
+accu.setApplicationLocale("com.myapp", "")         // reset to system default
 ```
 
 ---
 
-## Step 10 — Handle Disconnection
+## Error Handling
 
-AccuClient automatically reconnects when the service disconnects (e.g. after an
-ACCU update). You don't need to handle this manually.
-
-If you need to know when the service dies and comes back:
+Every API call that throws is wrapped in `AccuNotConnectedException` when the
+service is not bound. Catch at the ViewModel layer:
 
 ```kotlin
-accuState.collect { state ->
-    when (state) {
-        is AccuConnectionState.Disconnected -> {
-            // Service died — AccuClient is already trying to reconnect
-            showSnackbar("ACCU disconnected. Reconnecting...")
-        }
-        is AccuConnectionState.Connected -> {
-            // Back online — re-check permission status
+fun doPrivilegedAction() {
+    viewModelScope.launch {
+        try {
+            val result = withContext(Dispatchers.IO) { accu.exec("id") }
+            // handle success
+        } catch (e: AccuNotConnectedException) {
+            // Service not connected — tell user to open ACCU
+        } catch (e: Exception) {
+            // Unexpected AIDL error — log and report
         }
     }
 }
@@ -281,99 +359,39 @@ accuState.collect { state ->
 
 ---
 
-## Step 11 — Disconnect Cleanly
+## Common Issues
 
-```kotlin
-// Call from onStop() or ViewModel.onCleared()
-accu.disconnect()
-```
-
-Never leak the service connection. Always unbind when your component is destroyed.
-
----
-
-## Handling Errors
-
-```kotlin
-try {
-    val result = accu.exec("some command")
-} catch (e: AccuNotConnectedException) {
-    // Not connected — call connect() first
-} catch (e: AccuScopeDeniedException) {
-    // User disabled the SHELL scope — show explanation
-} catch (e: AccuPermissionDeniedException) {
-    // User denied permission — show requestPermission UI
-} catch (e: AccuDeadServiceException) {
-    // Binder died — AccuClient will auto-reconnect
-} catch (e: AccuException) {
-    // Base class — catch-all for any ACCU error
-} catch (e: Exception) {
-    // Unexpected error
-}
-```
+| Symptom | Cause | Fix |
+|---|---|---|
+| `bindService() returned false` | Service not running | User: open ACCU → System Service → Enable |
+| `bindService() returned false` | `<queries>` missing | Add `<queries>` block to AndroidManifest |
+| `checkPermission() = SERVICE_UNAVAILABLE` | Not connected | Wait for `Connected` state before calling APIs |
+| `AccuNotConnectedException` | Calling API before binder is ready | Collect `accu.state` and only call when `Connected` |
+| `hasScope(SHELL) = false` | Scope not granted | User may have granted permission but not all scopes |
+| All diagnostics FAIL | AccuSystemService not enabled | User must toggle ON in ACCU → System Service |
 
 ---
 
-## Checking ACCU Installation
+## Testing Your Integration
 
-```kotlin
-val isInstalled = try {
-    packageManager.getPackageInfo("com.accu.controlcenter", 0)
-    true
-} catch (_: PackageManager.NameNotFoundException) { false }
+Use the **FullDemoApp** (`samples/FullDemoApp/`) as your reference. Install it
+alongside ACCU and run the Automated Tests screen — it runs 17 end-to-end checks
+covering every API surface and reports PASS/FAIL/WARN per test.
 
-if (!isInstalled) {
-    // Show "Please install ACCU" UI with a Play Store link
-    // or guide to sideloading
-}
-```
-
-AccuClient also does this check automatically in `connect()` — if ACCU is not
-installed, `state` becomes `AccuConnectionState.Error` with a descriptive message.
-
----
-
-## Complete Quick-Start Checklist
-
-- [ ] Copy 3 AIDL files → `app/src/main/aidl/com/accu/api/`
-- [ ] Copy 6 SDK files → `app/src/main/java/com/accu/sdk/`
-- [ ] Add `aidl = true` to `android.buildFeatures` in build.gradle.kts
-- [ ] Add `<queries><package android:name="com.accu.controlcenter"/></queries>` to AndroidManifest.xml
-- [ ] Add coroutines dependency
-- [ ] Create `AccuClient(context)` in your ViewModel
-- [ ] Call `accu.connect()` in ViewModel init
-- [ ] Call `accu.disconnect()` in ViewModel.onCleared()
-- [ ] Observe `accu.state` in your UI
-- [ ] Show "Grant Permission" button when state is Connected but not granted
-- [ ] Call all ACCU APIs on Dispatchers.IO
-- [ ] Test with ACCU's System Service toggled ON
+Connection Diagnostics runs 10 specific checks:
+1. ACCU installed?
+2. Package visibility (`<queries>` effective)?
+3. Binder connected (bindService → onServiceConnected)?
+4. Binder alive (ping)?
+5. Protocol version match?
+6. Permission granted?
+7. All 5 scopes granted?
+8. ACCU app version readable?
+9. Backend type (root/shizuku)?
+10. Service PID?
 
 ---
 
-## FAQ
-
-**Q: Do I need Shizuku installed too?**
-A: No. The user only needs ACCU installed. ACCU manages its own relationship
-with Shizuku internally. As a third-party developer, you only talk to ACCU.
-
-**Q: What if the user has ACCU but System Service is off?**
-A: `bindService()` will fail. `AccuConnectionState.Error` will be emitted.
-Show a message: "Please open ACCU and enable System Service."
-
-**Q: Can I request only specific scopes, not all five?**
-A: You cannot limit the dialog — ACCU always shows all 5 scopes and lets the
-user decide which to enable. Design your app to gracefully degrade if a scope
-is not granted (check `hasScope()` before each API call group).
-
-**Q: Is this production-safe?**
-A: Yes. The Binder IPC is stable. ACCU stores grants persistently. The API is
-versioned (check `getVersion()`). Transaction IDs are frozen.
-
-**Q: Can I publish to the Play Store?**
-A: ACCU requires the device to have elevated privilege (Shizuku or root).
-Your app can be published but must clearly disclose this requirement.
-Calls that fail gracefully on non-rooted devices are fine.
-
-**Q: How do I debug IPC issues?**
-A: Use `adb logcat` filtered to `ACCU`. ACCU logs every call with the caller
-package name and the scope it checked.
+## For detailed API docs: `docs/ACCU_API_REFERENCE.md`
+## For migration from Shizuku: `docs/ACCU_MIGRATION_FROM_SHIZUKU.md`
+## For troubleshooting: `docs/ACCU_TROUBLESHOOTING.md`

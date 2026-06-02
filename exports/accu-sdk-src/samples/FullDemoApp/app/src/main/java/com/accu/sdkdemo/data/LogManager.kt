@@ -6,22 +6,19 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 object LogManager {
-    private const val MAX_LOGS = 500
-
+    // No cap — keep all logs for the session (GC'd when app is killed)
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
     fun log(tag: String, message: String, level: LogLevel = LogLevel.INFO) {
-        _logs.update { current ->
-            (current + LogEntry(level = level, tag = tag, message = message)).takeLast(MAX_LOGS)
-        }
+        _logs.update { current -> current + LogEntry(level = level, tag = tag, message = message) }
     }
 
-    fun debug(tag: String, message: String) = log(tag, message, LogLevel.DEBUG)
-    fun info(tag: String, message: String) = log(tag, message, LogLevel.INFO)
+    fun debug(tag: String, message: String)   = log(tag, message, LogLevel.DEBUG)
+    fun info(tag: String, message: String)    = log(tag, message, LogLevel.INFO)
     fun success(tag: String, message: String) = log(tag, message, LogLevel.SUCCESS)
     fun warning(tag: String, message: String) = log(tag, message, LogLevel.WARNING)
-    fun error(tag: String, message: String) = log(tag, message, LogLevel.ERROR)
+    fun error(tag: String, message: String)   = log(tag, message, LogLevel.ERROR)
 
     fun clear() { _logs.value = emptyList() }
 
@@ -29,7 +26,7 @@ object LogManager {
         appendLine("=== ACCU SDK Test App — Log Export ===")
         appendLine("Generated: ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())}")
         appendLine("Total entries: ${_logs.value.size}")
-        appendLine("=" .repeat(50))
+        appendLine("=".repeat(50))
         appendLine()
         _logs.value.forEach { entry ->
             appendLine("[${entry.formattedDate}] [${entry.level.name.padEnd(7)}] [${entry.tag}] ${entry.message}")
