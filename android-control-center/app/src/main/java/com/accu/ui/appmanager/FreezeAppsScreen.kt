@@ -1,5 +1,7 @@
 package com.accu.ui.appmanager
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
@@ -98,6 +100,17 @@ fun FreezeAppsScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+
+    // SAF launcher — opens CreateDocument picker when pendingApkExtract is set
+    val safApkLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { uri ->
+        uri?.let { viewModel.extractApkToUri(state.pendingApkExtract ?: return@let, it, context.contentResolver) }
+    }
+    LaunchedEffect(state.pendingApkExtract) {
+        val pkg = state.pendingApkExtract ?: return@LaunchedEffect
+        safApkLauncher.launch("$pkg.apk")
+    }
 
     var selectedFilter by remember { mutableStateOf(FreezeFilter.ALL) }
     var sortOrder by remember { mutableStateOf(FreezeSortOrder.NAME) }
@@ -232,7 +245,13 @@ fun FreezeAppsScreen(
                 onClick = {
                     runWithBiometric {
                         val toFreeze = displayApps.filter { app -> state.frozenApps.none { it.packageName == app.packageName } }
-                        toFreeze.forEach { viewModel.freezeApp(it.packageName) }
+                        toFreeze.forEach {
+                            when (selectedMethod) {
+                                FreezeMethodType.HIDE    -> viewModel.hideApp(it.packageName)
+                                FreezeMethodType.SUSPEND -> viewModel.suspendApp(it.packageName)
+                                FreezeMethodType.DISABLE -> viewModel.freezeApp(it.packageName)
+                            }
+                        }
                     }
                 },
                 icon = { Icon(Icons.Default.AcUnit, null) },
@@ -404,7 +423,15 @@ fun FreezeAppsScreen(
                             grayscale = appSettings.grayscaleFrozenIcons,
                             appTag = appTag,
                             availableTags = appSettings.tags,
-                            onFreeze = { runWithBiometric { viewModel.freezeApp(app.packageName) } },
+                            onFreeze = {
+                                runWithBiometric {
+                                    when (selectedMethod) {
+                                        FreezeMethodType.HIDE    -> viewModel.hideApp(app.packageName)
+                                        FreezeMethodType.SUSPEND -> viewModel.suspendApp(app.packageName)
+                                        FreezeMethodType.DISABLE -> viewModel.freezeApp(app.packageName)
+                                    }
+                                }
+                            },
                             onUnfreeze = { runWithBiometric { viewModel.unfreezeApp(app.packageName) } },
                             onHide = { runWithBiometric { viewModel.hideApp(app.packageName) } },
                             onTagSelect = { tagId ->
@@ -518,7 +545,7 @@ fun FreezeAppsScreen(
         )
     }
 
-    // ── APK extraction dialog ─────────────────────────────────────────────────
+    // ── APK extraction dialog — uses SAF CreateDocument picker ────────────────
     val extractPkg = showApkExtractMenu
     if (extractPkg != null) {
         AlertDialog(
@@ -527,9 +554,9 @@ fun FreezeAppsScreen(
             title = { Text("Extract APK") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Extract base APK from $extractPkg to Downloads?", style = MaterialTheme.typography.bodyMedium)
+                    Text("Choose where to save $extractPkg.apk on this device. The file picker will open next.", style = MaterialTheme.typography.bodyMedium)
                     Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Text("/data/app/$extractPkg/base.apk → Downloads/", style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.padding(8.dp))
+                        Text("Saved to your chosen location — not SD card", style = MaterialTheme.typography.labelSmall, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.padding(8.dp))
                     }
                 }
             },
@@ -537,7 +564,7 @@ fun FreezeAppsScreen(
                 Button(onClick = {
                     viewModel.extractApk(extractPkg)
                     showApkExtractMenu = null
-                }) { Text("Extract") }
+                }) { Text("Choose folder…") }
             },
             dismissButton = { TextButton(onClick = { showApkExtractMenu = null }) { Text("Cancel") } },
         )

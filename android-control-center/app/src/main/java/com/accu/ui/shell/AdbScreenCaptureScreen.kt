@@ -1,5 +1,8 @@
 package com.accu.ui.shell
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -31,16 +35,28 @@ import kotlinx.coroutines.launch
 @Composable
 fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
-    // Screenshot state
-    var screenshotPath by remember { mutableStateOf("/sdcard/screenshot.png") }
+    // SAF folder picker — user picks where to save on CONTROLLER internal storage
+    var saveFolderUri by remember { mutableStateOf<Uri?>(null) }
+    val saveFolderName by remember(saveFolderUri) {
+        derivedStateOf {
+            saveFolderUri?.lastPathSegment?.substringAfterLast(':')?.let { "…/$it" } ?: "Not chosen (tap to pick)"
+        }
+    }
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri -> saveFolderUri = uri }
+
+    // Screenshot state — temp path uses /data/local/tmp/ on TARGET device
+    var screenshotPath by remember { mutableStateOf("/data/local/tmp/accu_screenshot.png") }
     var isCapturing by remember { mutableStateOf(false) }
     var capturedScreenshots by remember { mutableStateOf(listOf<String>()) }
 
-    // Recording state
-    var recordingPath by remember { mutableStateOf("/sdcard/screen_record.mp4") }
+    // Recording state — temp path uses /data/local/tmp/ on TARGET device
+    var recordingPath by remember { mutableStateOf("/data/local/tmp/accu_record.mp4") }
     var isRecording by remember { mutableStateOf(false) }
     var recordingTimer by remember { mutableIntStateOf(0) }
     var recordingSize by remember { mutableIntStateOf(0) }  // MB estimated from bitrate
@@ -74,7 +90,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                 actions = {
                     InfoTooltipIcon(
                         title = "How it works",
-                        description = "Screenshots use:\nadb shell screencap -p /sdcard/screenshot.png\nadb pull /sdcard/screenshot.png\n\nScreen recording uses:\nadb shell screenrecord /sdcard/record.mp4\n\nThe device must be connected (OTG, Wi-Fi ADB, or ACCU).",
+                        description = "Screenshots:\nadb shell screencap -p <temp-path>\nadb pull <temp-path> <save-folder>\nadb shell rm <temp-path>\n\nScreen recording:\nadb shell screenrecord <temp-path>\nThen pulled to your chosen save folder.\n\nTap 'Choose Save Folder' to select where files land on THIS device.",
                     )
                 },
             )
@@ -85,6 +101,57 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+
+            // ── Save folder picker ────────────────────────────────────────────
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (saveFolderUri != null)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.secondaryContainer,
+                    ),
+                    onClick = { folderPickerLauncher.launch(null) },
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            if (saveFolderUri != null) Icons.Default.FolderOpen else Icons.Default.Folder,
+                            null,
+                            tint = if (saveFolderUri != null)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.size(28.dp),
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Save folder (this device)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                saveFolderName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                            if (saveFolderUri == null) {
+                                Text(
+                                    "Tap to choose — saves to internal storage, not SD card",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                        Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
+                    }
+                }
+            }
 
             // ── Screenshot section ────────────────────────────────────────────
             item {
@@ -103,7 +170,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                         OutlinedTextField(
                             value = screenshotPath,
                             onValueChange = { screenshotPath = it },
-                            label = { Text("Save path on device") },
+                            label = { Text("Temp path on TARGET device") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -111,11 +178,12 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                         )
 
                         // ADB commands breakdown
+                        val saveDir = saveFolderName.takeIf { it != "Not chosen (tap to pick)" } ?: "<chosen-folder>"
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Commands executed:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 CmdRow("adb shell screencap -p $screenshotPath", clipboard)
-                                CmdRow("adb pull $screenshotPath", clipboard)
+                                CmdRow("adb pull $screenshotPath $saveDir/", clipboard)
                                 CmdRow("adb shell rm $screenshotPath", clipboard)
                             }
                         }
@@ -153,7 +221,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                                     Icon(Icons.Default.Image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                     Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb pull /sdcard/$name")) }, modifier = Modifier.size(28.dp)) {
+                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb pull $screenshotPath")) }, modifier = Modifier.size(28.dp)) {
                                         Icon(Icons.Outlined.ContentCopy, "Copy pull cmd", Modifier.size(14.dp))
                                     }
                                     IconButton(onClick = { capturedScreenshots = capturedScreenshots - name }, modifier = Modifier.size(28.dp)) {
@@ -245,7 +313,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                                     Icon(Icons.Default.VideoFile, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                     Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb pull /sdcard/$name")) }, modifier = Modifier.size(28.dp)) {
+                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb pull $recordingPath")) }, modifier = Modifier.size(28.dp)) {
                                         Icon(Icons.Outlined.ContentCopy, "Copy pull cmd", Modifier.size(14.dp))
                                     }
                                     IconButton(onClick = { capturedRecordings = capturedRecordings - name }, modifier = Modifier.size(28.dp)) {

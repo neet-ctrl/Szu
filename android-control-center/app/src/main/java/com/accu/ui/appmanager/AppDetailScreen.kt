@@ -4,7 +4,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -99,16 +98,11 @@ fun AppDetailScreen(
     // Dialogs
     var showManifest by remember { mutableStateOf(false) }
 
-    // SAF folder picker for APK extraction
-    val folderPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let { treeUri ->
-            val docId = try { DocumentsContract.getTreeDocumentId(treeUri) } catch (_: Exception) { "primary:Download" }
-            val folder = when {
-                docId.startsWith("primary:") -> "/sdcard/${docId.removePrefix("primary:").trimEnd('/')}"
-                else -> "/sdcard/Download"
-            }
-            viewModel.extractApkToPath("$folder/$packageName.apk")
-        }
+    // SAF CreateDocument picker — saves APK to controller internal storage (not SD card)
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { uri ->
+        uri?.let { viewModel.extractApkToControllerUri(it, context.contentResolver) }
     }
 
     // Detect trackers from known list (scan declared packages/classes)

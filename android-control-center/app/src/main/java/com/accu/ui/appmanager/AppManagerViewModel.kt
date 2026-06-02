@@ -211,6 +211,16 @@ class AppManagerViewModel @Inject constructor(
         }
     }
 
+    fun suspendApp(packageName: String) {
+        viewModelScope.launch {
+            val ok = appRepository.freezeApp(packageName, FreezeMethod.SUSPEND)
+            _state.update { it.copy(snackbarMessage = if (ok) "App suspended" else "Failed to suspend app") }
+        }
+    }
+
+    /** Alias used by screens that call extractApk() — triggers the SAF CreateDocument picker. */
+    fun extractApk(packageName: String) = triggerApkExtract(packageName)
+
     fun uninstallForUser(packageName: String) {
         viewModelScope.launch {
             val ok = appRepository.uninstallForUser(packageName)

@@ -277,6 +277,46 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Extract APK from the TARGET device and save to a user-chosen URI on the CONTROLLER device.
+     * Uses Android SAF (ContentResolver) — no SD card path needed.
+     */
+    fun extractApkToControllerUri(uri: android.net.Uri, contentResolver: android.content.ContentResolver) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val pkg = _state.value.packageName
+                val apkPath = connectionManager.exec("pm path $pkg 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }
+                    ?.removePrefix("package:")?.trim()
+                    ?: throw Exception("Could not find APK path for $pkg")
+
+                val bytes: ByteArray = when (connectionManager.getConnectionState()) {
+                    com.accu.connection.AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
+                        val f = java.io.File(apkPath)
+                        if (f.exists()) f.readBytes() else readApkViaBase64(apkPath)
+                    }
+                    else -> readApkViaBase64(apkPath)
+                }
+
+                contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                    ?: throw Exception("Cannot open output stream for chosen location")
+
+                _state.update { it.copy(snackbarMessage = "APK saved — ${bytes.size / 1024} KB written to chosen location") }
+            } catch (e: Exception) {
+                Timber.e(e, "extractApkToControllerUri failed")
+                _state.update { it.copy(snackbarMessage = "Failed to extract APK: ${e.message}") }
+            }
+        }
+    }
+
+    private suspend fun readApkViaBase64(remotePath: String): ByteArray {
+        val b64 = connectionManager.exec("base64 '$remotePath' 2>/dev/null")
+        if (b64.output.isBlank()) throw Exception("base64 read returned empty — check privilege")
+        return android.util.Base64.decode(
+            b64.output.replace("\\s+".toRegex(), ""), android.util.Base64.DEFAULT
+        )
+    }
+
     fun forceStop() {
         viewModelScope.launch {
             val ok = appRepository.forceStop(_state.value.packageName)

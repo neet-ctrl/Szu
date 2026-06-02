@@ -58,42 +58,84 @@ class AppRepository @Inject constructor(
 
     suspend fun freezeApp(packageName: String, method: FreezeMethod = FreezeMethod.DISABLE): Boolean = withContext(Dispatchers.IO) {
         try {
-            // Always derive app name from package name — never query local PackageManager
             val appName = packageName.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: packageName
-            val result = when (method) {
-                FreezeMethod.DISABLE   -> shizukuUtils.execShizuku("pm disable-user --user 0 $packageName")
-                FreezeMethod.SUSPEND   -> shizukuUtils.execShizuku("am suspend-packages $packageName")
-                FreezeMethod.HIDE      -> {
-                    // pm hide requires MANAGE_USERS permission (only available on root).
-                    // On ADB connections, fall back to pm disable-user which has the same effect.
-                    val r = shizukuUtils.execShizuku("pm hide --user 0 $packageName 2>&1")
-                    if (r.isSuccess || r.output.contains("hidden state: true")) r
-                    else shizukuUtils.execShizuku("pm disable-user --user 0 $packageName")
+
+            when (method) {
+                FreezeMethod.DISABLE -> {
+                    val r = connectionManager.exec("pm disable-user --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("disabled", ignoreCase = true) ||
+                             r.output.contains("new disabled state", ignoreCase = true)
+                    if (ok) frozenAppDao.insert(FrozenAppEntity(packageName = packageName, appName = appName, freezeMethod = "disable"))
+                    ok
                 }
-                FreezeMethod.UNHIDE    -> shizukuUtils.execShizuku("pm unhide --user 0 $packageName")
+                FreezeMethod.SUSPEND -> {
+                    // pm suspend --user 0 is the correct command (not am suspend-packages)
+                    val r = connectionManager.exec("pm suspend --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("suspended state: true", ignoreCase = true) ||
+                             r.output.contains("new suspended state: 1", ignoreCase = true)
+                    if (ok) frozenAppDao.insert(FrozenAppEntity(packageName = packageName, appName = appName, freezeMethod = "suspend"))
+                    ok
+                }
+                FreezeMethod.HIDE -> {
+                    // pm hide requires MANAGE_USERS (root). Try it first; fall back to disable-user on ADB.
+                    val hideResult = connectionManager.exec("pm hide --user 0 $packageName 2>&1")
+                    val hideOk = hideResult.output.contains("hidden state: true", ignoreCase = true) || hideResult.isSuccess
+                    if (hideOk) {
+                        frozenAppDao.insert(FrozenAppEntity(packageName = packageName, appName = appName, freezeMethod = "hide"))
+                        return@withContext true
+                    }
+                    // Fallback: pm disable-user works at ADB uid=2000 without MANAGE_USERS
+                    val fb = connectionManager.exec("pm disable-user --user 0 $packageName 2>&1")
+                    val fbOk = fb.isSuccess || fb.output.contains("disabled", ignoreCase = true) ||
+                               fb.output.contains("new disabled state", ignoreCase = true)
+                    if (fbOk) frozenAppDao.insert(FrozenAppEntity(packageName = packageName, appName = appName, freezeMethod = "hide"))
+                    fbOk
+                }
+                FreezeMethod.UNHIDE -> {
+                    val r = connectionManager.exec("pm unhide --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("hidden state: false", ignoreCase = true)
+                    if (ok) frozenAppDao.deleteByPackage(packageName)
+                    ok
+                }
             }
-            if (result.isSuccess) {
-                frozenAppDao.insert(FrozenAppEntity(packageName = packageName, appName = appName, freezeMethod = method.name.lowercase()))
-            }
-            result.isSuccess
         } catch (e: Exception) { Timber.e(e); false }
     }
 
     suspend fun unfreezeApp(packageName: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val frozen = frozenAppDao.get(packageName) ?: return@withContext false
-            val result = when (frozen.freezeMethod) {
-                "disable"  -> shizukuUtils.execShizuku("pm enable --user 0 $packageName")
-                "suspend"  -> shizukuUtils.execShizuku("am unsuspend-packages $packageName")
-                "hide"     -> {
-                    val r = shizukuUtils.execShizuku("pm unhide --user 0 $packageName 2>&1")
-                    if (r.isSuccess || r.output.contains("hidden state: false")) r
-                    else shizukuUtils.execShizuku("pm enable --user 0 $packageName")
+            when (frozen.freezeMethod) {
+                "disable" -> {
+                    val r = connectionManager.exec("pm enable --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("enabled", ignoreCase = true) ||
+                             r.output.contains("new enabled state", ignoreCase = true)
+                    if (ok) frozenAppDao.deleteByPackage(packageName)
+                    ok
                 }
-                else       -> shizukuUtils.execShizuku("pm enable --user 0 $packageName")
+                "suspend" -> {
+                    val r = connectionManager.exec("pm unsuspend --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("suspended state: false", ignoreCase = true)
+                    if (ok) frozenAppDao.deleteByPackage(packageName)
+                    ok
+                }
+                "hide" -> {
+                    // Try pm unhide first (root path), then fall back to pm enable (ADB path)
+                    val unhideResult = connectionManager.exec("pm unhide --user 0 $packageName 2>&1")
+                    val unhideOk = unhideResult.output.contains("hidden state: false", ignoreCase = true) || unhideResult.isSuccess
+                    if (unhideOk) { frozenAppDao.deleteByPackage(packageName); return@withContext true }
+                    val enableResult = connectionManager.exec("pm enable --user 0 $packageName 2>&1")
+                    val enableOk = enableResult.isSuccess || enableResult.output.contains("enabled", ignoreCase = true) ||
+                                   enableResult.output.contains("new enabled state", ignoreCase = true)
+                    if (enableOk) frozenAppDao.deleteByPackage(packageName)
+                    enableOk
+                }
+                else -> {
+                    val r = connectionManager.exec("pm enable --user 0 $packageName 2>&1")
+                    val ok = r.isSuccess || r.output.contains("enabled", ignoreCase = true)
+                    if (ok) frozenAppDao.deleteByPackage(packageName)
+                    ok
+                }
             }
-            if (result.isSuccess) frozenAppDao.deleteByPackage(packageName)
-            result.isSuccess
         } catch (e: Exception) { Timber.e(e); false }
     }
 
