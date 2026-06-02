@@ -159,12 +159,13 @@ fun AppNavigation(initialRoute: String? = null) {
     }
 
     // If connection drops while user is inside the app, send them back to the gate.
-    // A 2-second grace period prevents transient command failures (e.g. a single
-    // shell command throwing on WiFi ADB) from spuriously kicking the user out.
+    // A 5-second grace period prevents transient command failures (e.g. a single
+    // shell command throwing on WiFi ADB, or a large APK push taking a few seconds)
+    // from spuriously kicking the user out of the installer or any other screen.
     androidx.compose.runtime.LaunchedEffect(connectionState.connectionState) {
         val dropped = connectionState.connectionState == AccuConnectionManager.ConnectionState.DISCONNECTED
         if (dropped && !isOnGate && !isOnPairing) {
-            kotlinx.coroutines.delay(2_000)
+            kotlinx.coroutines.delay(5_000)
             val stillDropped = connectionViewModel.state.value.connectionState ==
                 AccuConnectionManager.ConnectionState.DISCONNECTED
             val nowOnGate    = navController.currentBackStackEntry?.destination?.route == Screen.ConnectionGate.route

@@ -135,11 +135,11 @@ class LargeFileFinderViewModel @Inject constructor(
         val threshold = _state.value.threshold
         val minKb = threshold.bytes / 1024
         _state.update { it.copy(currentScanPath = "Scanning via ADB…") }
+        // Single stat call per file (format: "size mtime path") — avoids two-stat-per-file
+        // overhead that made the old loop extremely slow and prone to exec timeouts.
         val result = connectionManager.exec(
             "find /sdcard -type f -size +${minKb}k 2>/dev/null | while IFS= read -r f; do" +
-            " s=\$(stat -c %s \"\$f\" 2>/dev/null);" +
-            " t=\$(stat -c %Y \"\$f\" 2>/dev/null);" +
-            " [ -n \"\$s\" ] && echo \"\$s \$t \$f\";" +
+            " stat -c '%s %Y %n' \"\$f\" 2>/dev/null;" +
             " done"
         )
         val found = mutableListOf<LargeFileItem>()
@@ -173,19 +173,22 @@ class LargeFileFinderViewModel @Inject constructor(
     private suspend fun scanLocal() {
         val threshold = _state.value.threshold.bytes
         val found = mutableListOf<LargeFileItem>()
-        val roots = listOf(
-            Environment.getExternalStorageDirectory(),
-            Environment.getDataDirectory(),
-        )
         var scanned = 0
-        suspend fun scan(dir: File) {
-            if (!dir.exists() || !dir.canRead()) return
+
+        // Iterative BFS instead of recursive — avoids StackOverflowError on deep trees
+        val queue = ArrayDeque<File>()
+        queue.addLast(Environment.getExternalStorageDirectory())
+        queue.addLast(Environment.getDataDirectory())
+
+        while (queue.isNotEmpty()) {
+            yield()
+            val dir = queue.removeFirst()
+            if (!dir.exists() || !dir.canRead()) continue
             try {
                 dir.listFiles()?.forEach { f ->
-                    yield()
                     if (f.isDirectory) {
+                        queue.addLast(f)
                         _state.update { it.copy(currentScanPath = f.path, scannedCount = scanned) }
-                        scan(f)
                     } else if (f.length() >= threshold) {
                         scanned++
                         val ext = f.extension
@@ -206,7 +209,6 @@ class LargeFileFinderViewModel @Inject constructor(
                 }
             } catch (_: Exception) {}
         }
-        roots.forEach { scan(it) }
     }
 
     fun toggleSelect(path: String) = _state.update { s ->

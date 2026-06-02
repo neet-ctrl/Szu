@@ -74,7 +74,9 @@ class StorageAnalyzerViewModel @Inject constructor(
             _state.update { it.copy(isLoading = true, errorMessage = null) }
             try {
                 // ── 1. Disk usage overview ──────────────────────────────────────
-                val dfOut = connectionManager.exec("df -k /data /sdcard 2>/dev/null").output
+                // Query /sdcard only — on modern Android /data and /sdcard are the
+                // same physical partition; querying both doubles every number.
+                val dfOut = connectionManager.exec("df -k /sdcard 2>/dev/null").output
                 var totalKb = 0L; var usedKb = 0L; var freeKb = 0L
                 dfOut.lines().drop(1).forEach { line ->
                     val parts = line.trim().split("\\s+".toRegex())

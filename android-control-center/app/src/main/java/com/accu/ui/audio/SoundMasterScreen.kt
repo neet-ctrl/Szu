@@ -312,7 +312,15 @@ private fun SoundMasterEntryCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val appLabel = remember(entry.pkg) { entry.pkg.split(".").last().replaceFirstChar { it.uppercase() } }
-    val isBoost = entry.volume > 100f
+
+    // Local slider state — updates instantly during drag; syncs from external changes (preset, mute-all, reset)
+    var localVolume  by remember(entry.volume)   { mutableFloatStateOf(entry.volume) }
+    var localBalance by remember(entry.balance)  { mutableFloatStateOf(entry.balance) }
+    var localEqLow   by remember(entry.eqLow)   { mutableFloatStateOf(entry.eqLow) }
+    var localEqMid   by remember(entry.eqMid)   { mutableFloatStateOf(entry.eqMid) }
+    var localEqHigh  by remember(entry.eqHigh)  { mutableFloatStateOf(entry.eqHigh) }
+
+    val isBoost = localVolume > 100f
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -376,15 +384,16 @@ private fun SoundMasterEntryCard(
                 Icon(Icons.Default.VolumeUp, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(8.dp))
                 Slider(
-                    value = entry.volume,
-                    onValueChange = { if (!entry.locked) onVolumeChange(it) },
+                    value = localVolume,
+                    onValueChange = { if (!entry.locked) localVolume = it },
+                    onValueChangeFinished = { if (!entry.locked) onVolumeChange(localVolume) },
                     valueRange = 0f..200f,
                     modifier = Modifier.weight(1f),
                     enabled = !entry.locked,
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "${"%.0f".format(entry.volume)}%",
+                    "${"%.0f".format(localVolume)}%",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isBoost) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
@@ -401,15 +410,16 @@ private fun SoundMasterEntryCard(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("L", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(14.dp))
                         Slider(
-                            value = entry.balance,
-                            onValueChange = { if (!entry.locked) onBalanceChange(it) },
+                            value = localBalance,
+                            onValueChange = { if (!entry.locked) localBalance = it },
+                            onValueChangeFinished = { if (!entry.locked) onBalanceChange(localBalance) },
                             valueRange = -100f..100f,
                             modifier = Modifier.weight(1f),
                             enabled = !entry.locked,
                         )
                         Text("R", style = MaterialTheme.typography.labelSmall, modifier = Modifier.width(14.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     }
-                    Text("Balance: ${"%.0f".format(entry.balance)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("Balance: ${"%.0f".format(localBalance)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 
                     Spacer(Modifier.height(8.dp))
 
@@ -417,22 +427,28 @@ private fun SoundMasterEntryCard(
                     Text("Equalizer", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(4.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Lows" to entry.eqLow, "Mids" to entry.eqMid, "Highs" to entry.eqHigh).forEachIndexed { band, (label, value) ->
+                        data class EqBand(val label: String, val local: Float, val setLocal: (Float) -> Unit, val idx: Int)
+                        listOf(
+                            EqBand("Lows",  localEqLow,  { localEqLow  = it }, 0),
+                            EqBand("Mids",  localEqMid,  { localEqMid  = it }, 1),
+                            EqBand("Highs", localEqHigh, { localEqHigh = it }, 2),
+                        ).forEach { band ->
                             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    "${if (value >= 50) "+" else ""}${"%.0f".format(value - 50)}dB",
+                                    "${if (band.local >= 50) "+" else ""}${"%.0f".format(band.local - 50)}dB",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontSize = 9.sp,
-                                    color = if (value != 50f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (band.local != 50f) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                                 Slider(
-                                    value = value,
-                                    onValueChange = { if (!entry.locked) onEqChange(band, it) },
+                                    value = band.local,
+                                    onValueChange = { if (!entry.locked) band.setLocal(it) },
+                                    onValueChangeFinished = { if (!entry.locked) onEqChange(band.idx, band.local) },
                                     valueRange = 0f..100f,
                                     modifier = Modifier.height(80.dp).width(32.dp),
                                     enabled = !entry.locked,
                                 )
-                                Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
+                                Text(band.label, style = MaterialTheme.typography.labelSmall, fontSize = 10.sp)
                             }
                         }
                     }
