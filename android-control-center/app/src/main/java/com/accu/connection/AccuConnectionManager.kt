@@ -128,6 +128,41 @@ class AccuConnectionManager @Inject constructor(
     private val _state = MutableStateFlow(ConnectionState.DISCONNECTED)
     val state: StateFlow<ConnectionState> = _state.asStateFlow()
 
+    // ─── Multi-device registry ─────────────────────────────────────────────────
+
+    /**
+     * Snapshot of one connected device — serialisable, safe for StateFlow / UI.
+     * No live connection objects; use the internal registry for those.
+     */
+    data class ConnectedDeviceInfo(
+        val id: String,
+        val label: String,
+        val ip: String = "",
+        val port: Int = 0,
+        val connectionType: ConnectionState,
+    )
+
+    /** Internal handle that owns the live connection objects for one device. */
+    inner class ConnectedDeviceHandle(
+        val id: String,
+        @Volatile var label: String,
+        val ip: String = "",
+        val port: Int = 0,
+        val connectionType: ConnectionState,
+        @Volatile var wifiClient: AdbWifiConnectClient? = null,
+        @Volatile var dadbConn: Dadb? = null,
+    ) {
+        fun toInfo() = ConnectedDeviceInfo(id, label, ip, port, connectionType)
+    }
+
+    private val deviceRegistry = java.util.concurrent.ConcurrentHashMap<String, ConnectedDeviceHandle>()
+
+    private val _connectedDevices = MutableStateFlow<List<ConnectedDeviceInfo>>(emptyList())
+    val connectedDevices: StateFlow<List<ConnectedDeviceInfo>> = _connectedDevices.asStateFlow()
+
+    private val _activeDeviceId = MutableStateFlow("")
+    val activeDeviceId: StateFlow<String> = _activeDeviceId.asStateFlow()
+
     /** Discovered pairing host + port via mDNS */
     private var pairingHost: String = ""
     private var pairingPort: Int    = 0
@@ -287,66 +322,146 @@ class AccuConnectionManager @Inject constructor(
         _state.value == ConnectionState.CONNECTED_WIRELESS ||
         _state.value == ConnectionState.CONNECTED_OTG
 
+    // ─── Multi-device management API ──────────────────────────────────────────────
+
+    /**
+     * Register a device into the multi-device registry and make it the active target.
+     * Called automatically after each successful connection (root / wireless / OTG).
+     * If the device is already registered its handle is refreshed and it becomes active.
+     */
+    fun registerDevice(
+        id: String,
+        label: String,
+        ip: String = "",
+        port: Int = 0,
+        type: ConnectionState,
+        wifiClient: AdbWifiConnectClient? = null,
+        dadbConn: Dadb? = null,
+    ) {
+        deviceRegistry[id] = ConnectedDeviceHandle(id, label, ip, port, type, wifiClient, dadbConn)
+        _activeDeviceId.value = id
+        _state.value = type
+        if (ip.isNotEmpty()) prefs.edit().putString(KEY_LAST_IP, ip).putInt(KEY_LAST_PORT, port).apply()
+        publishDeviceList()
+    }
+
+    /** Update the human-readable label of the active device (e.g. after fetching model name). */
+    fun updateActiveDeviceLabel(label: String) {
+        val id = _activeDeviceId.value.ifEmpty { return }
+        deviceRegistry[id]?.label = label
+        publishDeviceList()
+    }
+
+    /**
+     * Switch the active device — all exec() calls now route to this device.
+     * The previous device's connection remains alive; only which is "active" changes.
+     */
+    fun switchActiveDevice(id: String) {
+        val handle = deviceRegistry[id] ?: return
+        _activeDeviceId.value = id
+        _state.value = handle.connectionType
+        wifiConnectClient = handle.wifiClient
+        dadbConnection    = handle.dadbConn
+        if (handle.ip.isNotEmpty())
+            prefs.edit().putString(KEY_LAST_IP, handle.ip).putInt(KEY_LAST_PORT, handle.port).apply()
+    }
+
+    /**
+     * Disconnect and permanently remove a device from the registry.
+     * If the removed device was active, auto-switches to the next available device.
+     */
+    fun removeDevice(id: String) {
+        val handle = deviceRegistry.remove(id) ?: return
+        try { handle.wifiClient?.close() } catch (_: Exception) {}
+        publishDeviceList()
+        if (_activeDeviceId.value == id) {
+            val next = deviceRegistry.entries.firstOrNull()
+            if (next != null) {
+                switchActiveDevice(next.key)
+            } else {
+                _activeDeviceId.value = ""
+                wifiConnectClient     = null
+                dadbConnection        = null
+                _state.value          = ConnectionState.DISCONNECTED
+            }
+        }
+    }
+
+    private fun publishDeviceList() {
+        _connectedDevices.value = deviceRegistry.values.map { it.toInfo() }
+    }
+
     /**
      * Execute a shell command using the best available privilege source.
      *
-     * Priority:
-     *   1. Root (LibSU) — Shell.cmd(command).exec() as uid=0 on LOCAL device
-     *   2. CONNECTED_WIRELESS with system adb binary → "$adb -s ip:port shell command"
-     *      on the TARGET device (the device ACCU is connected to via ADB)
-     *   3. Plain shell — Runtime.exec(sh -c command) as app UID, local device
-     *
-     * This means: when connected to a target phone via wireless ADB, ALL execShizuku()
-     * calls route to THAT device, not the device running ACCU.
+     * Multi-device routing: checks the active device in the registry first so each
+     * exec() targets the currently selected device.  Falls back to legacy single-device
+     * logic for backward compatibility when the registry is empty.
      */
     suspend fun exec(command: String): ShellResult = withContext(Dispatchers.IO) {
         try {
+            val activeId = _activeDeviceId.value
+            val handle   = if (activeId.isNotEmpty()) deviceRegistry[activeId] else null
             when {
-                // Priority 1: LibSU root — uid=0 on local device
+                // ── Registry-based routing (multi-device) ─────────────────────────────
+                handle?.connectionType == ConnectionState.CONNECTED_ROOT ->
+                    execRoot(command)
+
+                handle?.wifiClient != null -> try {
+                    ShellResult(handle.wifiClient!!.shell(command), "", 0)
+                } catch (e: Exception) {
+                    Timber.w(e, "$TAG wifiClient exec failed for ${handle.id}")
+                    handle.wifiClient = null; publishDeviceList()
+                    _state.value = ConnectionState.DISCONNECTED
+                    ShellResult("", e.message ?: "wifi error", -1)
+                }
+
+                handle?.dadbConn != null -> try {
+                    val r = handle.dadbConn!!.shell(command)
+                    ShellResult(r.output, r.errorOutput, r.exitCode)
+                } catch (e: Exception) {
+                    Timber.w(e, "$TAG dadb exec failed for ${handle.id}")
+                    handle.dadbConn = null; publishDeviceList()
+                    _state.value = ConnectionState.DISCONNECTED
+                    ShellResult("", e.message ?: "dadb error", -1)
+                }
+
+                handle?.connectionType == ConnectionState.CONNECTED_WIRELESS -> {
+                    val adb = findAdbBinary()
+                    if (adb != null && handle.ip.isNotBlank())
+                        execPlainShell("$adb -s ${handle.ip}:${handle.port} shell $command")
+                    else execPlainShell(command)
+                }
+
+                // ── Legacy single-device fallback (registry empty) ────────────────────
                 Shell.getShell().isRoot -> execRoot(command)
 
-                // Priority 2a: TLS wireless ADB client (Android 11+, no adb binary needed)
-                // NOTE: dadb.Dadb.create() uses plain TCP — it cannot connect to Android 11+
-                // wireless ADB session ports which require mTLS. AdbWifiConnectClient opens a
-                // TLS socket using the same AdbKey registered during SPAKE2 pairing.
-                _state.value == ConnectionState.CONNECTED_WIRELESS && wifiConnectClient != null -> {
-                    try {
-                        val out = wifiConnectClient!!.shell(command)
-                        ShellResult(out, "", 0)
-                    } catch (e: Exception) {
-                        Timber.w(e, "$TAG wifiConnectClient exec failed — clearing connection")
-                        wifiConnectClient?.close()
-                        wifiConnectClient = null
-                        _state.value = ConnectionState.DISCONNECTED
-                        ShellResult("", e.message ?: "wifi connect error", -1)
-                    }
+                _state.value == ConnectionState.CONNECTED_WIRELESS && wifiConnectClient != null -> try {
+                    ShellResult(wifiConnectClient!!.shell(command), "", 0)
+                } catch (e: Exception) {
+                    Timber.w(e, "$TAG wifiConnectClient exec failed — clearing connection")
+                    wifiConnectClient?.close(); wifiConnectClient = null
+                    _state.value = ConnectionState.DISCONNECTED
+                    ShellResult("", e.message ?: "wifi connect error", -1)
                 }
 
-                // Priority 2b: dadb connection (legacy / USB OTG plain-TCP ADB)
-                _state.value == ConnectionState.CONNECTED_WIRELESS && dadbConnection != null -> {
-                    try {
-                        val result = dadbConnection!!.shell(command)
-                        ShellResult(result.output, result.errorOutput, result.exitCode)
-                    } catch (e: Exception) {
-                        Timber.w(e, "$TAG dadb exec failed — clearing connection")
-                        dadbConnection = null
-                        _state.value = ConnectionState.DISCONNECTED
-                        ShellResult("", e.message ?: "dadb error", -1)
-                    }
+                _state.value == ConnectionState.CONNECTED_WIRELESS && dadbConnection != null -> try {
+                    val result = dadbConnection!!.shell(command)
+                    ShellResult(result.output, result.errorOutput, result.exitCode)
+                } catch (e: Exception) {
+                    Timber.w(e, "$TAG dadb exec failed — clearing connection")
+                    dadbConnection = null; _state.value = ConnectionState.DISCONNECTED
+                    ShellResult("", e.message ?: "dadb error", -1)
                 }
 
-                // Priority 2b: system adb binary → execute on the TARGET device
                 _state.value == ConnectionState.CONNECTED_WIRELESS -> {
                     val adb = findAdbBinary()
                     val ip  = getLastConnectedIp()
-                    if (adb != null && ip.isNotBlank()) {
+                    if (adb != null && ip.isNotBlank())
                         execPlainShell("$adb -s $ip:${getLastConnectedPort()} shell $command")
-                    } else {
-                        execPlainShell(command)
-                    }
+                    else execPlainShell(command)
                 }
 
-                // Priority 3: plain local shell
                 else -> execPlainShell(command)
             }
         } catch (e: Exception) {
@@ -548,6 +663,9 @@ class AccuConnectionManager @Inject constructor(
         val isRoot = try { Shell.getShell().isRoot } catch (_: Exception) { false }
         if (isRoot) {
             _state.value = ConnectionState.CONNECTED_ROOT
+            if (!deviceRegistry.containsKey("root"))
+                registerDevice("root", "Root Device", type = ConnectionState.CONNECTED_ROOT)
+            else _activeDeviceId.value = "root"
             return
         }
         // Check TLS wireless client first (preferred for Android 11+ wireless ADB)
@@ -556,6 +674,12 @@ class AccuConnectionManager @Inject constructor(
             try {
                 if (existingWifi.shell("echo ok").trim() == "ok") {
                     _state.value = ConnectionState.CONNECTED_WIRELESS
+                    val ip   = getLastConnectedIp()
+                    val port = getLastConnectedPort()
+                    val devId = "$ip:$port"
+                    if (!deviceRegistry.containsKey(devId) && ip.isNotBlank())
+                        registerDevice(devId, ip, ip, port, ConnectionState.CONNECTED_WIRELESS, existingWifi, null)
+                    else if (ip.isNotBlank()) _activeDeviceId.value = devId
                     return
                 }
             } catch (_: Exception) {
@@ -570,6 +694,12 @@ class AccuConnectionManager @Inject constructor(
                 val result = existingDadb.shell("echo ok")
                 if (result.output.trim() == "ok") {
                     _state.value = ConnectionState.CONNECTED_WIRELESS
+                    val ip   = getLastConnectedIp()
+                    val port = getLastConnectedPort()
+                    val devId = "$ip:$port"
+                    if (!deviceRegistry.containsKey(devId) && ip.isNotBlank())
+                        registerDevice(devId, ip, ip, port, ConnectionState.CONNECTED_WIRELESS, null, existingDadb)
+                    else if (ip.isNotBlank()) _activeDeviceId.value = devId
                     return
                 }
             } catch (_: Exception) {
@@ -619,6 +749,7 @@ class AccuConnectionManager @Inject constructor(
                     wifiConnectClient = conn
                     _state.value = ConnectionState.CONNECTED_WIRELESS
                     Timber.i("$TAG reconnect: TLS ADB verified at $ip:$port")
+                    registerDevice("$ip:$port", ip, ip, port, ConnectionState.CONNECTED_WIRELESS, conn, null)
                     return@withContext true
                 } else {
                     conn.close()
@@ -635,6 +766,7 @@ class AccuConnectionManager @Inject constructor(
                     dadbConnection = conn
                     _state.value = ConnectionState.CONNECTED_WIRELESS
                     Timber.i("$TAG reconnect: dadb verified at $ip:$port")
+                    registerDevice("$ip:$port", ip, ip, port, ConnectionState.CONNECTED_WIRELESS, null, conn)
                     return@withContext true
                 }
             } catch (e: Exception) {
@@ -659,11 +791,21 @@ class AccuConnectionManager @Inject constructor(
     }
 
     fun disconnect() {
+        val activeId = _activeDeviceId.value
+        if (activeId.isNotEmpty() && deviceRegistry.size > 1) {
+            // Multiple devices — remove only the active one, preserve others
+            removeDevice(activeId)
+            return
+        }
+        // Single device or no device — full disconnect
+        deviceRegistry.values.forEach { h -> try { h.wifiClient?.close() } catch (_: Exception) {} }
+        deviceRegistry.clear()
+        _activeDeviceId.value = ""
+        _connectedDevices.value = emptyList()
         try { wifiConnectClient?.close() } catch (_: Exception) {}
         wifiConnectClient = null
         try { dadbConnection?.close() } catch (_: Exception) {}
         dadbConnection = null
-        // Also try adb disconnect if binary is available
         val adb = findAdbBinary()
         val ip  = getLastConnectedIp()
         if (adb != null && ip.isNotBlank()) {
@@ -681,6 +823,7 @@ class AccuConnectionManager @Inject constructor(
     suspend fun connectOtg(): Boolean = withContext(Dispatchers.IO) {
         if (Shell.getShell().isRoot) {
             _state.value = ConnectionState.CONNECTED_OTG
+            registerDevice("otg", "OTG / USB Device", type = ConnectionState.CONNECTED_OTG)
             return@withContext true
         }
         val adb = findAdbBinary() ?: return@withContext false
@@ -689,7 +832,10 @@ class AccuConnectionManager @Inject constructor(
             .drop(1)
             .filter { it.isNotBlank() && !it.startsWith("*") }
             .any { it.contains("\t") && it.contains("device") && !it.contains(":") }
-        if (hasUsb) _state.value = ConnectionState.CONNECTED_OTG
+        if (hasUsb) {
+            _state.value = ConnectionState.CONNECTED_OTG
+            registerDevice("otg", "OTG / USB Device", type = ConnectionState.CONNECTED_OTG)
+        }
         hasUsb
     }
 
@@ -898,6 +1044,8 @@ class AccuConnectionManager @Inject constructor(
                 saveSession(host, host, connectPort)
                 showConnectedNotification(host, connectPort)
                 stopPairingDiscovery()
+                registerDevice("$host:$connectPort", host, host, connectPort,
+                    ConnectionState.CONNECTED_WIRELESS, conn, null)
                 Timber.i("$TAG TLS ADB verified live connection to $host:$connectPort ✓")
                 PairingResult.Success
             } else {
@@ -947,6 +1095,8 @@ class AccuConnectionManager @Inject constructor(
                 _state.value = ConnectionState.CONNECTED_WIRELESS
                 prefs.edit().putString(KEY_LAST_IP, host).putInt(KEY_LAST_PORT, port).apply()
                 showConnectedNotification(host, port)
+                registerDevice("$host:$port", host, host, port,
+                    ConnectionState.CONNECTED_WIRELESS, conn, null)
                 Timber.i("$TAG retryConnectionOnly: TLS ADB verified ✓ $host:$port")
                 PairingResult.Success
             } else {

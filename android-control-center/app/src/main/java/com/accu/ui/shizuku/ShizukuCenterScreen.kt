@@ -100,7 +100,7 @@ fun AccuCenterScreen(
                 }
             }
             when (selectedTab) {
-                0 -> StatusTab(state, viewModel)
+                0 -> StatusTab(state, viewModel, onNavigateToAdbPairing)
                 1 -> AuthorizedAppsTab(state, viewModel)
                 2 -> RishTab(state, viewModel)
                 3 -> SettingsTab(state, viewModel)
@@ -124,13 +124,13 @@ private enum class DeviceInfoCategory(val label: String, val icon: ImageVector, 
 }
 
 @Composable
-private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel) {
+private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel, onAddDevice: () -> Unit = {}) {
     var category by remember { mutableStateOf(DeviceInfoCategory.OVERVIEW) }
     val info = state.targetInfo
 
     Column(Modifier.fillMaxSize()) {
         // ── Connection banner ─────────────────────────────────────────────────
-        ConnectionBanner(state, vm)
+        ConnectionBanner(state, vm, onAddDevice)
 
         // ── Category filter strip ─────────────────────────────────────────────
         if (state.isGranted) {
@@ -187,26 +187,39 @@ private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel) {
 
 // ── Connection Banner ─────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
+private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel, onAddDevice: () -> Unit = {}) {
     val info = state.targetInfo
     val isConnected = state.isGranted
     val accentColor = when {
-        state.isLoading           -> MaterialTheme.colorScheme.outline
-        isConnected               -> AccentGreen
-        state.isAvailable         -> Color(0xFF7C3AED)
-        else                      -> AccentRed
+        state.isLoading   -> MaterialTheme.colorScheme.outline
+        isConnected       -> AccentGreen
+        state.isAvailable -> Color(0xFF7C3AED)
+        else              -> AccentRed
+    }
+
+    var showDeviceSheet by remember { mutableStateOf(false) }
+
+    if (showDeviceSheet) {
+        DeviceManagerSheet(
+            devices     = state.multiDevices,
+            activeId    = state.activeDeviceId,
+            onDismiss   = { showDeviceSheet = false },
+            onSwitch    = { id -> vm.switchDevice(id); showDeviceSheet = false },
+            onRemove    = { id -> vm.removeDevice(id) },
+            onAddDevice = { showDeviceSheet = false; onAddDevice() },
+        )
     }
 
     Box(
         Modifier
             .fillMaxWidth()
             .drawBehind {
-                val gradient = Brush.verticalGradient(
+                drawRect(Brush.verticalGradient(
                     listOf(accentColor.copy(alpha = 0.12f), Color.Transparent),
                     startY = 0f, endY = size.height,
-                )
-                drawRect(gradient)
+                ))
             }
     ) {
         Row(
@@ -214,16 +227,16 @@ private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            // Animated status dot
+            // Status dot
             Box(
                 Modifier.size(52.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.18f)),
                 contentAlignment = Alignment.Center,
             ) {
                 when {
-                    state.isLoading -> CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp, color = accentColor)
-                    isConnected     -> Icon(Icons.Filled.CheckCircle, null, Modifier.size(30.dp), tint = AccentGreen)
-                    state.isAvailable -> Icon(Icons.Outlined.Lock,    null, Modifier.size(28.dp), tint = Color(0xFF7C3AED))
-                    else            -> Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(28.dp), tint = AccentRed)
+                    state.isLoading   -> CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp, color = accentColor)
+                    isConnected       -> Icon(Icons.Filled.CheckCircle, null, Modifier.size(30.dp), tint = AccentGreen)
+                    state.isAvailable -> Icon(Icons.Outlined.Lock,      null, Modifier.size(28.dp), tint = Color(0xFF7C3AED))
+                    else              -> Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(28.dp), tint = AccentRed)
                 }
             }
             Column(Modifier.weight(1f)) {
@@ -239,12 +252,12 @@ private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
                 )
                 Text(
                     text = when {
-                        isConnected -> buildString {
+                        isConnected       -> buildString {
                             if (info.manufacturer.isNotEmpty()) append("${info.manufacturer} · ")
                             append(state.serverStartMethod)
                         }
                         state.isAvailable -> "Establishing privilege connection…"
-                        else -> "Set up Wireless ADB or use Root"
+                        else              -> "Set up Wireless ADB or use Root"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -259,23 +272,217 @@ private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
                     )
                 }
             }
-            // Quick action icons
+            // Device switcher + refresh/stop actions
             if (isConnected) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconButton(onClick = vm::refreshDeviceInfo, modifier = Modifier.size(36.dp)) {
-                        if (info.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (state.multiDevices.size >= 2) {
+                        // Avatar cluster — tapping opens the device manager sheet
+                        DeviceAvatarCluster(
+                            devices  = state.multiDevices,
+                            activeId = state.activeDeviceId,
+                            onTap    = { showDeviceSheet = true },
+                        )
+                    } else {
+                        // Single/no extra device — show a "+" button to add another
+                        IconButton(onClick = onAddDevice, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Outlined.AddCircleOutline,
+                                contentDescription = "Add another device",
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
-                    IconButton(onClick = vm::stopServer, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Stop, null, Modifier.size(18.dp), tint = AccentRed)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconButton(onClick = vm::refreshDeviceInfo, modifier = Modifier.size(36.dp)) {
+                            if (info.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                        }
+                        IconButton(onClick = vm::stopServer, modifier = Modifier.size(36.dp)) {
+                            Icon(Icons.Outlined.Stop, null, Modifier.size(18.dp), tint = AccentRed)
+                        }
                     }
                 }
             }
         }
-        // Thin accent line at bottom
         Box(Modifier.fillMaxWidth().height(1.5.dp).align(Alignment.BottomStart).background(accentColor.copy(alpha = 0.4f)))
     }
 }
+
+/** Overlapping avatar circles for all connected devices. Tap opens the manager sheet. */
+@Composable
+private fun DeviceAvatarCluster(
+    devices: List<AccuConnectionManager.ConnectedDeviceInfo>,
+    activeId: String,
+    onTap: () -> Unit,
+) {
+    val surfaceBg  = MaterialTheme.colorScheme.surface
+    val visible    = devices.take(3)
+    val extraCount = devices.size - visible.size
+    val step       = 14 // dp between avatar left-edges (32dp circle with 18dp overlap)
+    val clusterW   = (32 + (visible.size - 1 + if (extraCount > 0) 1 else 0) * step).coerceAtLeast(32)
+
+    Box(
+        Modifier
+            .size(width = clusterW.dp, height = 36.dp)
+            .clickable(onClick = onTap),
+    ) {
+        visible.forEachIndexed { idx, device ->
+            val isActive = device.id == activeId
+            Box(
+                Modifier
+                    .offset(x = (idx * step).dp, y = 2.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(surfaceBg)
+                    .padding(1.5.dp)
+                    .clip(CircleShape)
+                    .background(if (isActive) AccentGreen else deviceColor(device.id)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(deviceInitial(device.label), color = Color.White,
+                    fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+        }
+        if (extraCount > 0) {
+            Box(
+                Modifier
+                    .offset(x = (visible.size * step).dp, y = 2.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(surfaceBg)
+                    .padding(1.5.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+$extraCount", fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** Bottom sheet listing all connected devices with switch / remove / add actions. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeviceManagerSheet(
+    devices: List<AccuConnectionManager.ConnectedDeviceInfo>,
+    activeId: String,
+    onDismiss: () -> Unit,
+    onSwitch: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onAddDevice: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            Text("Connected Devices", fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(bottom = 2.dp))
+            Text("${devices.size} device${if (devices.size == 1) "" else "s"} · tap a device to switch",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp))
+
+            devices.forEach { device ->
+                val isActive = device.id == activeId
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors   = CardDefaults.cardColors(
+                        containerColor = if (isActive)
+                            AccentGreen.copy(alpha = 0.12f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // Avatar
+                        Box(
+                            Modifier.size(40.dp).clip(CircleShape).background(deviceColor(device.id)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(deviceInitial(device.label), color = Color.White,
+                                fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                        }
+                        // Info
+                        Column(Modifier.weight(1f)) {
+                            Text(device.label, fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (device.ip.isNotEmpty()) {
+                                    Text(device.ip, style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(
+                                    when (device.connectionType) {
+                                        AccuConnectionManager.ConnectionState.CONNECTED_ROOT     -> "Root"
+                                        AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS -> "Wireless ADB"
+                                        AccuConnectionManager.ConnectionState.CONNECTED_OTG      -> "OTG / USB"
+                                        else -> ""
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AccentCyan,
+                                )
+                            }
+                        }
+                        // Active indicator or "Use" button
+                        if (isActive) {
+                            Icon(Icons.Filled.CheckCircle, "Active", tint = AccentGreen,
+                                modifier = Modifier.size(20.dp))
+                        } else {
+                            FilledTonalButton(
+                                onClick = { onSwitch(device.id) },
+                                modifier = Modifier.height(30.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                            ) {
+                                Text("Use", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        // Remove
+                        IconButton(onClick = { onRemove(device.id) }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.Close, "Disconnect", tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onAddDevice, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.AddCircleOutline, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Add Another Device")
+            }
+        }
+    }
+}
+
+/** Deterministic pastel/accent color from device ID. */
+private fun deviceColor(id: String): Color {
+    val palette = listOf(
+        Color(0xFF5C6BC0), Color(0xFF26A69A), Color(0xFFEF5350),
+        Color(0xFFAB47BC), Color(0xFF26C6DA), Color(0xFFFF7043),
+    )
+    return palette[((id.hashCode() % palette.size) + palette.size) % palette.size]
+}
+
+/** First letter of label, uppercased. */
+private fun deviceInitial(label: String): String =
+    label.firstOrNull { it.isLetter() }?.uppercaseChar()?.toString() ?: "?"
 
 // ── Overview items ────────────────────────────────────────────────────────────
 

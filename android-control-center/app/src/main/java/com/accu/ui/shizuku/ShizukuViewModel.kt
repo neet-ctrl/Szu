@@ -115,6 +115,8 @@ data class ShizukuUiState(
     val sdkLevel: String = "",
     // Full target device info
     val targetInfo: TargetDeviceInfo = TargetDeviceInfo(),
+    val multiDevices: List<AccuConnectionManager.ConnectedDeviceInfo> = emptyList(),
+    val activeDeviceId: String = "",
 )
 
 data class ShizukuLogEntry(
@@ -202,6 +204,18 @@ class ShizukuViewModel @Inject constructor(
                 }
             }
         }
+        // Observe multi-device registry changes
+        viewModelScope.launch {
+            connectionManager.connectedDevices.collect { devices ->
+                _state.update { it.copy(multiDevices = devices) }
+            }
+        }
+        viewModelScope.launch {
+            connectionManager.activeDeviceId.collect { id ->
+                _state.update { it.copy(activeDeviceId = id) }
+            }
+        }
+
         viewModelScope.launch { refresh() }
     }
 
@@ -211,9 +225,14 @@ class ShizukuViewModel @Inject constructor(
             connectionManager.checkAndUpdateState()
             val connState = connectionManager.state.value
             val isRoot = shizukuUtils.isRootAvailable()
+            val activeId    = connectionManager.activeDeviceId.value
+            val activeDevice = connectionManager.connectedDevices.value.firstOrNull { it.id == activeId }
             val isConnected = connState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
                     || connState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
                     || connState == AccuConnectionManager.ConnectionState.CONNECTED_OTG
+                    || activeDevice?.connectionType == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
+                    || activeDevice?.connectionType == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
+                    || activeDevice?.connectionType == AccuConnectionManager.ConnectionState.CONNECTED_OTG
             val deviceIp = connectionManager.getDeviceIp()
             val lastIp = connectionManager.getLastConnectedIp()
 
@@ -384,6 +403,14 @@ class ShizukuViewModel @Inject constructor(
                     androidVersion = info.androidVersion,
                     sdkLevel       = info.sdkLevel,
                 ) }
+                // Update the registry label with the actual model name
+                val mfr   = info.manufacturer.trim()
+                val model = info.model.trim()
+                if (model.isNotEmpty()) {
+                    connectionManager.updateActiveDeviceLabel(
+                        if (mfr.isNotEmpty() && !model.startsWith(mfr, ignoreCase = true)) "$mfr $model" else model
+                    )
+                }
             } catch (e: Exception) {
                 _state.update { it.copy(targetInfo = it.targetInfo.copy(isLoading = false)) }
                 addLog("Device info fetch error: ${e.message?.take(80)}", LogLevel.WARNING)
@@ -589,6 +616,45 @@ class ShizukuViewModel @Inject constructor(
     fun startDiscovery() {
         addLog("Starting auto-discovery for Wireless Debugging pairing service…", LogLevel.INFO)
         connectionManager.startPairingDiscovery()
+    }
+
+    /** Switch the active device — all exec() calls now route to this device. */
+    fun switchDevice(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            addLog("Switching active device to: $id", LogLevel.INFO)
+            connectionManager.switchActiveDevice(id)
+            withContext(Dispatchers.Main) { refreshDeviceInfo() }
+        }
+    }
+
+    /** Remove a device from the registry (disconnects it). If it was active, auto-switches. */
+    fun removeDevice(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            addLog("Removing device: $id", LogLevel.INFO)
+            connectionManager.removeDevice(id)
+            withContext(Dispatchers.Main) { refresh() }
+        }
+    }
+
+    /** Call before navigating to the pairing screen to add a second device. */
+    var previousActiveDeviceId: String = ""
+        private set
+
+    fun onBeforeAddDevice() {
+        previousActiveDeviceId = connectionManager.activeDeviceId.value
+    }
+
+    /**
+     * Call when the user cancels out of the pairing screen without connecting a new device.
+     * Restores the previously active device so the UI stays consistent.
+     */
+    fun onAddDeviceCancelled() {
+        val prev = previousActiveDeviceId
+        if (prev.isNotEmpty() && connectionManager.connectedDevices.value.any { it.id == prev }) {
+            connectionManager.switchActiveDevice(prev)
+            viewModelScope.launch(Dispatchers.Main) { refreshDeviceInfo() }
+        }
+        previousActiveDeviceId = ""
     }
 
     fun stopDiscovery() {
