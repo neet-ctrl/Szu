@@ -1,5 +1,7 @@
 package com.accu.ui.customization
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -40,6 +42,16 @@ fun ColorEditorScreen(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
 
+    // Import theme — file picker for .json files
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            try {
+                val json = context.contentResolver.openInputStream(it)?.bufferedReader()?.readText() ?: ""
+                if (json.isNotBlank()) viewModel.importThemeFromJson(json)
+            } catch (_: Exception) {}
+        }
+    }
+
     // Local Monet slider state (ColorBlendr)
     var accentSaturation by remember { mutableFloatStateOf(100f) }
     var bgSaturation     by remember { mutableFloatStateOf(30f) }
@@ -73,8 +85,8 @@ fun ColorEditorScreen(
                     title = "Color & Theme Editor",
                     onBack = onBack,
                     actions = {
-                        IconButton(onClick = { viewModel.exportTheme() }) { Icon(Icons.Default.IosShare, "Export") }
-                        IconButton(onClick = { viewModel.importTheme() }) { Icon(Icons.Default.FileOpen, "Import") }
+                        IconButton(onClick = { viewModel.exportTheme() }) { Icon(Icons.Default.IosShare, "Export theme") }
+                        IconButton(onClick = { importLauncher.launch(arrayOf("application/json", "*/*")) }) { Icon(Icons.Default.FileOpen, "Import theme") }
                     },
                 )
                 ScrollableTabRow(selectedTabIndex = ColorBlendrTab.entries.indexOf(selectedTab), edgePadding = 16.dp) {

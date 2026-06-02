@@ -278,7 +278,7 @@ private fun RulesTab(state: PrivacyUiState, viewModel: PrivacyViewModel) {
                     supportingContent = { Text("${rule.ruleType} · ${rule.packageName}", style = MaterialTheme.typography.bodySmall) },
                     trailingContent = {
                         Row {
-                            Switch(checked = rule.isEnabled, onCheckedChange = {})
+                            Switch(checked = rule.isEnabled, onCheckedChange = { viewModel.toggleRule(rule) })
                             IconButton(onClick = { viewModel.deleteRule(rule) }) { Icon(Icons.Default.Delete, "Delete") }
                         }
                     },

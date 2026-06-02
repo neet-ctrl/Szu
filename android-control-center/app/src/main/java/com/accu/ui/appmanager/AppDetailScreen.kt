@@ -1,12 +1,16 @@
 package com.accu.ui.appmanager
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -85,6 +89,11 @@ fun AppDetailScreen(
     val snackbar = remember { SnackbarHostState() }
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
     var selectedTab by remember { mutableStateOf(AppDetailTab.INFO) }
+    val clipboardManager = LocalClipboardManager.current
+    // Dialogs
+    var showManifest by remember { mutableStateOf(false) }
+    var showSavePath by remember { mutableStateOf(false) }
+    var savePath by remember { mutableStateOf("/sdcard/Download") }
 
     // Detect trackers from known list (scan declared packages/classes)
     val detectedTrackers = remember(packageName) {
@@ -110,14 +119,30 @@ fun AppDetailScreen(
                     onBack = onBack,
                     actions = {
                         IconButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, "Force Stop") }
-                        IconButton(onClick = { viewModel.extractApk() }) { Icon(Icons.Default.Download, "Extract APK") }
+                        IconButton(onClick = { viewModel.openApp() }) { Icon(Icons.Default.OpenInNew, "Open App") }
+                        IconButton(onClick = { showSavePath = true }) { Icon(Icons.Default.Download, "Extract APK") }
                         var showMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
                             DropdownMenu(showMenu, { showMenu = false }) {
                                 DropdownMenuItem(text = { Text("Clear Data") }, leadingIcon = { Icon(Icons.Default.Delete, null) }, onClick = { viewModel.clearData(); showMenu = false })
                                 DropdownMenuItem(text = { Text("Uninstall") }, leadingIcon = { Icon(Icons.Default.RemoveCircle, null) }, onClick = { viewModel.uninstall(); showMenu = false })
-                                DropdownMenuItem(text = { Text("Open App Info") }, leadingIcon = { Icon(Icons.Default.Info, null) }, onClick = { showMenu = false })
+                                DropdownMenuItem(
+                                    text = { Text("Open App Info") },
+                                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                                    onClick = {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                        showMenu = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("View Manifest") },
+                                    leadingIcon = { Icon(Icons.Default.Code, null) },
+                                    onClick = { viewModel.fetchManifest(); showManifest = true; showMenu = false }
+                                )
                             }
                         }
                     },
@@ -143,6 +168,66 @@ fun AppDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
+        // ── APK Save Path dialog ──────────────────────────────────────────
+        if (showSavePath) {
+            AlertDialog(
+                onDismissRequest = { showSavePath = false },
+                title = { Text("Save APK") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Choose a destination path on the device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OutlinedTextField(
+                            value = savePath,
+                            onValueChange = { savePath = it },
+                            label = { Text("Save directory") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        viewModel.extractApkToPath("$savePath/${packageName}.apk")
+                        showSavePath = false
+                    }) { Text("Save") }
+                },
+                dismissButton = { TextButton(onClick = { showSavePath = false }) { Text("Cancel") } }
+            )
+        }
+        // ── Manifest viewer dialog ────────────────────────────────────────
+        if (showManifest) {
+            AlertDialog(
+                onDismissRequest = { showManifest = false },
+                title = { Text("AndroidManifest.xml") },
+                text = {
+                    if (state.manifestLoading) {
+                        Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    } else {
+                        val scrollState = rememberScrollState()
+                        Column(Modifier.height(420.dp).verticalScroll(scrollState)) {
+                            SelectionContainer {
+                                Text(
+                                    state.manifestContent.ifBlank { "Manifest not available" },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    lineHeight = 14.sp,
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!state.manifestLoading && state.manifestContent.isNotBlank()) {
+                            TextButton(onClick = { clipboardManager.setText(AnnotatedString(state.manifestContent)) }) { Text("Copy") }
+                        }
+                        TextButton(onClick = { showManifest = false }) { Text("Close") }
+                    }
+                }
+            )
+        }
         if (state.isLoading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
@@ -152,7 +237,7 @@ fun AppDetailScreen(
                 AppDetailTab.PERMISSIONS  -> PermissionsTab(state, viewModel, padding)
                 AppDetailTab.TRACKERS     -> TrackersTab(detectedTrackers, packageName, padding)
                 AppDetailTab.CERTIFICATES -> CertificatesTab(packageName, context, padding)
-                AppDetailTab.APPOPS       -> AppOpsTab(packageName, padding)
+                AppDetailTab.APPOPS       -> AppOpsTab(packageName, state, viewModel, padding)
                 AppDetailTab.NOTES        -> NotesTab(packageName, padding)
             }
         }
@@ -197,7 +282,7 @@ private fun InfoTab(state: AppDetailUiState, packageName: String, context: andro
                 item { FilledTonalButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Force Stop") } }
                 item { OutlinedButton(onClick = { viewModel.clearData() }) { Text("Clear Data") } }
                 item { OutlinedButton(onClick = { viewModel.uninstall() }) { Text("Uninstall") } }
-                item { OutlinedButton(onClick = { viewModel.extractApk() }) { Icon(Icons.Default.Download, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Extract APK") } }
+                item { OutlinedButton(onClick = { showSavePath = true }) { Icon(Icons.Default.Download, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Extract APK") } }
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -261,7 +346,7 @@ private fun ComponentsTab(state: AppDetailUiState, viewModel: AppDetailViewModel
                         type = comp.type,
                         isEnabled = comp.isEnabled,
                         onToggle = { viewModel.toggleComponent(comp.name, comp.type) },
-                        onLaunch = if (comp.type == "activity") {{ viewModel.launchActivity(comp.name) }} else null,
+                        onLaunch = if (comp.type in listOf("activity", "service", "receiver")) {{ viewModel.launchComponent(comp.name, comp.type) }} else null,
                     )
                     HorizontalDivider()
                 }
@@ -465,9 +550,9 @@ private val APP_OPS_TEMPLATE = listOf(
 )
 
 @Composable
-private fun AppOpsTab(packageName: String, padding: PaddingValues) {
-    // Local state simulating ops — in production this reads from AppOpsManager via ACCU
-    val opsState = remember { mutableStateMapOf<String, String>().apply { APP_OPS_TEMPLATE.forEach { (op, _, _) -> put(op, "Allow") } } }
+private fun AppOpsTab(packageName: String, state: AppDetailUiState, viewModel: AppDetailViewModel, padding: PaddingValues) {
+    // Load actual App Ops from target device on first composition
+    LaunchedEffect(packageName) { viewModel.fetchAppOps() }
 
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 16.dp)) {
         item {
@@ -492,13 +577,23 @@ private fun AppOpsTab(packageName: String, padding: PaddingValues) {
                 }
             }
         }
+        if (state.appOpsState.isEmpty()) {
+            item {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(28.dp))
+                        Text("Reading App Ops from device…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
         items(APP_OPS_TEMPLATE, key = { it.first }) { (op, label, icon) ->
-            val mode = opsState[op] ?: "Allow"
+            val mode = state.appOpsState[op] ?: "Default"
             ListItem(
                 headlineContent = { Text(label, fontWeight = FontWeight.Medium) },
                 supportingContent = { Text("OP: $op", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace) },
                 leadingContent = {
-                    val color = when(mode) { "Allow" -> AccentGreen; "Deny" -> AccentRed; else -> AccentOrange }
+                    val color = when(mode) { "Allow" -> AccentGreen; "Deny" -> AccentRed; "Ignore" -> AccentOrange; else -> MaterialTheme.colorScheme.onSurfaceVariant }
                     Surface(shape = RoundedCornerShape(8.dp), color = color.copy(0.12f), modifier = Modifier.size(40.dp)) {
                         Box(contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(20.dp), tint = color) }
                     }
@@ -508,17 +603,17 @@ private fun AppOpsTab(packageName: String, padding: PaddingValues) {
                     Box {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = when(mode) { "Allow" -> AccentGreen.copy(0.12f); "Deny" -> AccentRed.copy(0.12f); else -> AccentOrange.copy(0.12f) },
+                            color = when(mode) { "Allow" -> AccentGreen.copy(0.12f); "Deny" -> AccentRed.copy(0.12f); "Ignore" -> AccentOrange.copy(0.12f); else -> MaterialTheme.colorScheme.surfaceVariant },
                             modifier = Modifier.clickable { showMenu = true },
                         ) {
                             Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(mode, style = MaterialTheme.typography.labelSmall, color = when(mode) { "Allow" -> AccentGreen; "Deny" -> AccentRed; else -> AccentOrange })
+                                Text(mode, style = MaterialTheme.typography.labelSmall, color = when(mode) { "Allow" -> AccentGreen; "Deny" -> AccentRed; "Ignore" -> AccentOrange; else -> MaterialTheme.colorScheme.onSurfaceVariant })
                                 Icon(Icons.Default.ArrowDropDown, null, Modifier.size(14.dp))
                             }
                         }
                         DropdownMenu(showMenu, { showMenu = false }) {
                             listOf("Allow", "Deny", "Ignore").forEach { m ->
-                                DropdownMenuItem(text = { Text(m) }, onClick = { opsState[op] = m; showMenu = false })
+                                DropdownMenuItem(text = { Text(m) }, onClick = { viewModel.setAppOp(op, m); showMenu = false })
                             }
                         }
                     }

@@ -78,11 +78,14 @@ class InstallerViewModel @Inject constructor(
 
                 // Build pm install command
                 val flags = buildString {
-                    if (s.replaceExisting) append(" -r")
-                    if (s.allowVersionDowngrade) append(" --bypass-low-target-sdk-block")
-                    if (s.grantAllPermissions) append(" -g")
-                    if (s.allowTest) append(" -t")
-                    if (s.doNotKillApp) append(" --dont-kill")
+                    if (s.replaceExisting)          append(" -r")
+                    if (s.allowVersionDowngrade)    append(" -d")
+                    if (s.grantAllPermissions)      append(" -g")
+                    if (s.allowTest)                append(" -t")
+                    if (s.doNotKillApp)             append(" --dont-kill")
+                    if (s.bypassLowTargetSdkBlock)  append(" --bypass-low-target-sdk-block")
+                    if (s.requestUpdateOwnership)   append(" --update-ownership")
+                    if (s.installAsUpdate)          append(" --install-reason update")
                 }
 
                 apks.forEachIndexed { i, uri ->

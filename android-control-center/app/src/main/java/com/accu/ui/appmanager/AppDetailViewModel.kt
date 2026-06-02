@@ -36,6 +36,11 @@ data class AppDetailUiState(
     val services: List<ComponentUiModel> = emptyList(),
     val receivers: List<ComponentUiModel> = emptyList(),
     val providers: List<ComponentUiModel> = emptyList(),
+    // Manifest viewer
+    val manifestContent: String = "",
+    val manifestLoading: Boolean = false,
+    // App Ops (op name → "Allow" | "Deny" | "Ignore" | "Default")
+    val appOpsState: Map<String, String> = emptyMap(),
     val snackbarMessage: String? = null,
 )
 
@@ -43,7 +48,7 @@ data class PermissionUiModel(
     val name: String,
     val isGranted: Boolean,
     val isProtected: Boolean,
-    val protection: Int = 0,
+    val protection: Int = 0,   // 0=normal, 1=dangerous, 2=signature
 )
 
 data class ComponentUiModel(
@@ -60,6 +65,17 @@ class AppDetailViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(AppDetailUiState())
     val state: StateFlow<AppDetailUiState> = _state.asStateFlow()
+
+    companion object {
+        val APP_OPS_NAMES = listOf(
+            "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE", "CAMERA", "RECORD_AUDIO",
+            "ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION", "READ_CONTACTS", "WRITE_CONTACTS",
+            "READ_CALL_LOG", "WRITE_CALL_LOG", "READ_SMS", "SEND_SMS", "RECEIVE_SMS",
+            "READ_PHONE_STATE", "CALL_PHONE", "BODY_SENSORS", "GET_ACCOUNTS",
+            "USE_BIOMETRIC", "VIBRATE", "WAKE_LOCK", "CHANGE_NETWORK_STATE",
+            "REQUEST_INSTALL_PACKAGES",
+        )
+    }
 
     /**
      * Load app details from the TARGET device via `dumpsys package <pkg>`.
@@ -102,37 +118,71 @@ class AppDetailViewModel @Inject constructor(
                 else ""
                 val apkSize = sizeRaw.lines().firstOrNull()?.trim()?.toLongOrNull() ?: 0L
 
-                // Permissions: parse "requested permissions:" block
+                // ── Dangerous permission list from target ──────────────────
+                val dangerousRaw = connectionManager.exec("pm list permissions -d 2>/dev/null").output
+                val dangerousPerms = dangerousRaw.lines()
+                    .filter { it.startsWith("permission:") }
+                    .map { it.removePrefix("permission:").trim() }
+                    .toSet()
+
+                // ── Permissions: parse dumpsys output ──────────────────────
                 val permissions = mutableListOf<PermissionUiModel>()
                 val grantedPerms = mutableSetOf<String>()
+                val requestedPerms = mutableListOf<String>()
                 var inGranted = false
                 var inRequested = false
-                val requestedPerms = mutableListOf<String>()
 
                 for (line in dump.lines()) {
+                    val trimmed = line.trimStart()
                     when {
-                        line.trimStart().startsWith("requested permissions:") -> { inRequested = true; inGranted = false }
-                        line.trimStart().startsWith("install permissions:") ||
-                        line.trimStart().startsWith("runtime permissions:") -> { inGranted = true; inRequested = false }
-                        line.trimStart().startsWith("User ") && inGranted -> inGranted = false
-                        inRequested && line.trimStart().startsWith("android.") -> {
-                            requestedPerms.add(line.trim())
+                        trimmed.startsWith("requested permissions:") -> {
+                            inRequested = true; inGranted = false
                         }
-                        inGranted && line.contains(":") -> {
-                            val perm = line.trim().substringBefore(":").trim()
-                            if (perm.startsWith("android.")) grantedPerms.add(perm)
+                        trimmed.startsWith("install permissions:") ||
+                        trimmed.startsWith("runtime permissions:") -> {
+                            inGranted = true; inRequested = false
+                        }
+                        // End of granted block when we hit User or next top-level section
+                        (trimmed.startsWith("User ") || (trimmed.startsWith("declared permissions:")) ||
+                         trimmed.startsWith("shared users:")) && inGranted -> {
+                            inGranted = false
+                        }
+                        inRequested && trimmed.isNotBlank() && !trimmed.startsWith("#") -> {
+                            // Permission line looks like "android.permission.INTERNET" (indented)
+                            val perm = trimmed.trim()
+                            if (perm.contains('.') && !perm.contains(' ') && perm.length > 5) {
+                                requestedPerms.add(perm)
+                            }
+                        }
+                        inGranted && trimmed.isNotBlank() && trimmed.contains(":") -> {
+                            // Line looks like: "android.permission.INTERNET: granted=true"
+                            // or "android.permission.CAMERA: granted=false, flags=[USER_SET]"
+                            if (trimmed.contains("granted=")) {
+                                val perm = trimmed.substringBefore(":").trim()
+                                if (perm.contains('.') && !perm.contains(' ')) {
+                                    if (trimmed.contains("granted=true")) grantedPerms.add(perm)
+                                    // ensure it's in requested list too if not already
+                                    if (!requestedPerms.contains(perm)) requestedPerms.add(perm)
+                                }
+                            }
                         }
                     }
                 }
-                requestedPerms.forEach { perm ->
-                    permissions.add(PermissionUiModel(
-                        name        = perm,
-                        isGranted   = perm in grantedPerms,
-                        isProtected = false,
-                    ))
+
+                requestedPerms.distinct().forEach { perm ->
+                    val isDangerous = perm in dangerousPerms
+                    permissions.add(
+                        PermissionUiModel(
+                            name        = perm,
+                            isGranted   = perm in grantedPerms,
+                            isProtected = !isDangerous && !grantedPerms.contains(perm) &&
+                                          (perm.startsWith("android.permission.") || perm.startsWith("com.")),
+                            protection  = if (isDangerous) 1 else 0,
+                        )
+                    )
                 }
 
-                // Components: parse activity/service/receiver/provider blocks
+                // ── Components: parse activity/service/receiver/provider blocks ──
                 val activities  = mutableListOf<ComponentUiModel>()
                 val services    = mutableListOf<ComponentUiModel>()
                 val receivers   = mutableListOf<ComponentUiModel>()
@@ -219,11 +269,11 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
-    fun extractApk() {
-        val dest = "/sdcard/Download/${_state.value.packageName}.apk"
+    /** Extract APK to a specific destination path on the target device. */
+    fun extractApkToPath(destPath: String) {
         viewModelScope.launch {
-            val ok = appRepository.extractApk(_state.value.packageName, dest)
-            _state.update { it.copy(snackbarMessage = if (ok) "APK saved to Downloads/${_state.value.packageName}.apk" else "Failed to extract APK — check connection") }
+            val ok = appRepository.extractApk(_state.value.packageName, destPath)
+            _state.update { it.copy(snackbarMessage = if (ok) "APK saved to $destPath" else "Failed to extract APK — check connection") }
         }
     }
 
@@ -231,6 +281,72 @@ class AppDetailViewModel @Inject constructor(
         viewModelScope.launch {
             val ok = appRepository.forceStop(_state.value.packageName)
             _state.update { it.copy(snackbarMessage = if (ok) "Force stopped" else "Failed to force stop — check connection") }
+        }
+    }
+
+    /** Open the app using its main launcher activity. */
+    fun openApp() {
+        viewModelScope.launch {
+            val pkg = _state.value.packageName
+            connectionManager.exec("monkey -p $pkg -c android.intent.category.LAUNCHER 1 2>/dev/null")
+        }
+    }
+
+    /** Fetch AndroidManifest.xml content via aapt on the target device. */
+    fun fetchManifest() {
+        if (_state.value.manifestContent.isNotBlank()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.update { it.copy(manifestLoading = true) }
+            try {
+                val pkg = _state.value.packageName
+                val apkPath = connectionManager.exec("pm path $pkg 2>/dev/null").output
+                    .removePrefix("package:").trim()
+                val raw = if (apkPath.isNotBlank()) {
+                    connectionManager.exec("aapt dump xmltree $apkPath AndroidManifest.xml 2>/dev/null").output
+                } else ""
+                val manifest = if (raw.isBlank() || raw.startsWith("ERROR")) {
+                    // Fallback: dump package info
+                    connectionManager.exec("dumpsys package $pkg 2>/dev/null").output.lines()
+                        .take(200).joinToString("\n")
+                } else raw
+                _state.update {
+                    it.copy(
+                        manifestContent = manifest.ifBlank { "Manifest not available via ACCU connection" },
+                        manifestLoading = false,
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(manifestContent = "Error: ${e.message}", manifestLoading = false) }
+            }
+        }
+    }
+
+    /** Read actual App Ops state from the target device. */
+    fun fetchAppOps() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pkg = _state.value.packageName
+            val opsMap = mutableMapOf<String, String>()
+            APP_OPS_NAMES.forEach { op ->
+                try {
+                    val result = connectionManager.exec("appops get $pkg $op 2>/dev/null").output
+                        .trim().lowercase()
+                    opsMap[op] = when {
+                        "allow"  in result -> "Allow"
+                        "deny"   in result -> "Deny"
+                        "ignore" in result -> "Ignore"
+                        else               -> "Default"
+                    }
+                } catch (_: Exception) { opsMap[op] = "Default" }
+            }
+            _state.update { it.copy(appOpsState = opsMap) }
+        }
+    }
+
+    /** Apply an App Op mode on the target device. */
+    fun setAppOp(op: String, mode: String) {
+        viewModelScope.launch {
+            connectionManager.exec("appops set ${_state.value.packageName} $op ${mode.lowercase()} 2>/dev/null")
+            _state.update { s -> s.copy(appOpsState = s.appOpsState + (op to mode)) }
         }
     }
 
@@ -284,12 +400,26 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
-    fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
-
-    fun launchActivity(activityName: String) {
+    /**
+     * Launch a component on the target device.
+     * Dispatches am start / am startservice / am broadcast depending on type.
+     */
+    fun launchComponent(componentName: String, type: String) {
         viewModelScope.launch {
-            val ok = appRepository.launchActivity(_state.value.packageName, activityName)
-            if (!ok) _state.update { it.copy(snackbarMessage = "Failed to launch — check ACCU connection") }
+            val pkg = _state.value.packageName
+            // componentName from dumpsys is "pkg/pkg.ClassName" — extract just the class part
+            val compClass = if (componentName.contains('/')) componentName.substringAfter('/') else componentName
+            val cmd = when (type) {
+                "service"  -> "am startservice -n $pkg/$compClass 2>/dev/null"
+                "receiver" -> "am broadcast -n $pkg/$compClass 2>/dev/null"
+                else       -> "am start -n $pkg/$compClass 2>/dev/null"
+            }
+            val result = connectionManager.exec(cmd)
+            _state.update {
+                it.copy(snackbarMessage = if (result.isSuccess) "Launched $compClass" else "Failed to launch — check ACCU connection")
+            }
         }
     }
+
+    fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
 }

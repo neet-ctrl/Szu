@@ -150,6 +150,10 @@ class PrivacyViewModel @Inject constructor(
         }
     }
 
+    fun toggleRule(rule: PrivacyRuleEntity) {
+        viewModelScope.launch { privacyRuleDao.update(rule.copy(isEnabled = !rule.isEnabled)) }
+    }
+
     fun syncCloudRules(url: String) {
         if (url.isBlank()) { _state.update { it.copy(snackbarMessage = "Please enter a valid URL") }; return }
         viewModelScope.launch(Dispatchers.IO) {
@@ -159,13 +163,28 @@ class PrivacyViewModel @Inject constructor(
                 connection.connectTimeout = 8000; connection.readTimeout = 8000
                 val body = connection.inputStream.bufferedReader().readText()
                 connection.disconnect()
-                val lines = body.lines()
-                val packages = lines.mapNotNull { line ->
+                val packages = body.lines().mapNotNull { line ->
                     val trimmed = line.trim()
                     if (trimmed.startsWith("#") || trimmed.isBlank()) null
                     else trimmed.split(",").firstOrNull()?.trim()
                 }.filter { it.contains(".") }
-                _state.update { it.copy(snackbarMessage = "Synced ${packages.size} rules from cloud") }
+                // Commit to database
+                var inserted = 0
+                packages.forEach { pkg ->
+                    try {
+                        blockedComponentDao.insert(
+                            BlockedComponentEntity(
+                                packageName   = pkg,
+                                componentName = pkg,
+                                componentType = "tracker",
+                                isTracker     = true,
+                                ruleSource    = "cloud:$url",
+                            )
+                        )
+                        inserted++
+                    } catch (_: Exception) {}
+                }
+                _state.update { it.copy(snackbarMessage = "Synced $inserted rules from cloud (${packages.size} parsed)") }
             } catch (e: Exception) {
                 _state.update { it.copy(snackbarMessage = "Sync failed: ${e.message}") }
             }

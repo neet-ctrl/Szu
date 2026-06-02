@@ -1,6 +1,7 @@
 package com.accu.ui.customization
 
 import android.content.Context
+import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.data.db.dao.CustomThemeDao
@@ -8,8 +9,10 @@ import com.accu.data.db.entities.CustomThemeEntity
 import com.accu.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
 data class CustomizationUiState(
@@ -123,15 +126,91 @@ class CustomizationViewModel @Inject constructor(
     fun setMonetStyle(style: String) = _state.update { it.copy(monetStyle = style) }
 
     fun exportTheme() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val s = _state.value
+                val json = buildString {
+                    appendLine("{")
+                    appendLine("  \"preset\": \"${s.preset.name}\",")
+                    appendLine("  \"monetStyle\": \"${s.monetStyle}\",")
+                    appendLine("  \"isDark\": ${s.isDark},")
+                    appendLine("  \"isAmoled\": ${s.isAmoled},")
+                    appendLine("  \"pitchBlack\": ${s.pitchBlack},")
+                    appendLine("  \"accurateShades\": ${s.accurateShades},")
+                    appendLine("  \"useGlassEffect\": ${s.useGlassEffect},")
+                    appendLine("  \"useGradientBackground\": ${s.useGradientBackground},")
+                    appendLine("  \"useDynamicColor\": ${s.useDynamicColor},")
+                    appendLine("  \"cardStyle\": \"${s.cardStyle.name}\",")
+                    appendLine("  \"cornerRadiusScale\": ${s.cornerRadiusScale},")
+                    appendLine("  \"fontScale\": ${s.fontScale},")
+                    appendLine("  \"elevationScale\": ${s.elevationScale},")
+                    appendLine("  \"animationScale\": ${s.animationScale},")
+                    appendLine("  \"accentIntensity\": ${s.accentIntensity},")
+                    appendLine("  \"navBarStyle\": \"${s.navBarStyle.name}\",")
+                    appendLine("  \"seedColor\": ${s.seedColor},")
+                    appendLine("  \"iconShape\": \"${s.iconShape}\",")
+                    appendLine("  \"transparentStatusBar\": ${s.transparentStatusBar},")
+                    appendLine("  \"transparentNavBar\": ${s.transparentNavBar},")
+                    appendLine("  \"hideNotch\": ${s.hideNotch}")
+                    append("}")
+                }
+                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                dir.mkdirs()
+                val file = File(dir, "accu_theme_${System.currentTimeMillis()}.json")
+                file.writeText(json)
+                _state.update { it.copy(snackbarMessage = "Theme exported to Downloads/${file.name}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Export failed: ${e.message}") }
+            }
+        }
+    }
+
+    /** Apply imported JSON theme. Call from the Screen after user picks a file. */
+    fun importThemeFromJson(json: String) {
         viewModelScope.launch {
-            _state.update { it.copy(snackbarMessage = "Theme export is not yet implemented") }
+            try {
+                fun String.jStr(key: String) = Regex(""""$key"\s*:\s*"([^"]+)"""").find(this)?.groupValues?.getOrNull(1)
+                fun String.jBool(key: String) = Regex(""""$key"\s*:\s*(true|false)""").find(this)?.groupValues?.getOrNull(1)?.toBooleanStrictOrNull()
+                fun String.jFloat(key: String) = Regex(""""$key"\s*:\s*([\d.]+)""").find(this)?.groupValues?.getOrNull(1)?.toFloatOrNull()
+
+                val preset     = json.jStr("preset")?.let { n -> ACCThemePreset.entries.firstOrNull { it.name == n } }
+                val cardStyle  = json.jStr("cardStyle")?.let { n -> CardStyle.entries.firstOrNull { it.name == n } }
+                val navBarStyle = json.jStr("navBarStyle")?.let { n -> NavBarStyle.entries.firstOrNull { it.name == n } }
+
+                _state.update { s ->
+                    s.copy(
+                        preset               = preset                           ?: s.preset,
+                        monetStyle           = json.jStr("monetStyle")          ?: s.monetStyle,
+                        isDark               = json.jBool("isDark")             ?: s.isDark,
+                        isAmoled             = json.jBool("isAmoled")           ?: s.isAmoled,
+                        pitchBlack           = json.jBool("pitchBlack")         ?: s.pitchBlack,
+                        accurateShades       = json.jBool("accurateShades")     ?: s.accurateShades,
+                        useGlassEffect       = json.jBool("useGlassEffect")     ?: s.useGlassEffect,
+                        useGradientBackground= json.jBool("useGradientBackground") ?: s.useGradientBackground,
+                        useDynamicColor      = json.jBool("useDynamicColor")    ?: s.useDynamicColor,
+                        cardStyle            = cardStyle                        ?: s.cardStyle,
+                        cornerRadiusScale    = json.jFloat("cornerRadiusScale") ?: s.cornerRadiusScale,
+                        fontScale            = json.jFloat("fontScale")         ?: s.fontScale,
+                        elevationScale       = json.jFloat("elevationScale")    ?: s.elevationScale,
+                        animationScale       = json.jFloat("animationScale")    ?: s.animationScale,
+                        accentIntensity      = json.jFloat("accentIntensity")   ?: s.accentIntensity,
+                        navBarStyle          = navBarStyle                      ?: s.navBarStyle,
+                        iconShape            = json.jStr("iconShape")           ?: s.iconShape,
+                        transparentStatusBar = json.jBool("transparentStatusBar") ?: s.transparentStatusBar,
+                        transparentNavBar    = json.jBool("transparentNavBar")  ?: s.transparentNavBar,
+                        hideNotch            = json.jBool("hideNotch")          ?: s.hideNotch,
+                        snackbarMessage      = "Theme imported — tap Apply to save",
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Import failed: ${e.message}") }
+            }
         }
     }
 
     fun importTheme() {
-        viewModelScope.launch {
-            _state.update { it.copy(snackbarMessage = "Theme import is not yet implemented") }
-        }
+        // Triggers the file picker in the Screen — actual import handled by importThemeFromJson()
+        _state.update { it.copy(snackbarMessage = "Tap the import icon and select a .json theme file") }
     }
     fun setSeedColor(color: Int)     = _state.update { it.copy(seedColor = color) }
 
