@@ -84,19 +84,30 @@ class FileManagerViewModel @Inject constructor(
     private val _state = MutableStateFlow(FileManagerState())
     val state: StateFlow<FileManagerState> = _state.asStateFlow()
 
-    init { navigateTo("/sdcard") }
+    // Start at the real user-storage path, not the /sdcard symlink.
+    // From root context, `ls -la /sdcard` returns the symlink line itself
+    // ("lrwxrwxrwx … sdcard -> /storage/self/primary") instead of directory contents.
+    init { navigateTo("/storage/emulated/0") }
 
     fun navigateTo(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true, searchQuery = "") }
-            val result = shizukuUtils.execShizuku("ls -la \"$path\" 2>/dev/null")
+            // Resolve symlinks before listing — /sdcard → /storage/self/primary → /storage/emulated/0.
+            // Without this, ls -la on a symlink shows only the link entry, not directory contents.
+            val realPath = run {
+                val r = shizukuUtils.execShizuku(
+                    "readlink -f \"$path\" 2>/dev/null || realpath \"$path\" 2>/dev/null"
+                ).output.trim()
+                if (r.isNotBlank() && r.startsWith("/")) r else path
+            }
+            val result = shizukuUtils.execShizuku("ls -la \"$realPath\" 2>/dev/null")
             val raw = if (result.output.isNotBlank()) result.output
-                      else shizukuUtils.execShizuku("ls -la $path 2>/dev/null").output
-            val items = parseLsOutput(raw, path)
+                      else shizukuUtils.execShizuku("ls -la $realPath 2>/dev/null").output
+            val items = parseLsOutput(raw, realPath)
                 .filter { _state.value.showHidden || !it.isHidden }
                 .sortedWith(_state.value.sortBy)
-            val breadcrumbs = buildBreadcrumbs(path)
-            _state.update { it.copy(currentPath = path, files = items, allFiles = items, breadcrumbs = breadcrumbs, isLoading = false, isMultiSelect = false, selectedFiles = emptySet()) }
+            val breadcrumbs = buildBreadcrumbs(realPath)
+            _state.update { it.copy(currentPath = realPath, files = items, allFiles = items, breadcrumbs = breadcrumbs, isLoading = false, isMultiSelect = false, selectedFiles = emptySet()) }
         }
     }
 
@@ -282,16 +293,20 @@ class FileManagerViewModel @Inject constructor(
         val parts = trimmed.split(Regex("\\s+"), limit = 9)
         if (parts.size < 5) return@mapNotNull null
         val rawName = parts.getOrNull(8)?.trimStart() ?: parts.getOrNull(7) ?: return@mapNotNull null
-        // Strip symlink target ("bin -> usr/bin" → "bin")
-        val name = if (rawName.contains(" -> ")) rawName.substringBefore(" -> ") else rawName
-        if (name in listOf(".", "..") || name.isEmpty()) return@mapNotNull null
-        val isDir = parts[0].startsWith("d")
+        val isDir  = parts[0].startsWith("d")
         val isLink = parts[0].startsWith("l")
-        val size = if (!isDir) parts.getOrNull(4)?.toLongOrNull() ?: 0L else 0L
+        // For symlinks: rawName = "name -> target". Extract both.
+        val symlinkTarget = if (isLink && rawName.contains(" -> ")) rawName.substringAfter(" -> ").trim() else ""
+        val name = if (rawName.contains(" -> ")) rawName.substringBefore(" -> ").trim() else rawName
+        if (name in listOf(".", "..") || name.isEmpty()) return@mapNotNull null
+        val size = if (!isDir && !isLink) parts.getOrNull(4)?.toLongOrNull() ?: 0L else 0L
         val isHidden = name.startsWith(".")
         val fakeMime = getMimeTypeStr(java.io.File(name))
         // Avoid double-slash when basePath is "/"
-        val fullPath = if (basePath == "/") "/$name" else "$basePath/$name"
+        val ownPath = if (basePath == "/") "/$name" else "$basePath/$name"
+        // For symlinks with an absolute target, navigate to the target so we follow the link.
+        // navigateTo() will also run readlink -f on the path, so relative targets are fine too.
+        val fullPath = if (isLink && symlinkTarget.startsWith("/")) symlinkTarget else ownPath
         FileItem(name, fullPath, size, 0L, isDir || isLink, fakeMime, isHidden)
     }
 

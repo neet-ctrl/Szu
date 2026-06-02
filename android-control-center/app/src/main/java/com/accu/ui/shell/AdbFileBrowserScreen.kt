@@ -151,12 +151,22 @@ fun AdbFileBrowserScreen(
     fun loadPath(path: String) {
         scope.launch {
             isLoading = true
-            val result = withContext(Dispatchers.IO) {
-                connectionManager.exec("ls -la \"$path\" 2>/dev/null || ls -l \"$path\" 2>/dev/null")
+            // Resolve symlinks before listing — on Android /sdcard is a symlink chain.
+            // From root context, `ls -la /sdcard` returns the symlink line, not directory contents.
+            val realPath = withContext(Dispatchers.IO) {
+                val r = connectionManager.exec(
+                    "readlink -f \"$path\" 2>/dev/null || realpath \"$path\" 2>/dev/null"
+                ).output.trim()
+                if (r.isNotBlank() && r.startsWith("/")) r else path
             }
+            val result = withContext(Dispatchers.IO) {
+                connectionManager.exec("ls -la \"$realPath\" 2>/dev/null || ls -l \"$realPath\" 2>/dev/null")
+            }
+            // Keep currentPath display as the user-typed path but use realPath for listing
+            if (realPath != path) currentPath = realPath
             files = if (result.isSuccess && result.output.isNotBlank()) {
                 result.output.lines()
-                    .mapNotNull { parseLsLine(it, path) }
+                    .mapNotNull { parseLsLine(it, realPath) }
                     .filter { !it.name.startsWith(".") || showHidden }
             } else {
                 // Fallback to Java File API when no ADB connection (local browsing)
