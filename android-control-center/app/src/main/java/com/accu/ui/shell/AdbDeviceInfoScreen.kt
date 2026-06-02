@@ -82,8 +82,8 @@ private data class DeviceInfo(
     val operator: String      = "",
 )
 
-private fun loadDeviceInfo(context: Context, shellExec: (String) -> String): DeviceInfo {
-    fun prop(key: String) = shellExec("getprop $key 2>/dev/null").trim()
+private suspend fun loadDeviceInfo(context: Context, shellExec: suspend (String) -> String): DeviceInfo {
+    suspend fun prop(key: String) = shellExec("getprop $key 2>/dev/null").trim()
     fun readFile(path: String) = try { java.io.File(path).readText().trim() } catch (_: Exception) { "" }
 
     val manufacturer = Build.MANUFACTURER

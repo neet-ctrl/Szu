@@ -116,11 +116,10 @@ fun InureHomeScreen(
             // Disabled apps — from PackageManager (enabled state check)
             disabledApps = packages
                 .filter { pi ->
-                    pi.applicationInfo?.let { ai ->
-                        !ai.enabled ||
-                        ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
-                        ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
-                    } ?: false
+                    val state = try { pm.getApplicationEnabledSetting(pi.packageName) } catch (_: Exception) { -1 }
+                    pi.applicationInfo?.let { ai -> !ai.enabled } ?: false ||
+                    state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
+                    state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
                 }
                 .take(5)
                 .map { pi ->

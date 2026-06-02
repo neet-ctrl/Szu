@@ -81,11 +81,10 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                 // Get disabled packages from local PackageManager (covers the device ACCU is on)
                 val disabledLocal = pm.getInstalledPackages(PackageManager.GET_META_DATA)
                     .filter { pi ->
-                        pi.applicationInfo?.let { ai ->
-                            ai.enabled == false ||
-                            (ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) ||
-                            (ai.enabledSetting == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER)
-                        } ?: false
+                        val state = try { pm.getApplicationEnabledSetting(pi.packageName) } catch (_: Exception) { -1 }
+                        pi.applicationInfo?.let { ai -> !ai.enabled } ?: false ||
+                        state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
+                        state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
                     }
 
                 // Also query via pm list packages -d on the target device
@@ -106,7 +105,8 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                     val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
                     val sizeBytes = try { java.io.File(ai.sourceDir ?: "").length() } catch (_: Exception) { 0L }
                     val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
-                    val via = when (ai.enabledSetting) {
+                    val enabledState = try { pm.getApplicationEnabledSetting(pi.packageName) } catch (_: Exception) { -1 }
+                    val via = when (enabledState) {
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER -> DisabledVia.SYSTEM_SETTINGS
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> DisabledVia.ADB
                         else -> DisabledVia.UNKNOWN
