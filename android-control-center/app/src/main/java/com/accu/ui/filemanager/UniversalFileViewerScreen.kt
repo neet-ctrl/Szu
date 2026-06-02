@@ -47,6 +47,29 @@ fun UniversalFileViewerScreen(
     val fileType = remember(ext) { detectFileType(ext) }
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
+    var showFileInfo by remember { mutableStateOf(false) }
+
+    if (showFileInfo) {
+        AlertDialog(
+            onDismissRequest = { showFileInfo = false },
+            icon = { Icon(fileType.icon, null) },
+            title = { Text(file.name, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    InfoRow("Type",     fileType.label)
+                    InfoRow("Size",     formatBytes(file.length()))
+                    InfoRow("Path",     file.absolutePath)
+                    InfoRow("Modified", formatDate(file.lastModified()))
+                    InfoRow("Readable", if (file.canRead()) "Yes" else "No")
+                    InfoRow("Writable", if (file.canWrite()) "Yes" else "No")
+                    if (ext.isNotBlank()) InfoRow("Extension", ".${ext.uppercase()}")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFileInfo = false }) { Text("Close") }
+            },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -71,10 +94,10 @@ fun UniversalFileViewerScreen(
                 },
                 actions = {
                     FilledTonalIconButton(
-                        onClick = {},
+                        onClick = { showFileInfo = true },
                         modifier = Modifier.size(36.dp),
                     ) {
-                        Icon(fileType.icon, null, Modifier.size(18.dp))
+                        Icon(Icons.Default.Info, "File info", Modifier.size(18.dp))
                     }
                 },
             )

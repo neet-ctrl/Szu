@@ -40,6 +40,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -585,7 +586,6 @@ class ShellQsTileDashboardViewModel @Inject constructor(
                 val docDir  = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
                     ?: return@launch
                 docDir.findFile(filename)?.delete()
-                // Use the correct MIME type so Android does NOT append an unwanted extension.
                 val mime = when {
                     filename.endsWith(".png",  ignoreCase = true) -> "image/png"
                     filename.endsWith(".jpg",  ignoreCase = true) -> "image/jpeg"
@@ -600,6 +600,69 @@ class ShellQsTileDashboardViewModel @Inject constructor(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    /**
+     * Copy a media file from the device filesystem to the user's SAF-chosen folder.
+     * Called from within a Dispatchers.IO coroutine (runTile).
+     *
+     * Strategy:
+     *  1. Try java.io.File.inputStream() — instant, works when app has storage permission.
+     *  2. Fallback: base64 via root shell — always works, capped at 100 MB.
+     */
+    private suspend fun pullMediaFileToSaf(srcPath: String, destName: String, mimeType: String) {
+        val uriStr = _state.value.mediaFolderUri
+        if (uriStr.isBlank()) return
+        try {
+            val treeUri = android.net.Uri.parse(uriStr)
+            val docDir  = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                ?: return
+            docDir.findFile(destName)?.delete()
+            val docFile = docDir.createFile(mimeType, destName) ?: return
+
+            // Attempt 1: direct file read (works if MANAGE_EXTERNAL_STORAGE / legacy storage)
+            val srcFile = java.io.File(srcPath)
+            if (srcFile.exists() && srcFile.length() > 0L) {
+                try {
+                    context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
+                        srcFile.inputStream().use { inp -> inp.copyTo(out, bufferSize = 65_536) }
+                    }
+                    _completionEvent.tryEmit("Saved $destName to folder ✓")
+                    return
+                } catch (_: SecurityException) {
+                    // No direct read permission — fall through to base64
+                    docFile.delete()
+                    val docFile2 = docDir.createFile(mimeType, destName) ?: return
+                    pullViaBase64(srcPath, destName, docFile2)
+                }
+            } else {
+                // File not yet visible to java.io.File — go straight to base64
+                pullViaBase64(srcPath, destName, docFile)
+            }
+        } catch (_: Exception) {}
+    }
+
+    private suspend fun pullViaBase64(
+        srcPath: String,
+        destName: String,
+        docFile: androidx.documentfile.provider.DocumentFile,
+    ) {
+        // Guard: skip files larger than 100 MB to avoid OOM
+        val sizeStr = connectionManager.exec("stat -c %s \"$srcPath\" 2>/dev/null").output.trim()
+        val size    = sizeStr.toLongOrNull() ?: 0L
+        if (size > 100_000_000L) {
+            _completionEvent.tryEmit(
+                "File too large to auto-copy (${size / 1_000_000}MB) — find it at $srcPath"
+            )
+            return
+        }
+        val b64 = connectionManager.exec("base64 \"$srcPath\" 2>/dev/null").output
+        if (b64.isBlank()) return
+        val bytes = try {
+            Base64.decode(b64.replace("\n", "").replace(" ", ""), Base64.DEFAULT)
+        } catch (_: Exception) { return }
+        context.contentResolver.openOutputStream(docFile.uri)?.use { it.write(bytes) }
+        _completionEvent.tryEmit("Saved $destName to folder ✓")
     }
 
     fun runTile(tile: ShellQsTile) {
@@ -653,12 +716,27 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             else
                 "✗ ${tile.label}: ${outputText.take(60).ifBlank { "failed (exit ${result.exitCode})" }}"
             _completionEvent.tryEmit(toastMsg)
-            // MEDIA_CAPTURE tiles (screencap / screenrecord) save their actual
-            // media file on the target device via the shell command.  Saving the
-            // plain-text command output as a .txt file would produce a tiny,
-            // confusing file (Screenshot_01_Jun_17-57-08.txt, 180 B) instead of
-            // the expected PNG/MP4.  Skip the log-file for these tiles.
-            if (tile.category != TileCategory.MEDIA_CAPTURE) {
+            if (tile.category == TileCategory.MEDIA_CAPTURE) {
+                // MEDIA_CAPTURE tiles save PNG/MP4 on the device via the shell command.
+                // Auto-pull the actual media file to the user's SAF-chosen save folder.
+                val cmd = resolvedCommand.lowercase()
+                val isCapture = cmd.contains("screencap")
+                val isRecord  = cmd.contains("screenrecord") &&
+                    !cmd.contains(" ls ") && !cmd.startsWith("ls") && !cmd.contains("du ")
+                if ((isCapture || isRecord) && _state.value.mediaFolderUri.isNotBlank()) {
+                    val ext  = if (isCapture) "png" else "mp4"
+                    val mime = if (isCapture) "image/png" else "video/mp4"
+                    // Find the newest file of this type written to the media folder
+                    val lsResult = connectionManager.exec(
+                        "ls -t \"$mediaFolder\"/*.$ext 2>/dev/null | head -1"
+                    )
+                    val srcPath = lsResult.output.trim()
+                    if (srcPath.isNotBlank()) {
+                        val destName = "${if (isCapture) "screenshot" else "recording"}_${System.currentTimeMillis()}.$ext"
+                        pullMediaFileToSaf(srcPath, destName, mime)
+                    }
+                }
+            } else {
                 val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
                 val safeTs    = ts.replace(" ", "_").replace(":", "-")
                 saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${resolvedCommand}\n\n${outputText}")
