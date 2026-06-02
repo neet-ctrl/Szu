@@ -42,6 +42,7 @@ import com.accu.ui.customization.ColorBlendrStylesScreen
 import com.accu.ui.dashboard.DashboardScreen
 import com.accu.ui.filemanager.FileManagerScreen
 import com.accu.ui.filemanager.FileManagerAdvancedFeaturesScreen
+import com.accu.ui.filemanager.UniversalFileViewerScreen
 import com.accu.ui.installer.InstallerScreen
 import com.accu.ui.installer.InstallFlagsScreen
 import com.accu.ui.language.LanguageCenterScreen
@@ -342,6 +343,7 @@ fun AppNavigation(initialRoute: String? = null) {
                     onNavigateToFtpServer = { navController.navigate(Screen.FtpServer.route) },
                     onNavigateToFileProperties = { path -> navController.navigate(Screen.FileProperties.withPath(path)) },
                     onNavigateToTextEditor = { path -> navController.navigate(Screen.TextEditor.withPath(path)) },
+                    onNavigateToFileViewer = { path -> navController.navigate(Screen.FileViewer.withPath(path)) },
                 )
             }
             composable(Screen.Installer.route) {
@@ -804,6 +806,16 @@ fun AppNavigation(initialRoute: String? = null) {
                 val crashId = back.arguments?.getString("crashId") ?: return@composable
                 CrashDetailScreen(
                     crashId = crashId,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            // ── Universal File Viewer ─────────────────────────────────────────
+            composable(Screen.FileViewer.route) { back ->
+                val filePath = back.arguments?.getString("filePath")
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") } ?: ""
+                UniversalFileViewerScreen(
+                    filePath = filePath,
                     onBack = { navController.popBackStack() },
                 )
             }

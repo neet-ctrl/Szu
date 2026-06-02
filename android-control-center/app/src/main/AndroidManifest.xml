@@ -55,6 +55,9 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
+    <!-- Sound Master Overlay (shown over volume key press) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Quick Settings Tiles -->
     <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE" />
 
@@ -162,6 +165,11 @@
             android:name=".services.AccuSoundMasterService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
+
+        <!-- Sound Master Overlay — floating volume HUD on volume-key press -->
+        <service
+            android:name=".services.SoundMasterOverlayService"
+            android:exported="false" />
 
         <!-- ══════════════════════════════════════════════════════════════ -->
         <!--  ACCU SYSTEM SERVICE — Third-party apps bind to this service  -->

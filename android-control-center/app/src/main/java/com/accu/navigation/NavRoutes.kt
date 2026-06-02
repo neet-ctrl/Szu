@@ -207,6 +207,11 @@ sealed class Screen(val route: String) {
 
     // ── Connection gate (always shown on app open until connected) ────────────
     data object ConnectionGate     : Screen("connection_gate")
+
+    // ── Universal File Viewer ─────────────────────────────────────────────────
+    data object FileViewer         : Screen("file_viewer/{filePath}") {
+        fun withPath(path: String) = "file_viewer/${java.net.URLEncoder.encode(path, "UTF-8")}"
+    }
 }
 
 data class TopLevelDestination(

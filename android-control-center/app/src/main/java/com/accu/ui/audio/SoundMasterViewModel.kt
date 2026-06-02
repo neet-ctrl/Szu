@@ -14,6 +14,7 @@ import com.accu.audio.SoundMasterPreset
 import com.accu.audio.displayName
 import com.accu.connection.AccuConnectionManager
 import com.accu.services.AccuSoundMasterService
+import com.accu.services.SoundMasterOverlayService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -270,11 +271,15 @@ class SoundMasterViewModel @Inject constructor(
             }
         }
         context.startService(Intent(context, AccuSoundMasterService::class.java))
+        if (_state.value.showOnVolumeChange) {
+            try { SoundMasterOverlayService.start(context) } catch (_: Exception) {}
+        }
         _state.update { it.copy(isServiceRunning = true) }
     }
 
     fun stopService(context: Context) {
         context.stopService(Intent(context, AccuSoundMasterService::class.java))
+        try { SoundMasterOverlayService.stop(context) } catch (_: Exception) {}
         _state.value.entries.forEach { entry -> restoreAppAudio(entry.pkg) }
         _state.update { it.copy(isServiceRunning = false) }
     }

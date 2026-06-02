@@ -91,6 +91,9 @@ class AccuSoundMasterService : Service() {
         getRmsMap = {
             packageThreads.map { it.key to it.value.calculateRMS() }.toMap()
         }
+        getActivePackages = {
+            packageThreads.keys.toList()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -187,6 +190,7 @@ class AccuSoundMasterService : Service() {
         var onDynamicDetach: (pkg: String, outputId: Int) -> Unit = { _, _ -> }
         var getLatencyMap: () -> Map<String, Float> = { emptyMap() }
         var getRmsMap: () -> Map<String, Float> = { emptyMap() }
+        var getActivePackages: () -> List<String> = { emptyList() }
         var onVolumeChanged: () -> Unit = {}
     }
 }
