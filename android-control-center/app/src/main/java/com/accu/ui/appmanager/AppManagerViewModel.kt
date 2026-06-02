@@ -1,5 +1,9 @@
 package com.accu.ui.appmanager
 
+import android.content.ContentResolver
+import android.content.Context
+import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
@@ -7,9 +11,11 @@ import com.accu.data.db.entities.FrozenAppEntity
 import com.accu.data.repositories.AppRepository
 import com.accu.data.repositories.FreezeMethod
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import timber.log.Timber
+import java.io.File
 import javax.inject.Inject
 
 data class AppManagerUiState(
@@ -24,6 +30,8 @@ data class AppManagerUiState(
     val selectedApps: Set<String> = emptySet(),
     val isMultiSelect: Boolean = false,
     val snackbarMessage: String? = null,
+    // SAF-based APK extraction — non-null triggers CreateDocument picker in Screen
+    val pendingApkExtract: String? = null,
 )
 
 data class AppUiModel(
@@ -50,6 +58,7 @@ enum class AppFilter { ENABLED, DISABLED, FROZEN, HIDDEN, SYSTEM, USER }
 
 @HiltViewModel
 class AppManagerViewModel @Inject constructor(
+    @ApplicationContext private val ctx: Context,
     private val appRepository: AppRepository,
     private val connectionManager: AccuConnectionManager,
 ) : ViewModel() {
@@ -224,12 +233,64 @@ class AppManagerViewModel @Inject constructor(
         }
     }
 
-    fun extractApk(packageName: String) {
-        viewModelScope.launch {
-            val dest = "/sdcard/Download/${packageName}_${System.currentTimeMillis()}.apk"
-            val ok = appRepository.extractApk(packageName, dest)
-            _state.update { it.copy(snackbarMessage = if (ok) "APK saved to $dest" else "Failed to extract APK") }
+    /** Step 1 — signal the Screen to open the SAF CreateDocument picker */
+    fun triggerApkExtract(packageName: String) {
+        _state.update { it.copy(pendingApkExtract = packageName) }
+    }
+
+    fun clearPendingApkExtract() {
+        _state.update { it.copy(pendingApkExtract = null) }
+    }
+
+    /**
+     * Step 2 — called after user picks a save URI via CreateDocument.
+     * Reads the APK from the target device and writes it to the chosen URI
+     * on the controller device.
+     *
+     * • ROOT connection: APK is accessible directly as a local File.
+     * • ADB connection:  Transfer via base64 encode on target, decode here.
+     */
+    fun extractApkToUri(packageName: String, uri: Uri, contentResolver: ContentResolver) {
+        _state.update { it.copy(pendingApkExtract = null) }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Resolve the APK path on the target device
+                val pathResult = connectionManager.exec("pm path $packageName 2>/dev/null")
+                val apkPath = pathResult.output.lines()
+                    .firstOrNull { it.startsWith("package:") }
+                    ?.removePrefix("package:")?.trim()
+                    ?: throw Exception("Could not find APK path for $packageName")
+
+                val bytes: ByteArray = when (connectionManager.getConnectionState()) {
+                    AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
+                        // Root = same physical device — read the APK directly
+                        val localFile = File(apkPath)
+                        if (localFile.exists()) localFile.readBytes()
+                        else readApkViaBase64(apkPath)
+                    }
+                    else -> readApkViaBase64(apkPath)
+                }
+
+                contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                    ?: throw Exception("Cannot open output stream for selected URI")
+
+                _state.update {
+                    it.copy(snackbarMessage = "APK saved — ${bytes.size / 1024} KB written to chosen location")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "extractApkToUri failed for $packageName")
+                _state.update { it.copy(snackbarMessage = "Failed to extract APK: ${e.message}") }
+            }
         }
+    }
+
+    private suspend fun readApkViaBase64(remotePath: String): ByteArray {
+        val b64Result = connectionManager.exec("base64 '$remotePath' 2>/dev/null")
+        if (b64Result.output.isBlank()) throw Exception("base64 read returned empty — check privilege")
+        return Base64.decode(
+            b64Result.output.replace("\\s+".toRegex(), ""),
+            Base64.DEFAULT,
+        )
     }
 
     fun toggleMultiSelect() { _state.update { it.copy(isMultiSelect = !it.isMultiSelect, selectedApps = emptySet()) } }

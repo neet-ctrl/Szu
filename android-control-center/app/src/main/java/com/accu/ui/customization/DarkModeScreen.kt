@@ -1,11 +1,12 @@
 package com.accu.ui.customization
 
 import android.app.Activity
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.os.Environment
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -34,7 +35,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 // ──────────────────────────────────────────────
@@ -56,6 +56,9 @@ data class DarkModeState(
     val scheduleStart: String = "20:00",
     val scheduleEnd: String = "07:00",
     val snackbarMessage: String? = null,
+    // Non-null triggers CreateDocument SAF picker in Screen
+    val pendingExportJson: String? = null,
+    val pendingExportFileName: String? = null,
     // Xposed-specific
     val aggressiveForceDark: Boolean = false,
     val fixStatusBarInversion: Boolean = false,
@@ -125,20 +128,31 @@ class DarkModeViewModel @Inject constructor(
         val visible = _state.value.apps.filter { it.forceDark }
         viewModelScope.launch { visible.forEach { toggleForceDark(it.packageName) } }
     }
+    /** Step 1 — builds JSON and signals Screen to open SAF CreateDocument picker */
     fun exportSettings() {
+        val forcedApps = _state.value.apps.filter { it.forceDark }
+        val pkgList = forcedApps.joinToString(",") { "\"${it.packageName}\"" }
+        val json = """{"version":1,"forcedApps":[$pkgList],"globalDarkForced":${_state.value.globalDarkForced},"scheduleMode":"${_state.value.scheduleMode}","scheduleStart":"${_state.value.scheduleStart}","scheduleEnd":"${_state.value.scheduleEnd}"}"""
+        _state.update { it.copy(pendingExportJson = json, pendingExportFileName = "darq_backup.json") }
+    }
+
+    /** Step 2 — called after user picks a save location via CreateDocument */
+    fun writeExportToUri(uri: Uri, contentResolver: ContentResolver) {
+        val json = _state.value.pendingExportJson ?: return
+        _state.update { it.copy(pendingExportJson = null, pendingExportFileName = null) }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val forcedApps = _state.value.apps.filter { it.forceDark }
-                val pkgList = forcedApps.joinToString(",") { "\"${it.packageName}\"" }
-                val json = """{"version":1,"forcedApps":[$pkgList],"globalDarkForced":${_state.value.globalDarkForced},"scheduleMode":"${_state.value.scheduleMode}","scheduleStart":"${_state.value.scheduleStart}","scheduleEnd":"${_state.value.scheduleEnd}"}"""
-                val outDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                outDir.mkdirs()
-                File(outDir, "darq_backup.json").writeText(json)
-                _state.update { it.copy(snackbarMessage = "Exported ${forcedApps.size} apps → Downloads/darq_backup.json") }
+                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    ?: throw Exception("Cannot open output stream")
+                _state.update { it.copy(snackbarMessage = "Settings exported to selected location") }
             } catch (e: Exception) {
                 _state.update { it.copy(snackbarMessage = "Export failed: ${e.message}") }
             }
         }
+    }
+
+    fun clearPendingExport() {
+        _state.update { it.copy(pendingExportJson = null, pendingExportFileName = null) }
     }
     fun applyImportedJson(json: String) {
         viewModelScope.launch {
@@ -202,6 +216,17 @@ fun DarkModeScreen(
                 } catch (_: Exception) { /* malformed file */ }
             }
         }
+    }
+
+    // SAF export launcher — opens system file picker so user chooses save location
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        uri?.let { viewModel.writeExportToUri(it, context.contentResolver) }
+            ?: viewModel.clearPendingExport()
+    }
+    LaunchedEffect(state.pendingExportFileName) {
+        state.pendingExportFileName?.let { name -> exportLauncher.launch(name) }
     }
 
     LaunchedEffect(state.snackbarMessage) { state.snackbarMessage?.let { snackbarHostState.showSnackbar(it); viewModel.clearSnackbar() } }

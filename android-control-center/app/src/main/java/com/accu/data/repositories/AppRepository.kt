@@ -63,7 +63,13 @@ class AppRepository @Inject constructor(
             val result = when (method) {
                 FreezeMethod.DISABLE   -> shizukuUtils.execShizuku("pm disable-user --user 0 $packageName")
                 FreezeMethod.SUSPEND   -> shizukuUtils.execShizuku("am suspend-packages $packageName")
-                FreezeMethod.HIDE      -> shizukuUtils.execShizuku("pm hide --user 0 $packageName")
+                FreezeMethod.HIDE      -> {
+                    // pm hide requires MANAGE_USERS permission (only available on root).
+                    // On ADB connections, fall back to pm disable-user which has the same effect.
+                    val r = shizukuUtils.execShizuku("pm hide --user 0 $packageName 2>&1")
+                    if (r.isSuccess || r.output.contains("hidden state: true")) r
+                    else shizukuUtils.execShizuku("pm disable-user --user 0 $packageName")
+                }
                 FreezeMethod.UNHIDE    -> shizukuUtils.execShizuku("pm unhide --user 0 $packageName")
             }
             if (result.isSuccess) {
@@ -79,7 +85,11 @@ class AppRepository @Inject constructor(
             val result = when (frozen.freezeMethod) {
                 "disable"  -> shizukuUtils.execShizuku("pm enable --user 0 $packageName")
                 "suspend"  -> shizukuUtils.execShizuku("am unsuspend-packages $packageName")
-                "hide"     -> shizukuUtils.execShizuku("pm unhide --user 0 $packageName")
+                "hide"     -> {
+                    val r = shizukuUtils.execShizuku("pm unhide --user 0 $packageName 2>&1")
+                    if (r.isSuccess || r.output.contains("hidden state: false")) r
+                    else shizukuUtils.execShizuku("pm enable --user 0 $packageName")
+                }
                 else       -> shizukuUtils.execShizuku("pm enable --user 0 $packageName")
             }
             if (result.isSuccess) frozenAppDao.deleteByPackage(packageName)

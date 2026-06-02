@@ -1,7 +1,8 @@
 package com.accu.ui.customization
 
+import android.content.ContentResolver
 import android.content.Context
-import android.os.Environment
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.data.db.dao.CustomThemeDao
@@ -12,7 +13,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 data class CustomizationUiState(
@@ -49,6 +49,9 @@ data class CustomizationUiState(
     // Saved themes from DB
     val savedThemes: List<CustomThemeEntity> = emptyList(),
     val snackbarMessage: String? = null,
+    // Non-null triggers CreateDocument SAF picker in Screen
+    val pendingExportJson: String? = null,
+    val pendingExportFileName: String? = null,
 )
 
 @HiltViewModel
@@ -125,44 +128,55 @@ class CustomizationViewModel @Inject constructor(
     // ── Monet / Seed ──────────────────────────────────────
     fun setMonetStyle(style: String) = _state.update { it.copy(monetStyle = style) }
 
+    /** Step 1 — builds the JSON and signals the Screen to open a SAF CreateDocument picker */
     fun exportTheme() {
+        val s = _state.value
+        val json = buildString {
+            appendLine("{")
+            appendLine("  \"preset\": \"${s.preset.name}\",")
+            appendLine("  \"monetStyle\": \"${s.monetStyle}\",")
+            appendLine("  \"isDark\": ${s.isDark},")
+            appendLine("  \"isAmoled\": ${s.isAmoled},")
+            appendLine("  \"pitchBlack\": ${s.pitchBlack},")
+            appendLine("  \"accurateShades\": ${s.accurateShades},")
+            appendLine("  \"useGlassEffect\": ${s.useGlassEffect},")
+            appendLine("  \"useGradientBackground\": ${s.useGradientBackground},")
+            appendLine("  \"useDynamicColor\": ${s.useDynamicColor},")
+            appendLine("  \"cardStyle\": \"${s.cardStyle.name}\",")
+            appendLine("  \"cornerRadiusScale\": ${s.cornerRadiusScale},")
+            appendLine("  \"fontScale\": ${s.fontScale},")
+            appendLine("  \"elevationScale\": ${s.elevationScale},")
+            appendLine("  \"animationScale\": ${s.animationScale},")
+            appendLine("  \"accentIntensity\": ${s.accentIntensity},")
+            appendLine("  \"navBarStyle\": \"${s.navBarStyle.name}\",")
+            appendLine("  \"seedColor\": ${s.seedColor},")
+            appendLine("  \"iconShape\": \"${s.iconShape}\",")
+            appendLine("  \"transparentStatusBar\": ${s.transparentStatusBar},")
+            appendLine("  \"transparentNavBar\": ${s.transparentNavBar},")
+            appendLine("  \"hideNotch\": ${s.hideNotch}")
+            append("}")
+        }
+        val fileName = "accu_theme_${System.currentTimeMillis()}.json"
+        _state.update { it.copy(pendingExportJson = json, pendingExportFileName = fileName) }
+    }
+
+    /** Step 2 — called after user picks a save location via CreateDocument */
+    fun writeExportToUri(uri: Uri, contentResolver: ContentResolver) {
+        val json = _state.value.pendingExportJson ?: return
+        _state.update { it.copy(pendingExportJson = null, pendingExportFileName = null) }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val s = _state.value
-                val json = buildString {
-                    appendLine("{")
-                    appendLine("  \"preset\": \"${s.preset.name}\",")
-                    appendLine("  \"monetStyle\": \"${s.monetStyle}\",")
-                    appendLine("  \"isDark\": ${s.isDark},")
-                    appendLine("  \"isAmoled\": ${s.isAmoled},")
-                    appendLine("  \"pitchBlack\": ${s.pitchBlack},")
-                    appendLine("  \"accurateShades\": ${s.accurateShades},")
-                    appendLine("  \"useGlassEffect\": ${s.useGlassEffect},")
-                    appendLine("  \"useGradientBackground\": ${s.useGradientBackground},")
-                    appendLine("  \"useDynamicColor\": ${s.useDynamicColor},")
-                    appendLine("  \"cardStyle\": \"${s.cardStyle.name}\",")
-                    appendLine("  \"cornerRadiusScale\": ${s.cornerRadiusScale},")
-                    appendLine("  \"fontScale\": ${s.fontScale},")
-                    appendLine("  \"elevationScale\": ${s.elevationScale},")
-                    appendLine("  \"animationScale\": ${s.animationScale},")
-                    appendLine("  \"accentIntensity\": ${s.accentIntensity},")
-                    appendLine("  \"navBarStyle\": \"${s.navBarStyle.name}\",")
-                    appendLine("  \"seedColor\": ${s.seedColor},")
-                    appendLine("  \"iconShape\": \"${s.iconShape}\",")
-                    appendLine("  \"transparentStatusBar\": ${s.transparentStatusBar},")
-                    appendLine("  \"transparentNavBar\": ${s.transparentNavBar},")
-                    appendLine("  \"hideNotch\": ${s.hideNotch}")
-                    append("}")
-                }
-                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                dir.mkdirs()
-                val file = File(dir, "accu_theme_${System.currentTimeMillis()}.json")
-                file.writeText(json)
-                _state.update { it.copy(snackbarMessage = "Theme exported to Downloads/${file.name}") }
+                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                    ?: throw Exception("Cannot open output stream")
+                _state.update { it.copy(snackbarMessage = "Theme exported to selected location") }
             } catch (e: Exception) {
                 _state.update { it.copy(snackbarMessage = "Export failed: ${e.message}") }
             }
         }
+    }
+
+    fun clearPendingExport() {
+        _state.update { it.copy(pendingExportJson = null, pendingExportFileName = null) }
     }
 
     /** Apply imported JSON theme. Call from the Screen after user picks a file. */

@@ -1,7 +1,8 @@
 package com.accu.ui.appmanager
 
 import android.content.Intent
-import android.os.Environment
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,7 +19,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -81,6 +81,23 @@ fun CantaLogsScreen(onBack: () -> Unit) {
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
 
+    // SAF launcher — system file picker, user chooses where to save
+    var pendingExportText by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain")
+    ) { uri ->
+        val text = pendingExportText
+        pendingExportText = null
+        if (uri != null && text != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) }
+                snackbar = "Logs exported to selected location"
+            } catch (e: Exception) {
+                snackbar = "Export failed: ${e.message}"
+            }
+        }
+    }
+
     val filtered = if (filterAction == null) logs else logs.filter { it.action == filterAction }
 
     Scaffold(
@@ -105,20 +122,13 @@ fun CantaLogsScreen(onBack: () -> Unit) {
                         IconButton(onClick = { showExportMenu = true }) { Icon(Icons.Default.IosShare, "Export") }
                         DropdownMenu(showExportMenu, { showExportMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text("Export to Downloads") },
+                                text = { Text("Save to…") },
                                 leadingIcon = { Icon(Icons.Default.FileDownload, null) },
                                 onClick = {
                                     showExportMenu = false
-                                    try {
-                                        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                        dir.mkdirs()
-                                        val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                                        val file = File(dir, "accu_debloat_logs_$ts.txt")
-                                        file.writeText(DebloatLogger.toText())
-                                        snackbar = "Exported to Downloads/${file.name}"
-                                    } catch (e: Exception) {
-                                        snackbar = "Export failed: ${e.message}"
-                                    }
+                                    val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                                    pendingExportText = DebloatLogger.toText()
+                                    exportLauncher.launch("accu_debloat_logs_$ts.txt")
                                 },
                             )
                             DropdownMenuItem(

@@ -2,7 +2,6 @@ package com.accu.ui.appmanager
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -22,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -194,8 +192,22 @@ fun CantaPresetsScreen(
         snackbarMessage?.let { snackbarHostState.showSnackbar(it); snackbarMessage = null }
     }
 
-    // ── Export launcher ────────────────────────────────────────────────────
-    val exportPresetState = remember { mutableStateOf<DebloatPreset?>(null) }
+    // ── Export launcher (SAF — user picks save location) ──────────────────
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val json = pendingExportJson
+        pendingExportJson = null
+        if (uri != null && json != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                snackbarMessage = "Preset saved to selected location"
+            } catch (e: Exception) {
+                snackbarMessage = "Export failed: ${e.message}"
+            }
+        }
+    }
 
     // ── Import launcher ────────────────────────────────────────────────────
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -285,15 +297,8 @@ fun CantaPresetsScreen(
                     onToggleExpand = { expandedId = if (expandedId == preset.id) null else preset.id },
                     onApply = { onApplyPreset(preset) },
                     onExport = {
-                        try {
-                            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                            dir.mkdirs()
-                            val file = File(dir, "accu_preset_${preset.name.replace(" ", "_").lowercase()}.json")
-                            file.writeText(preset.toJson())
-                            snackbarMessage = "Exported to Downloads/${file.name}"
-                        } catch (e: Exception) {
-                            snackbarMessage = "Export failed: ${e.message}"
-                        }
+                        pendingExportJson = preset.toJson()
+                        exportLauncher.launch("accu_preset_${preset.name.replace(" ", "_").lowercase()}.json")
                     },
                     dateFormat = dateFormat,
                 )
@@ -310,15 +315,8 @@ fun CantaPresetsScreen(
                         onDelete = { customPresets.remove(preset) },
                         onEdit = { editingPreset = preset },
                         onExport = {
-                            try {
-                                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                dir.mkdirs()
-                                val file = File(dir, "accu_preset_${preset.name.replace(" ", "_").lowercase()}.json")
-                                file.writeText(preset.toJson())
-                                snackbarMessage = "Exported to Downloads/${file.name}"
-                            } catch (e: Exception) {
-                                snackbarMessage = "Export failed: ${e.message}"
-                            }
+                            pendingExportJson = preset.toJson()
+                            exportLauncher.launch("accu_preset_${preset.name.replace(" ", "_").lowercase()}.json")
                         },
                         dateFormat = dateFormat,
                     )

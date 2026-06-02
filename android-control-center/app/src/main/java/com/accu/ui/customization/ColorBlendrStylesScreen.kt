@@ -2,7 +2,6 @@ package com.accu.ui.customization
 
 import android.app.Activity
 import android.content.Intent
-import android.os.Environment
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -176,6 +175,23 @@ fun ColorBlendrStylesScreen(onBack: () -> Unit) {
         }
     }
 
+    // SAF export launcher — user picks where to save
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        val json = pendingExportJson
+        pendingExportJson = null
+        if (uri != null && json != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                snackbar = "Styles saved to selected location"
+            } catch (e: Exception) {
+                snackbar = "Export failed: ${e.message}"
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -237,16 +253,9 @@ fun ColorBlendrStylesScreen(onBack: () -> Unit) {
                     Text("Saved Styles (${savedStyles.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (savedStyles.isNotEmpty()) {
                         TextButton(onClick = {
-                            try {
-                                val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                dir.mkdirs()
-                                val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-                                val file = File(dir, "accu_colorblendr_styles_$ts.json")
-                                file.writeText(savedStyles.toList().toJsonArray())
-                                snackbar = "Exported to Downloads/${file.name}"
-                            } catch (e: Exception) {
-                                snackbar = "Export failed"
-                            }
+                            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                            pendingExportJson = savedStyles.toList().toJsonArray()
+                            exportLauncher.launch("accu_colorblendr_styles_$ts.json")
                         }) { Text("Export All") }
                     }
                 }
