@@ -497,18 +497,20 @@ val BUILT_IN_TILES: List<ShellQsTile> = listOf(
 //  VIEW MODEL
 // ═══════════════════════════════════════════════════════════════
 
-private const val PREF_TILES        = "qs_tiles_prefs"
-private const val KEY_TILES         = "tiles_json"
-private const val KEY_LOGS          = "logs_json"
-private const val KEY_RESULTS       = "results_json"
-private const val KEY_MEDIA_FOLDER  = "media_output_folder"
-private const val MAX_LOGS          = 500
+private const val PREF_TILES            = "qs_tiles_prefs"
+private const val KEY_TILES             = "tiles_json"
+private const val KEY_LOGS              = "logs_json"
+private const val KEY_RESULTS           = "results_json"
+private const val KEY_MEDIA_FOLDER      = "media_output_folder"
+private const val KEY_MEDIA_FOLDER_URI  = "media_output_folder_uri"
+private const val MAX_LOGS              = 500
 
 data class QsTilesUiState(
-    val customTiles:   List<ShellQsTile> = emptyList(),
-    val logs:          List<TileLog>     = emptyList(),
-    val results:       List<TileResult>  = emptyList(),
-    val mediaFolder:   String            = "/sdcard/DCIM/ACCU",
+    val customTiles:    List<ShellQsTile> = emptyList(),
+    val logs:           List<TileLog>     = emptyList(),
+    val results:        List<TileResult>  = emptyList(),
+    val mediaFolder:    String            = "/sdcard/DCIM/ACCU",
+    val mediaFolderUri: String            = "",
 )
 
 @HiltViewModel
@@ -525,16 +527,48 @@ class ShellQsTileDashboardViewModel @Inject constructor(
     init { load() }
 
     private fun load() {
-        val tiles   = parseTiles(prefs.getString(KEY_TILES,   "[]") ?: "[]")
-        val logs    = parseLogs(prefs.getString(KEY_LOGS,     "[]") ?: "[]")
-        val results = parseResults(prefs.getString(KEY_RESULTS,"[]") ?: "[]")
-        val folder  = prefs.getString(KEY_MEDIA_FOLDER, "/sdcard/DCIM/ACCU") ?: "/sdcard/DCIM/ACCU"
-        _state.update { it.copy(customTiles = tiles, logs = logs, results = results, mediaFolder = folder) }
+        val tiles     = parseTiles(prefs.getString(KEY_TILES,   "[]") ?: "[]")
+        val logs      = parseLogs(prefs.getString(KEY_LOGS,     "[]") ?: "[]")
+        val results   = parseResults(prefs.getString(KEY_RESULTS,"[]") ?: "[]")
+        val folder    = prefs.getString(KEY_MEDIA_FOLDER, "/sdcard/DCIM/ACCU") ?: "/sdcard/DCIM/ACCU"
+        val folderUri = prefs.getString(KEY_MEDIA_FOLDER_URI, "") ?: ""
+        _state.update { it.copy(customTiles = tiles, logs = logs, results = results, mediaFolder = folder, mediaFolderUri = folderUri) }
     }
 
     fun setMediaFolder(path: String) {
         prefs.edit().putString(KEY_MEDIA_FOLDER, path).apply()
         _state.update { it.copy(mediaFolder = path) }
+    }
+
+    fun setMediaFolderUri(uri: android.net.Uri, displayName: String) {
+        val uriStr = uri.toString()
+        prefs.edit()
+            .putString(KEY_MEDIA_FOLDER_URI, uriStr)
+            .putString(KEY_MEDIA_FOLDER, displayName)
+            .apply()
+        _state.update { it.copy(mediaFolder = displayName, mediaFolderUri = uriStr) }
+    }
+
+    fun getMediaFolderUri(): android.net.Uri? {
+        val str = _state.value.mediaFolderUri
+        return if (str.isNotBlank()) android.net.Uri.parse(str) else null
+    }
+
+    private fun saveResultToFolder(filename: String, content: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val uriStr = _state.value.mediaFolderUri
+            if (uriStr.isBlank()) return@launch
+            try {
+                val treeUri = android.net.Uri.parse(uriStr)
+                val docDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    ?: return@launch
+                docDir.findFile(filename)?.delete()
+                val docFile = docDir.createFile("text/plain", filename) ?: return@launch
+                context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
+                    out.write(content.toByteArray())
+                }
+            } catch (_: Exception) {}
+        }
     }
 
     fun runTile(tile: ShellQsTile) {
@@ -578,6 +612,9 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             }
             updateRunning(tile.id, tile.isBuiltIn, false, outputText.take(100), ts)
             persistAll()
+            val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+            val safeTs    = ts.replace(" ", "_").replace(":", "-")
+            saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${tile.command}\n\n${outputText}")
         }
     }
 
@@ -791,11 +828,28 @@ fun ShellQsTileDashboardScreen(
     var showDeleteConfirm by remember { mutableStateOf<ShellQsTile?>(null) }
     var selectedTab      by remember { mutableIntStateOf(0) }
     var selectedIds      by remember { mutableStateOf(setOf<String>()) }
-    var showFolderDialog by remember { mutableStateOf(false) }
     var snackbar         by remember { mutableStateOf<String?>(null) }
     var catFilter        by remember { mutableStateOf<TileCategory?>(null) }
     var builtInSearch    by remember { mutableStateOf("") }
     val snackbarHost     = remember { SnackbarHostState() }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        uri?.let {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    it,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+            }
+            val displayName = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, it)?.name
+                ?: it.lastPathSegment
+                ?: "Custom Folder"
+            viewModel.setMediaFolderUri(it, displayName)
+            snackbar = "Save folder → $displayName ✓"
+        }
+    }
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
 
@@ -837,8 +891,8 @@ fun ShellQsTileDashboardScreen(
                         }) { Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error) }
                         IconButton(onClick = { selectedIds = emptySet() }) { Icon(Icons.Default.Close, "Cancel") }
                     } else {
-                        IconButton(onClick = { showFolderDialog = true }) {
-                            Icon(Icons.Default.FolderOpen, "Media output folder")
+                        IconButton(onClick = { folderPickerLauncher.launch(null) }) {
+                            Icon(Icons.Default.FolderOpen, "Pick save folder")
                         }
                         if (selectedTab == 1) {
                             IconButton(onClick = { openEditor(null) }) { Icon(Icons.Default.Add, "New Tile") }
@@ -890,7 +944,7 @@ fun ShellQsTileDashboardScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     TextButton(
-                        onClick = { showFolderDialog = true },
+                        onClick = { folderPickerLauncher.launch(null) },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                     ) { Text("Change", style = MaterialTheme.typography.labelSmall) }
                 }
@@ -971,59 +1025,6 @@ fun ShellQsTileDashboardScreen(
                 )
             }
         }
-    }
-
-    // ── Folder picker dialog ──────────────────────────────
-    if (showFolderDialog) {
-        var folderInput by remember { mutableStateOf(mediaFolder) }
-        val presets = listOf(
-            "/sdcard/DCIM/ACCU",
-            "/sdcard/Download",
-            "/sdcard/Pictures/ACCU",
-            "/sdcard/Movies/ACCU",
-        )
-        AlertDialog(
-            onDismissRequest = { showFolderDialog = false },
-            icon = { Icon(Icons.Default.FolderOpen, null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Media Output Folder", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Screenshots and recordings from built-in tiles will be saved here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedTextField(
-                        value = folderInput, onValueChange = { folderInput = it },
-                        label = { Text("Folder path") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        leadingIcon = { Icon(Icons.Default.FolderOpen, null, Modifier.size(18.dp)) },
-                    )
-                    Text("Quick pick:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
-                    presets.forEach { preset ->
-                        OutlinedButton(
-                            onClick = { folderInput = preset },
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            border = if (folderInput == preset) ButtonDefaults.outlinedButtonBorder() else ButtonDefaults.outlinedButtonBorder(),
-                        ) {
-                            Icon(Icons.Default.Folder, null, Modifier.size(14.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(preset, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (folderInput == preset) Icon(Icons.Default.Check, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.setMediaFolder(folderInput.trimEnd('/'))
-                    snackbar = "Media folder updated ✓"
-                    showFolderDialog = false
-                }) { Text("Save") }
-            },
-            dismissButton = { TextButton(onClick = { showFolderDialog = false }) { Text("Cancel") } },
-        )
     }
 
     // ── Create/Edit bottom sheet ──────────────────────────

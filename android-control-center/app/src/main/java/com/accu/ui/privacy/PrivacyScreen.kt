@@ -504,7 +504,7 @@ private fun ComponentsTab(state: PrivacyUiState, viewModel: PrivacyViewModel) {
         EmptyState(Icons.Default.Shield, "No blocked components", "Block trackers or disable components from App Manager")
     } else {
         LazyColumn(Modifier.fillMaxSize()) {
-            items(state.blockedComponents, key = { "${it.packageName}/${it.componentName}" }) { comp ->
+            itemsIndexed(state.blockedComponents, key = { idx, it -> "${idx}_${it.packageName}/${it.componentName}" }) { _, comp ->
                 ListItem(
                     headlineContent = { Text(comp.componentName.substringAfterLast('.')) },
                     supportingContent = {

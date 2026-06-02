@@ -7,6 +7,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -267,7 +268,7 @@ fun InureBootManagerScreen(onBack: () -> Unit = {}) {
                 }
             } else {
                 LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
-                    items(filtered, key = { "${it.packageName}/${it.receiverClass}" }) { app ->
+                    itemsIndexed(filtered, key = { idx, it -> "${idx}_${it.packageName}/${it.receiverClass}" }) { _, app ->
                         val isSelected = app.packageName in selectedPkgs
                         val isToggling = togglingPkg == "${app.packageName}/${app.receiverClass}"
                         Card(

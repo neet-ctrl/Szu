@@ -46,6 +46,7 @@ import javax.inject.Inject
 data class FileManagerState(
     val currentPath: String = "/sdcard",
     val files: List<FileItem> = emptyList(),
+    val allFiles: List<FileItem> = emptyList(),
     val breadcrumbs: List<String> = listOf("/sdcard"),
     val selectedFiles: Set<String> = emptySet(),
     val isMultiSelect: Boolean = false,
@@ -88,19 +89,14 @@ class FileManagerViewModel @Inject constructor(
     fun navigateTo(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true, searchQuery = "") }
-            try {
-                val dir = File(path)
-                val files = (dir.listFiles()?.toList() ?: emptyList())
-                    .filter { _state.value.showHidden || !it.isHidden }
-                    .map { f -> FileItem(f.name, f.absolutePath, if (f.isFile) f.length() else 0L, f.lastModified(), f.isDirectory, getMimeType(f), f.isHidden) }
-                    .sortedWith(_state.value.sortBy)
-                val breadcrumbs = buildBreadcrumbs(path)
-                _state.update { it.copy(currentPath = path, files = files, breadcrumbs = breadcrumbs, isLoading = false, isMultiSelect = false, selectedFiles = emptySet()) }
-            } catch (e: Exception) {
-                val result = shizukuUtils.execShizuku("ls -la $path")
-                val items = parseLsOutput(result.output, path).sortedWith(_state.value.sortBy)
-                _state.update { it.copy(currentPath = path, files = items, isLoading = false) }
-            }
+            val result = shizukuUtils.execShizuku("ls -la \"$path\" 2>/dev/null")
+            val raw = if (result.output.isNotBlank()) result.output
+                      else shizukuUtils.execShizuku("ls -la $path 2>/dev/null").output
+            val items = parseLsOutput(raw, path)
+                .filter { _state.value.showHidden || !it.isHidden }
+                .sortedWith(_state.value.sortBy)
+            val breadcrumbs = buildBreadcrumbs(path)
+            _state.update { it.copy(currentPath = path, files = items, allFiles = items, breadcrumbs = breadcrumbs, isLoading = false, isMultiSelect = false, selectedFiles = emptySet()) }
         }
     }
 
@@ -248,13 +244,8 @@ class FileManagerViewModel @Inject constructor(
 
     fun setSearchQuery(q: String) {
         _state.update { s ->
-            val filtered = if (q.isBlank()) {
-                try { File(s.currentPath).listFiles()?.map { f ->
-                    FileItem(f.name, f.absolutePath, if (f.isFile) f.length() else 0L, f.lastModified(), f.isDirectory, getMimeType(f), f.isHidden)
-                }?.filter { s.showHidden || !it.isHidden }?.sortedWith(s.sortBy) ?: emptyList() } catch (_: Exception) { s.files }
-            } else {
-                s.files.filter { it.name.contains(q, ignoreCase = true) }
-            }
+            val filtered = if (q.isBlank()) s.allFiles
+                           else s.allFiles.filter { it.name.contains(q, ignoreCase = true) }
             s.copy(searchQuery = q, files = filtered)
         }
     }
@@ -282,12 +273,18 @@ class FileManagerViewModel @Inject constructor(
     }
 
     private fun parseLsOutput(output: String, basePath: String): List<FileItem> = output.lines().mapNotNull { line ->
-        val parts = line.trim().split("\\s+".toRegex())
-        if (parts.size < 9) return@mapNotNull null
-        val name = parts.last()
-        if (name in listOf(".", "..")) return@mapNotNull null
+        val trimmed = line.trim()
+        if (trimmed.isEmpty() || trimmed.startsWith("total")) return@mapNotNull null
+        val parts = trimmed.split("\\s+".toRegex())
+        if (parts.size < 5) return@mapNotNull null
+        val name = if (parts.size >= 9) parts.subList(8, parts.size).joinToString(" ") else parts.last()
+        if (name in listOf(".", "..") || name.isEmpty()) return@mapNotNull null
         val isDir = parts[0].startsWith("d")
-        FileItem(name, "$basePath/$name", 0L, 0L, isDir)
+        val isLink = parts[0].startsWith("l")
+        val size = if (!isDir) parts.getOrNull(4)?.toLongOrNull() ?: 0L else 0L
+        val isHidden = name.startsWith(".")
+        val fakeMime = getMimeTypeStr(java.io.File(name))
+        FileItem(name, "$basePath/$name", size, 0L, isDir || isLink, fakeMime, isHidden)
     }
 
     private fun List<FileItem>.sortedWith(sortBy: FileSortBy): List<FileItem> = when (sortBy) {

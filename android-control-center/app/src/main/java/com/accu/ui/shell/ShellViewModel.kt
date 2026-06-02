@@ -259,6 +259,29 @@ class ShellViewModel @Inject constructor(
         }
     }
 
+    fun saveOutputToUri(context: android.content.Context, treeUri: android.net.Uri, filename: String, content: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val docDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                    ?: throw Exception("Cannot open chosen folder")
+                val existing = docDir.findFile(filename)
+                existing?.delete()
+                val docFile = docDir.createFile("text/plain", filename)
+                    ?: throw Exception("Cannot create file in chosen folder")
+                context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
+                    out.write(content.toByteArray())
+                }
+                withContext(Dispatchers.Main) {
+                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Saved '$filename' to chosen folder ✓"))
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    addLine(OutputLine(lineIdCounter.incrementAndGet(), "Save failed: ${e.message}", isError = true))
+                }
+            }
+        }
+    }
+
     private fun addLine(line: OutputLine) {
         _output.update { current ->
             val next = current + line

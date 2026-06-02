@@ -196,7 +196,7 @@ fun ComponentManagerScreen(
                     if (state.blockedComponents.isEmpty()) "Block app components from the App Detail screen" else "Try a different filter or search")
             } else {
                 LazyColumn(Modifier.weight(1f)) {
-                    items(filtered, key = { "${it.packageName}/${it.componentName}" }) { comp ->
+                    itemsIndexed(filtered, key = { idx, it -> "${idx}_${it.packageName}/${it.componentName}" }) { _, comp ->
                         val key = "${comp.packageName}/${comp.componentName}"
                         val isSelected = key in selectedComponents
                         BlockedComponentItem(
