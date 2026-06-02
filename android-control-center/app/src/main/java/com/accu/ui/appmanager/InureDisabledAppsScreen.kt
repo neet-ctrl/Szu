@@ -1,8 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,7 +20,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -51,12 +46,16 @@ private fun formatSize(bytes: Long): String = when {
     else               -> "$bytes B"
 }
 
+/** Derive a human-readable label from a package name. */
+private fun labelFromPkg(pkg: String): String =
+    pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var apps by remember { mutableStateOf<List<DisabledApp>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -72,62 +71,61 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
 
-    fun reload() { loading = true; error = ""; apps = emptyList() }
-
-    LaunchedEffect(Unit) {
+    suspend fun loadApps() {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                // Get disabled packages from local PackageManager (covers the device ACCU is on)
-                val disabledLocal = pm.getInstalledPackages(PackageManager.GET_META_DATA)
-                    .filter { pi ->
-                        val state = try { pm.getApplicationEnabledSetting(pi.packageName) } catch (_: Exception) { -1 }
-                        pi.applicationInfo?.let { ai -> !ai.enabled } ?: false ||
-                        state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED ||
-                        state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
-                    }
-
-                // Also query via pm list packages -d on the target device
-                val adbRaw = try {
-                    connectionManager.exec("pm list packages -d 2>/dev/null").output
-                } catch (_: Exception) { "" }
-                val adbDisabled = adbRaw.lines()
+                // Query ONLY the target device via ADB — never read local PackageManager
+                val adbRaw = connectionManager.exec("pm list packages -d 2>/dev/null").output
+                val disabledPkgs = adbRaw.lines()
                     .filter { it.startsWith("package:") }
                     .map { it.removePrefix("package:").trim() }
                     .filter { it.isNotEmpty() }
+
+                // Also get system package list to distinguish system vs user disabled apps
+                val systemPkgsRaw = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                val systemPkgs = systemPkgsRaw.lines()
+                    .filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }
                     .toSet()
 
-                val result = mutableListOf<DisabledApp>()
-
-                // From local PackageManager
-                disabledLocal.forEach { pi ->
-                    val ai = pi.applicationInfo ?: return@forEach
-                    val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                    val sizeBytes = try { java.io.File(ai.sourceDir ?: "").length() } catch (_: Exception) { 0L }
-                    val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
-                    val enabledState = try { pm.getApplicationEnabledSetting(pi.packageName) } catch (_: Exception) { -1 }
-                    val via = when (enabledState) {
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER -> DisabledVia.SYSTEM_SETTINGS
-                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED -> DisabledVia.ADB
-                        else -> DisabledVia.UNKNOWN
+                // Batch-fetch package sizes via stat on the target device
+                val sizeScript = buildString {
+                    append("for pkg in ")
+                    disabledPkgs.take(60).forEach { append("\"$it\" ") }
+                    append("; do ")
+                    append("path=\$(pm path \"\$pkg\" 2>/dev/null | sed 's/package://'); ")
+                    append("if [ -n \"\$path\" ]; then sz=\$(stat -c %s \"\$path\" 2>/dev/null || echo 0); else sz=0; fi; ")
+                    append("echo \"PKG:\$pkg|SZ:\$sz\"; ")
+                    append("done 2>/dev/null")
+                }
+                val sizeOut = connectionManager.exec(sizeScript).output
+                val sizeMap = sizeOut.lines()
+                    .filter { it.startsWith("PKG:") }
+                    .associate { line ->
+                        val pkg = line.substringAfter("PKG:").substringBefore("|").trim()
+                        val sz = line.substringAfter("SZ:").trim().toLongOrNull() ?: 0L
+                        pkg to sz
                     }
-                    result += DisabledApp(appName, pi.packageName, via, sizeBytes, isSystem)
-                }
 
-                // From ADB pm list packages -d — add those not already found locally
-                val localPkgs = result.map { it.pkg }.toSet()
-                adbDisabled.filter { it !in localPkgs }.forEach { pkg ->
-                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { pkg }
-                    val isSystem = try { (pm.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0 } catch (_: Exception) { false }
-                    result += DisabledApp(appName, pkg, DisabledVia.ADB, 0L, isSystem)
+                apps = disabledPkgs.map { pkg ->
+                    val isSystem = pkg in systemPkgs
+                    val sizeBytes = sizeMap[pkg] ?: 0L
+                    // Assume ADB-reported disabled apps were disabled via ADB/root
+                    val via = if (isSystem) DisabledVia.ADB else DisabledVia.SYSTEM_SETTINGS
+                    DisabledApp(labelFromPkg(pkg), pkg, via, sizeBytes, isSystem)
                 }
-
-                apps = result
             } catch (e: Exception) {
-                error = e.message ?: "Failed to load disabled apps"
+                error = e.message ?: "Failed to load disabled apps from target device"
             }
             loading = false
         }
+    }
+
+    LaunchedEffect(Unit) { loadApps() }
+
+    fun reload() {
+        loading = true; error = ""; apps = emptyList()
+        scope.launch { loadApps() }
     }
 
     val filtered = apps.filter { app ->
@@ -166,7 +164,7 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         CircularProgressIndicator()
-                        Text("Scanning disabled apps…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Scanning target device for disabled apps…", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 return@Column
@@ -187,7 +185,7 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-                        Text("No disabled apps found", style = MaterialTheme.typography.headlineSmall)
+                        Text("No disabled apps on target device", style = MaterialTheme.typography.headlineSmall)
                         Text("All installed apps are currently enabled", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -203,7 +201,7 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                     Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("${apps.size} disabled apps", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text("${apps.size} disabled apps on target device", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
                         Text("Re-enabling system apps may restore background services. Use with caution.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer.copy(0.8f))
                     }
                 }
@@ -297,7 +295,7 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
             title = { Text("Enable ${toEnable.name}?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("This will re-enable the app using pm enable via ACCU.", style = MaterialTheme.typography.bodySmall)
+                    Text("This will re-enable the app on the target device using pm enable via ACCU.", style = MaterialTheme.typography.bodySmall)
                     if (toEnable.isSystem) {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                             Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -314,13 +312,13 @@ fun InureDisabledAppsScreen(onBack: () -> Unit = {}) {
                     val pkg = toEnable.pkg
                     confirmEnableApp = null
                     enablingPkg = pkg
-                    kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+                    scope.launch(Dispatchers.IO) {
                         val result = try { connectionManager.exec("pm enable $pkg 2>&1").output } catch (e: Exception) { e.message ?: "Error" }
                         withContext(Dispatchers.Main) {
                             enablingPkg = ""
                             if (result.contains("enabled", ignoreCase = true) || result.contains("success", ignoreCase = true)) {
                                 apps = apps.filter { it.pkg != pkg }
-                                snackbar = "Enabled ${toEnable.name}"
+                                snackbar = "Enabled ${toEnable.name} on target device"
                             } else {
                                 snackbar = "Failed to enable: $result"
                             }

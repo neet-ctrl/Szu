@@ -1,17 +1,16 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,13 +45,19 @@ data class FossAppInfo(
     val installerPackage: String,
 )
 
+/** Derive a human-readable label from a package name. */
+private fun labelFromPackage(pkg: String): String =
+    pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InureFossScreen(
     onBack: () -> Unit = {},
     onNavigateToAppDetail: (String) -> Unit = {},
 ) {
-    val context = LocalContext.current
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+
     var apps by remember { mutableStateOf<List<FossAppInfo>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
@@ -61,25 +66,26 @@ fun InureFossScreen(
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                // Get all non-system packages from target device with installer info
+                val raw = connectionManager.exec("pm list packages -3 -i --show-versioncode 2>/dev/null").output
                 val result = mutableListOf<FossAppInfo>()
 
-                for (pi in packages) {
-                    val pkg = pi.packageName
-                    val isSystem = (pi.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM != 0
-                    if (isSystem) continue  // skip system apps — they're not from FOSS stores
+                raw.lines().filter { it.startsWith("package:") }.forEach { line ->
+                    val pkg = line.substringAfter("package:").substringBefore(" ").substringBefore("\t").trim()
+                    if (pkg.isEmpty()) return@forEach
 
-                    val installer = try {
-                        @Suppress("DEPRECATION")
-                        pm.getInstallerPackageName(pkg) ?: ""
-                    } catch (_: Exception) { "" }
+                    // Parse installer from "installer=xxx" or "installer:xxx"
+                    val installer = Regex("installer[=:]([^\\s]+)").find(line)?.groupValues?.getOrNull(1)
+                        ?.trimEnd()?.let { if (it == "null" || it.isBlank()) "" else it } ?: ""
+
+                    // Parse version code (version name requires per-package query — omit for speed)
+                    // val versionCode = Regex("versionCode:(\\d+)").find(line)?.groupValues?.getOrNull(1) ?: ""
 
                     val fossBasis = when {
                         installer in FOSS_INSTALLERS -> when (installer) {
                             "org.fdroid.fdroid", "org.fdroid.basic" -> "F-Droid"
                             "com.aurora.store" -> "Aurora Store"
-                            else -> installer
+                            else -> installer.substringAfterLast(".")
                         }
                         FOSS_PACKAGE_PATTERNS.any { pkg.startsWith(it) } -> "Package Name"
                         else -> null
@@ -88,8 +94,8 @@ fun InureFossScreen(
                     if (fossBasis != null) {
                         result += FossAppInfo(
                             packageName = pkg,
-                            appName = pm.getApplicationLabel(pi.applicationInfo!!).toString(),
-                            versionName = pi.versionName ?: "",
+                            appName = labelFromPackage(pkg),
+                            versionName = "",
                             fossBasis = fossBasis,
                             installerPackage = installer,
                         )
@@ -115,7 +121,7 @@ fun InureFossScreen(
         topBar = {
             TopAppBar(
                 title = { Column {
-                    Text("FOSS Apps")
+                    Text("FOSS Apps (Target Device)")
                     if (apps.isNotEmpty()) Text("${apps.size} detected", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }},
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
@@ -124,14 +130,17 @@ fun InureFossScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // Info
             Card(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
             ) {
                 Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Default.VolunteerActivism, null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
-                    Text("Free & Open Source apps detected by installer source (F-Droid, Aurora Store) and package name patterns.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Text(
+                        "Free & Open Source apps on the target device — detected by installer (F-Droid, Aurora Store) and package name patterns.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
                 }
             }
 
@@ -144,67 +153,54 @@ fun InureFossScreen(
                 singleLine = true,
             )
 
-            // Basis filter chips
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                bases.forEach { basis ->
-                    FilterChip(filterBasis == basis, { filterBasis = basis }, { Text(basis) })
-                }
-            }
-
-            if (loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                return@Column
-            }
-
-            if (filtered.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Default.VolunteerActivism, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("No FOSS apps detected", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // Filter chips for FOSS basis
+            if (bases.size > 1) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    bases.forEach { basis ->
+                        FilterChip(filterBasis == basis, { filterBasis = basis }, { Text(basis) })
                     }
                 }
-                return@Column
             }
 
-            LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(filtered, key = { it.packageName }) { app ->
-                    FossAppCard(app, onClick = { onNavigateToAppDetail(app.packageName) })
+            when {
+                loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator()
+                        Text("Scanning target device for FOSS apps…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FossAppCard(app: FossAppInfo, onClick: () -> Unit) {
-    val badgeColor = when (app.fossBasis) {
-        "F-Droid"        -> MaterialTheme.colorScheme.primaryContainer
-        "Aurora Store"   -> MaterialTheme.colorScheme.tertiaryContainer
-        else             -> MaterialTheme.colorScheme.secondaryContainer
-    }
-    val badgeTextColor = when (app.fossBasis) {
-        "F-Droid"        -> MaterialTheme.colorScheme.onPrimaryContainer
-        "Aurora Store"   -> MaterialTheme.colorScheme.onTertiaryContainer
-        else             -> MaterialTheme.colorScheme.onSecondaryContainer
-    }
-
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(Icons.Default.VolunteerActivism, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-            Column(Modifier.weight(1f)) {
-                Text(app.appName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (app.versionName.isNotEmpty()) Text("v${app.versionName}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-            }
-            Surface(color = badgeColor, shape = MaterialTheme.shapes.small, tonalElevation = 0.dp) {
-                Text(app.fossBasis, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = badgeTextColor, fontWeight = FontWeight.Bold)
+                filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.VolunteerActivism, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (apps.isEmpty()) "No FOSS apps detected on target device" else "No results for \"$searchQuery\"",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                else -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                    items(filtered, key = { it.packageName }) { app ->
+                        ListItem(
+                            headlineContent = { Text(app.appName, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            leadingContent = { Icon(Icons.Default.VolunteerActivism, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = when (app.fossBasis) {
+                                        "F-Droid"      -> MaterialTheme.colorScheme.primaryContainer
+                                        "Aurora Store" -> MaterialTheme.colorScheme.secondaryContainer
+                                        else           -> MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                ) {
+                                    Text(app.fossBasis, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                }
+                            },
+                            modifier = Modifier.clickable { onNavigateToAppDetail(app.packageName) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
             }
         }
     }

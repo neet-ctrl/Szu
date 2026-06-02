@@ -1,8 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,7 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,7 +41,6 @@ fun InureMostUsedScreen(
 ) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
-    val context = LocalContext.current
 
     var apps by remember { mutableStateOf<List<UsedAppEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -61,10 +56,7 @@ fun InureMostUsedScreen(
         error = ""
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val daysAgo = System.currentTimeMillis() - timePeriod.toLong() * 86_400_000L
-
-                // Parse dumpsys usagestats to get per-app foreground time
+                // Parse dumpsys usagestats from the TARGET device via ADB/root connection
                 val raw = connectionManager.exec(
                     "dumpsys usagestats 2>/dev/null | grep -E 'package=|totalTimeInForeground|launchCount|lastTimeUsed'"
                 ).output
@@ -90,36 +82,40 @@ fun InureMostUsedScreen(
                 }
                 if (curPkg.isNotEmpty()) entryMap[curPkg] = Triple(curFg, curLast, curLaunches)
 
+                // Also check if the target device is a system app via pm list packages -s
+                val systemPkgsRaw = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                val systemPkgs = systemPkgsRaw.lines()
+                    .filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }
+                    .toSet()
+
                 val result = mutableListOf<UsedAppEntry>()
                 entryMap.forEach { (pkg, data) ->
                     if (data.first > 0L || data.third > 0) {
                         val (fg, last, launches) = data
-                        val appName = try {
-                            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-                        } catch (_: Exception) { pkg }
-                        val isSystem = try {
-                            (pm.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                        } catch (_: Exception) { false }
+                        // Derive app name from package name (ADB doesn't expose app labels directly)
+                        val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+                        val isSystem = pkg in systemPkgs
                         result += UsedAppEntry(pkg, appName, fg, last, launches, isSystem)
                     }
                 }
 
-                // Fallback: if ADB parsing failed, use local PackageManager + UsageStatsManager
-                val finalList = if (result.size < 3) {
-                    val installed = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                    installed.take(30).map { ai ->
-                        UsedAppEntry(
-                            ai.packageName,
-                            pm.getApplicationLabel(ai).toString(),
-                            0L, 0L, 0,
-                            (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                        )
-                    }
+                // If usage stats are unavailable on target (e.g., no usage stats permission on target device),
+                // fall back to showing user packages from the target device sorted by name
+                apps = if (result.isEmpty()) {
+                    val pkgsRaw = connectionManager.exec("pm list packages -3 2>/dev/null").output
+                    pkgsRaw.lines()
+                        .filter { it.startsWith("package:") }
+                        .map { it.removePrefix("package:").trim() }
+                        .filter { it.isNotEmpty() }
+                        .take(50)
+                        .map { pkg ->
+                            val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+                            UsedAppEntry(pkg, appName, 0L, 0L, 0, false)
+                        }
                 } else result
-
-                apps = finalList
             } catch (e: Exception) {
-                error = e.message ?: "Failed to load usage stats"
+                error = e.message ?: "Failed to load usage stats from target device"
             }
             loading = false
         }

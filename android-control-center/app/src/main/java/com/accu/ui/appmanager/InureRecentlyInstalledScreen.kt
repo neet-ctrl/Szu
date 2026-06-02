@@ -1,7 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,6 +31,24 @@ data class RecentAppEntry(
     val isUpdatedSystemApp: Boolean,
 )
 
+/** Derive a readable label from a package name. */
+private fun labelFromPackage(pkg: String): String =
+    pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+
+/**
+ * Parse a date string from `dumpsys package` into epoch milliseconds.
+ * The format on Android is typically "YYYY-MM-DD HH:MM:SS" or a raw millisecond value.
+ */
+private fun parsePkgTime(raw: String): Long {
+    val trimmed = raw.trim()
+    // Try raw millis first
+    trimmed.toLongOrNull()?.let { if (it > 1_000_000_000_000L) return it }
+    // Try "YYYY-MM-DD HH:MM:SS"
+    return try {
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(trimmed)?.time ?: 0L
+    } catch (_: Exception) { 0L }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InureRecentlyInstalledScreen(
@@ -41,7 +56,7 @@ fun InureRecentlyInstalledScreen(
     onNavigateToAppDetail: (String) -> Unit = {},
 ) {
     val vm: ShizukuViewModel = hiltViewModel()
-    val context = LocalContext.current
+    val connectionManager = vm.connectionManager
 
     var allApps by remember { mutableStateOf<List<RecentAppEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -56,30 +71,67 @@ fun InureRecentlyInstalledScreen(
         loading = true
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val flags = PackageManager.GET_META_DATA
-                val packages = pm.getInstalledPackages(flags)
+                // Get all user (non-system) packages with installer info from target device
+                val pkgsWithInstaller = connectionManager.exec("pm list packages -3 -i --show-versioncode 2>/dev/null").output
+                val systemPkgs = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                    .lines().filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }.toSet()
 
-                allApps = packages.map { pi ->
-                    val isSystem = (pi.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM != 0
-                    val isUpdated = (pi.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0
-                    val installer = try {
-                        @Suppress("DEPRECATION")
-                        pm.getInstallerPackageName(pi.packageName) ?: ""
-                    } catch (_: Exception) { "" }
+                // Parse the package+installer+versioncode lines
+                // Format varies: "package:com.example  versionCode:123  installer:com.android.vending"
+                // or:           "package:com.example  installer:com.android.vending"
+                val parsedPkgs = pkgsWithInstaller.lines()
+                    .filter { it.startsWith("package:") }
+                    .map { line ->
+                        val pkg = line.substringAfter("package:").substringBefore(" ").substringBefore("\t").trim()
+                        val versionCode = Regex("versionCode:(\\d+)").find(line)?.groupValues?.getOrNull(1) ?: ""
+                        val installer = Regex("installer:([^\\s]+)").find(line)?.groupValues?.getOrNull(1)
+                            ?: Regex("installer=([^\\s]+)").find(line)?.groupValues?.getOrNull(1) ?: ""
+                        Triple(pkg, versionCode, installer)
+                    }
+                    .filter { (pkg, _, _) -> pkg.isNotEmpty() }
+
+                // Batch-fetch install/update times and version names via a shell loop on the target device
+                // This runs as ONE ADB call — the loop executes on the target device shell
+                val batchScript = buildString {
+                    append("for pkg in ")
+                    parsedPkgs.take(80).forEach { (pkg, _, _) -> append("\"$pkg\" ") }
+                    append("; do ")
+                    append("info=\$(dumpsys package \"\$pkg\" 2>/dev/null | grep -E 'firstInstallTime=|lastUpdateTime=|versionName=' | head -4 | tr '\\n' '|'); ")
+                    append("echo \"PKG:\$pkg|\$info\"; ")
+                    append("done 2>/dev/null")
+                }
+                val batchOut = connectionManager.exec(batchScript).output
+
+                // Parse batch output: "PKG:com.example|firstInstallTime=2023-01-01 12:00:00|lastUpdateTime=...|versionName=1.0|"
+                val timeMap = mutableMapOf<String, Triple<Long, Long, String>>() // pkg -> (installTime, updateTime, versionName)
+                batchOut.lines().filter { it.startsWith("PKG:") }.forEach { line ->
+                    val pkg = line.substringAfter("PKG:").substringBefore("|").trim()
+                    val rest = line.substringAfter("|")
+                    val fit = Regex("firstInstallTime=([^|]+)").find(rest)?.groupValues?.getOrNull(1)?.trim() ?: ""
+                    val lut = Regex("lastUpdateTime=([^|]+)").find(rest)?.groupValues?.getOrNull(1)?.trim() ?: ""
+                    val vn  = Regex("versionName=([^|\\s]+)").find(rest)?.groupValues?.getOrNull(1)?.trim() ?: ""
+                    if (pkg.isNotEmpty()) {
+                        timeMap[pkg] = Triple(parsePkgTime(fit), parsePkgTime(lut), vn)
+                    }
+                }
+
+                // Build RecentAppEntry list
+                allApps = parsedPkgs.map { (pkg, _, installer) ->
+                    val (installTime, updateTime, versionName) = timeMap[pkg] ?: Triple(0L, 0L, "")
                     RecentAppEntry(
-                        packageName = pi.packageName,
-                        appName = pm.getApplicationLabel(pi.applicationInfo!!).toString(),
-                        versionName = pi.versionName ?: "",
-                        installTime = pi.firstInstallTime,
-                        updateTime = pi.lastUpdateTime,
-                        installerPackage = installer,
-                        isSystem = isSystem,
-                        isUpdatedSystemApp = isUpdated,
+                        packageName = pkg,
+                        appName = labelFromPackage(pkg),
+                        versionName = versionName,
+                        installTime = installTime,
+                        updateTime = updateTime,
+                        installerPackage = installer.trimEnd().let { if (it == "null") "" else it },
+                        isSystem = pkg in systemPkgs,
+                        isUpdatedSystemApp = false,
                     )
                 }
             } catch (e: Exception) {
-                error = e.message ?: "Failed to load packages"
+                error = e.message ?: "Failed to load packages from target device"
             }
             loading = false
         }
@@ -90,9 +142,10 @@ fun InureRecentlyInstalledScreen(
     val filtered = remember(allApps, searchQuery, selectedTab, filterDays) {
         allApps
             .filter { app ->
+                // If we have no timestamp data, show everything (don't exclude by time)
                 val timeOk = when (selectedTab) {
-                    0 -> app.installTime >= cutoff
-                    1 -> app.updateTime >= cutoff && app.updateTime != app.installTime
+                    0 -> app.installTime == 0L || app.installTime >= cutoff
+                    1 -> app.updateTime == 0L || (app.updateTime >= cutoff && app.updateTime != app.installTime)
                     else -> true
                 }
                 val searchOk = searchQuery.isBlank() ||
@@ -106,7 +159,7 @@ fun InureRecentlyInstalledScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Recently Installed") },
+                title = { Text("Recently Installed (Target)") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
             )
@@ -118,7 +171,6 @@ fun InureRecentlyInstalledScreen(
                 Tab(selectedTab == 1, { selectedTab = 1 }, text = { Text("Updated") })
             }
 
-            // Search
             OutlinedTextField(
                 searchQuery, { searchQuery = it },
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
@@ -128,7 +180,6 @@ fun InureRecentlyInstalledScreen(
                 singleLine = true,
             )
 
-            // Period filter chips
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -139,7 +190,22 @@ fun InureRecentlyInstalledScreen(
             }
 
             if (loading) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator()
+                        Text("Querying target device…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                return@Column
+            }
+
+            if (error.isNotEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.ErrorOutline, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
+                        Text(error, color = MaterialTheme.colorScheme.error)
+                    }
+                }
                 return@Column
             }
 
@@ -149,14 +215,14 @@ fun InureRecentlyInstalledScreen(
                         Icon(Icons.Default.Inbox, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         Text("No apps found in this period", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("(Timestamps may not be available for all apps)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 return@Column
             }
 
-            // Summary
             Text(
-                "${filtered.size} app${if (filtered.size != 1) "s" else ""} in last $filterDays days",
+                "${filtered.size} app${if (filtered.size != 1) "s" else ""} · target device",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -173,13 +239,15 @@ fun InureRecentlyInstalledScreen(
 
 @Composable
 private fun RecentAppCard(app: RecentAppEntry, tab: Int, fmt: SimpleDateFormat, onClick: (String) -> Unit) {
-    val dateStr = fmt.format(Date(if (tab == 1) app.updateTime else app.installTime))
+    val timestamp = if (tab == 1) app.updateTime else app.installTime
+    val dateStr = if (timestamp > 0) fmt.format(Date(timestamp)) else "Unknown"
     val installerLabel = when (app.installerPackage) {
         "com.android.vending"     -> "Play Store"
         "org.fdroid.fdroid"       -> "F-Droid"
+        "org.fdroid.basic"        -> "F-Droid Basic"
         "com.aurora.store"        -> "Aurora Store"
         "com.amazon.venezia"      -> "Amazon"
-        ""                        -> "Unknown"
+        "", "null"                -> "Unknown"
         else                      -> app.installerPackage.substringAfterLast(".")
     }
 

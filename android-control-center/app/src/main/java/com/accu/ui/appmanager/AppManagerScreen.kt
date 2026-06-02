@@ -204,7 +204,7 @@ fun AppListItem(
             Box {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, "More") }
                 DropdownMenu(showMenu, { showMenu = false }) {
-                    DropdownMenuItem(Icons.Default.Info, "App Info") { showMenu = false }
+                    DropdownMenuItem(Icons.Default.Info, "App Info") { showMenu = false; onClick() }
                     DropdownMenuItem(Icons.Default.AcUnit, if (app.isFrozen) "Unfreeze" else "Freeze") {
                         showMenu = false; if (app.isFrozen) onUnfreeze() else onFreeze()
                     }
