@@ -524,6 +524,10 @@ class ShellQsTileDashboardViewModel @Inject constructor(
     private val _state = MutableStateFlow(QsTilesUiState())
     val state: StateFlow<QsTilesUiState> = _state.asStateFlow()
 
+    /** One-shot events for tile completion toasts — consumed by the screen's LaunchedEffect. */
+    private val _completionEvent = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val completionEvent: SharedFlow<String> = _completionEvent.asSharedFlow()
+
     init { load() }
 
     private fun load() {
@@ -542,12 +546,30 @@ class ShellQsTileDashboardViewModel @Inject constructor(
 
     fun setMediaFolderUri(uri: android.net.Uri, displayName: String) {
         val uriStr = uri.toString()
+        // Decode the real filesystem path from the SAF tree URI so shell commands can use it.
+        // SAF tree URIs encode paths as "primary:DCIM/ACCU" or "<volume>:<path>".
+        val fsPath = tryDecodeFilesystemPath(uri) ?: "/sdcard/$displayName"
         prefs.edit()
             .putString(KEY_MEDIA_FOLDER_URI, uriStr)
-            .putString(KEY_MEDIA_FOLDER, displayName)
+            .putString(KEY_MEDIA_FOLDER, fsPath)
             .apply()
-        _state.update { it.copy(mediaFolder = displayName, mediaFolderUri = uriStr) }
+        _state.update { it.copy(mediaFolder = fsPath, mediaFolderUri = uriStr) }
     }
+
+    /** Convert a SAF tree URI → absolute filesystem path, e.g. "primary:DCIM/ACCU" → "/sdcard/DCIM/ACCU". */
+    private fun tryDecodeFilesystemPath(uri: android.net.Uri): String? = try {
+        val docId = android.provider.DocumentsContract.getTreeDocumentId(uri) ?: return null
+        when {
+            docId.startsWith("primary:") -> "/sdcard/${docId.removePrefix("primary:")}"
+            docId.contains(':') -> {
+                val sep    = docId.indexOf(':')
+                val volume = docId.substring(0, sep)
+                val path   = docId.substring(sep + 1)
+                "/storage/$volume/$path"
+            }
+            else -> null
+        }
+    } catch (_: Exception) { null }
 
     fun getMediaFolderUri(): android.net.Uri? {
         val str = _state.value.mediaFolderUri
@@ -560,10 +582,19 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             if (uriStr.isBlank()) return@launch
             try {
                 val treeUri = android.net.Uri.parse(uriStr)
-                val docDir = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
+                val docDir  = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, treeUri)
                     ?: return@launch
                 docDir.findFile(filename)?.delete()
-                val docFile = docDir.createFile("text/plain", filename) ?: return@launch
+                // Use the correct MIME type so Android does NOT append an unwanted extension.
+                val mime = when {
+                    filename.endsWith(".png",  ignoreCase = true) -> "image/png"
+                    filename.endsWith(".jpg",  ignoreCase = true) -> "image/jpeg"
+                    filename.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+                    filename.endsWith(".mp4",  ignoreCase = true) -> "video/mp4"
+                    filename.endsWith(".webm", ignoreCase = true) -> "video/webm"
+                    else -> "text/plain"
+                }
+                val docFile = docDir.createFile(mime, filename) ?: return@launch
                 context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
                     out.write(content.toByteArray())
                 }
@@ -577,8 +608,12 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             // Mark running
             updateRunning(tile.id, tile.isBuiltIn, true)
             val startMs = System.currentTimeMillis()
+            // Substitute the user's chosen media folder in place of the hardcoded default.
+            // This makes screenshot/recording/media tiles respect the SAF-picked folder.
+            val mediaFolder = _state.value.mediaFolder
+            val resolvedCommand = tile.command.replace("/sdcard/DCIM/ACCU", mediaFolder)
             val result = try {
-                connectionManager.exec(tile.command)
+                connectionManager.exec(resolvedCommand)
             } catch (e: Exception) {
                 com.accu.connection.ShellResult(output = "", error = e.message ?: "Error", exitCode = 1)
             }
@@ -590,7 +625,7 @@ class ShellQsTileDashboardViewModel @Inject constructor(
                 tileLabel = tile.label,
                 category  = tile.category,
                 timestamp = ts,
-                command   = tile.command,
+                command   = resolvedCommand,
                 output    = outputText,
                 exitCode  = if (result.isSuccess) 0 else 1,
                 durationMs = durationMs,
@@ -599,7 +634,7 @@ class ShellQsTileDashboardViewModel @Inject constructor(
                 tileId    = tile.id,
                 tileLabel = tile.label,
                 category  = tile.category,
-                command   = tile.command,
+                command   = resolvedCommand,
                 output    = outputText,
                 exitCode  = if (result.isSuccess) 0 else 1,
                 timestamp = ts,
@@ -612,9 +647,15 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             }
             updateRunning(tile.id, tile.isBuiltIn, false, outputText.take(100), ts)
             persistAll()
+            // Emit completion toast event to the screen
+            val toastMsg = if (result.isSuccess)
+                "✓ ${tile.label} done"
+            else
+                "✗ ${tile.label}: ${outputText.take(60).ifBlank { "failed (exit ${result.exitCode})" }}"
+            _completionEvent.tryEmit(toastMsg)
             val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
             val safeTs    = ts.replace(" ", "_").replace(":", "-")
-            saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${tile.command}\n\n${outputText}")
+            saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${resolvedCommand}\n\n${outputText}")
         }
     }
 
@@ -852,6 +893,13 @@ fun ShellQsTileDashboardScreen(
     }
 
     LaunchedEffect(snackbar) { snackbar?.let { snackbarHost.showSnackbar(it); snackbar = null } }
+
+    // Show a toast whenever a tile finishes running (success or failure)
+    LaunchedEffect(Unit) {
+        viewModel.completionEvent.collect { msg ->
+            snackbarHost.showSnackbar(msg)
+        }
+    }
 
     val isSelecting = selectedIds.isNotEmpty()
 
