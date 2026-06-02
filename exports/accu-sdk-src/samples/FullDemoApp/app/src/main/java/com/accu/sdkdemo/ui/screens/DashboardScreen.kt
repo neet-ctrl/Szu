@@ -3,7 +3,6 @@ package com.accu.sdkdemo.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,16 +38,17 @@ fun DashboardScreen(vm: MainViewModel) {
     val termState  = rememberLazyListState()
     var autoScroll by remember { mutableStateOf(true) }
 
-    // Auto-scroll terminal to newest entry
+    // Auto-scroll to bottom of page (terminal is the last card) when new logs arrive
     LaunchedEffect(logs.size) {
         if (autoScroll && logs.isNotEmpty()) {
-            try { termState.animateScrollToItem(logs.size - 1) } catch (_: Exception) {}
+            try { termState.animateScrollToItem(6) } catch (_: Exception) {}
         }
     }
 
     // Outer scrollable list — all cards are separate items so the terminal LazyColumn
     // never sits inside a scrollable Column (avoids the infinite-height constraint crash)
     LazyColumn(
+        state = termState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),

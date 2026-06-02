@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import com.accu.sdk.AccuConnectionState
 import com.accu.sdkdemo.data.DiagnosticItem
 import com.accu.sdkdemo.data.DiagnosticStatus
@@ -26,6 +27,11 @@ fun ConnectionDiagnosticsScreen(vm: MainViewModel) {
     val accuState   by vm.accuState.collectAsState()
     val clipboard   = LocalClipboardManager.current
     var copied      by remember { mutableStateOf(false) }
+
+    // Auto-reset "copied" feedback after 2 seconds
+    LaunchedEffect(copied) {
+        if (copied) { delay(2000); copied = false }
+    }
 
     Column(Modifier.fillMaxSize()) {
         // Action bar
@@ -97,12 +103,12 @@ fun ConnectionDiagnosticsScreen(vm: MainViewModel) {
 
 @Composable
 private fun DiagnosticCard(item: DiagnosticItem) {
-    val (color, icon) = when (item.status) {
-        DiagnosticStatus.PASS     -> StatusColor.GREEN  to Icons.Default.CheckCircle
-        DiagnosticStatus.FAIL     -> StatusColor.RED    to Icons.Default.Cancel
-        DiagnosticStatus.WARNING  -> StatusColor.YELLOW to Icons.Default.Warning
-        DiagnosticStatus.CHECKING -> StatusColor.YELLOW to Icons.Default.HourglassTop
-        DiagnosticStatus.UNKNOWN  -> StatusColor.GREY   to Icons.Default.HelpOutline
+    val color = when (item.status) {
+        DiagnosticStatus.PASS     -> StatusColor.GREEN
+        DiagnosticStatus.FAIL     -> StatusColor.RED
+        DiagnosticStatus.WARNING  -> StatusColor.YELLOW
+        DiagnosticStatus.CHECKING -> StatusColor.YELLOW
+        DiagnosticStatus.UNKNOWN  -> StatusColor.GREY
     }
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

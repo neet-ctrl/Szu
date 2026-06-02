@@ -400,6 +400,51 @@ Full troubleshooting in `docs/ACCU_TROUBLESHOOTING.md`.
 
 ---
 
+## Exact Connection Flow (What Happens Under the Hood)
+
+Understanding this helps you debug connection problems:
+
+```
+Step 1 — AccuClient.connect() is called
+         └─► Context.bindService(
+                 Intent("com.accu.api.AccuSystemService").setPackage("com.accu.controlcenter"),
+                 serviceConnection,
+                 Context.BIND_AUTO_CREATE
+             )
+         └─► Returns true  → state becomes Connecting
+             Returns false → state becomes Error("bindService() returned false")
+                             CAUSE: ACCU not installed OR AccuSystemService not enabled
+                             FIX:   User opens ACCU → System Service → toggle ON
+
+Step 2 — Android delivers onServiceConnected(binder)
+         └─► IAccuService.Stub.asInterface(binder)
+         └─► accu.getVersion() called immediately to verify protocol
+         └─► state becomes Connected(serviceVersion, accuVersion, permissionCode)
+
+Step 3 — accu.requestPermission() called
+         └─► Sends IAccuPermissionCallback.Stub() to ACCU over binder
+         └─► ACCU shows Material 3 bottom-sheet dialog to user
+         └─► User taps "Grant Full Access" → callback.onPermissionResult(0)
+             User taps "Deny"              → callback.onPermissionResult(1)
+         └─► AccuClient wraps this in a suspend function (CompletableDeferred)
+         └─► Subsequent connections: stored grant, callback fires immediately (no dialog)
+
+Step 4 — Privileged API call: e.g. accu.exec("id")
+         └─► Binder call to IAccuService.exec("id")  [Transaction 20]
+         └─► ACCU checks permission + SHELL scope
+         └─► ACCU runs: sh -c "id"  (as root or uid=2000)
+         └─► Returns AccuExecResult(stdout="uid=0(root)...", stderr="", exitCode=0)
+```
+
+**The two most common connection failures and their exact fixes:**
+
+| Failure | Logcat clue | Fix |
+|---|---|---|
+| `bindService() returned false` | No log in AccuClient | User: ACCU → System Service → Enable. Check `<queries>` in manifest. |
+| `onServiceDisconnected` fires immediately | `DeadObjectException` in AccuClient | ACCU crashed or was killed — AccuClient auto-reconnects, just wait. |
+
+---
+
 ## Summary
 
 You are building an app that:
@@ -407,8 +452,8 @@ You are building an app that:
 2. Enables AIDL in Gradle + adds `<queries>` to manifest
 3. Creates `AccuClient(applicationContext)` in a ViewModel
 4. Calls `connect()` on init, `disconnect()` in `onCleared()`
-5. Shows a "Grant Permission" button when `accuState` is `Connected` but not granted
-6. Calls `accu.requestPermission()` on button press (suspend function)
+5. Shows a "Grant Permission" button when `accuState` is `Connected` but not yet granted
+6. Calls `accu.requestPermission()` on button press (suspend function — awaits user dialog)
 7. Calls privileged APIs on `Dispatchers.IO` using `withContext`
 
 That is the complete integration. Everything else is your app's own business logic.
