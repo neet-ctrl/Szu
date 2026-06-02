@@ -1,7 +1,6 @@
 package com.accu.ui.audio
 
 import android.content.Context
-import android.content.pm.PackageManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.audio.MixedAudioAppState
@@ -47,9 +46,10 @@ class MixedAudioViewModel @Inject constructor(
         _state.update { it.copy(isLoading = true) }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val muteMap = mutableMapOf<String, Boolean>()
+                val muteMap  = mutableMapOf<String, Boolean>()
                 val focusMap = mutableMapOf<String, MixedAudioFocus>()
 
+                // ── appops state from TARGET device ────────────────────────────
                 val deniedAudio = connectionManager.exec("appops query-op PLAY_AUDIO deny 2>/dev/null").output
                 deniedAudio.lines().filter { it.isNotBlank() }.forEach { muteMap[it.trim()] = true }
 
@@ -65,19 +65,22 @@ class MixedAudioViewModel @Inject constructor(
                 val allowedFocus = connectionManager.exec("appops query-op TAKE_AUDIO_FOCUS allow 2>/dev/null").output
                 allowedFocus.lines().filter { it.isNotBlank() }.forEach { focusMap.putIfAbsent(it.trim(), MixedAudioFocus.ALLOWED) }
 
-                val pm = ctx.packageManager
-                val installedPkgs = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-                    .map { it.packageName }
+                // ── Package list from TARGET device ────────────────────────────
+                val pmOutput = connectionManager.exec("pm list packages 2>/dev/null").output
+                val targetPkgs = pmOutput.lines()
+                    .filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }
+                    .filter { it.isNotBlank() }
 
-                val allPkgs = (muteMap.keys + focusMap.keys + installedPkgs).toSet()
+                val allPkgs = (muteMap.keys + focusMap.keys + targetPkgs).toSet()
                     .filter { it.isNotBlank() && it != ctx.packageName }
 
                 val states = allPkgs.map { pkg ->
                     MixedAudioAppState(
-                        pkg = pkg,
-                        appName = getAppName(pm, pkg),
-                        muted = muteMap[pkg] ?: false,
-                        focus = focusMap[pkg] ?: MixedAudioFocus.ALLOWED,
+                        pkg     = pkg,
+                        appName = pkgToLabel(pkg),
+                        muted   = muteMap[pkg] ?: false,
+                        focus   = focusMap[pkg] ?: MixedAudioFocus.ALLOWED,
                     )
                 }.sortedBy { it.appName }
 
@@ -88,14 +91,14 @@ class MixedAudioViewModel @Inject constructor(
         }
     }
 
-    fun muteApp(pkg: String) = runCmd("appops set $pkg PLAY_AUDIO deny", "Muted $pkg")
+    fun muteApp(pkg: String)   = runCmd("appops set $pkg PLAY_AUDIO deny",  "Muted $pkg")
     fun unmuteApp(pkg: String) = runCmd("appops set $pkg PLAY_AUDIO allow", "Unmuted $pkg")
 
     fun setFocus(pkg: String, focus: MixedAudioFocus) {
         val op = when (focus) {
-            MixedAudioFocus.ALLOWED  -> "allow"
-            MixedAudioFocus.IGNORED  -> "ignore"
-            MixedAudioFocus.DENIED   -> "deny"
+            MixedAudioFocus.ALLOWED -> "allow"
+            MixedAudioFocus.IGNORED -> "ignore"
+            MixedAudioFocus.DENIED  -> "deny"
         }
         runCmd("appops set $pkg TAKE_AUDIO_FOCUS $op", "Focus set to ${focus.name.lowercase()} for $pkg")
     }
@@ -129,17 +132,21 @@ class MixedAudioViewModel @Inject constructor(
             val apps = _state.value.apps
             when (preset) {
                 MixedAudioPreset.MUSIC_MODE -> {
-                    val musicPkgs = setOf("com.spotify.music","com.google.android.music",
-                        "com.amazon.mp3","com.pandora.android","com.apple.android.music",
-                        "com.deezer.android","com.tidal.music","com.gaana")
+                    val musicPkgs = setOf(
+                        "com.spotify.music", "com.google.android.music",
+                        "com.amazon.mp3", "com.pandora.android", "com.apple.android.music",
+                        "com.deezer.android", "com.tidal.music", "com.gaana",
+                    )
                     apps.filter { it.pkg !in musicPkgs }.forEach { app ->
                         try { connectionManager.exec("appops set ${app.pkg} TAKE_AUDIO_FOCUS ignore 2>/dev/null") } catch (_: Exception) {}
                     }
                     _state.update { it.copy(snackbar = "Music Mode: non-music apps set to ignore focus") }
                 }
                 MixedAudioPreset.PODCAST_MODE -> {
-                    val podcastPkgs = setOf("com.google.android.apps.podcasts","fm.castbox.audiobook",
-                        "au.com.shiftyjelly.pocketcasts","com.bambuna.podcastaddict","co.appnation.podcat")
+                    val podcastPkgs = setOf(
+                        "com.google.android.apps.podcasts", "fm.castbox.audiobook",
+                        "au.com.shiftyjelly.pocketcasts", "com.bambuna.podcastaddict", "co.appnation.podcat",
+                    )
                     apps.filter { it.pkg !in podcastPkgs }.forEach { app ->
                         try { connectionManager.exec("appops set ${app.pkg} TAKE_AUDIO_FOCUS ignore 2>/dev/null") } catch (_: Exception) {}
                     }
@@ -197,23 +204,31 @@ class MixedAudioViewModel @Inject constructor(
 
     fun batchSetFocus(focus: MixedAudioFocus) {
         val pkgs = _state.value.selectedPkgs.toList()
-        val op = when (focus) { MixedAudioFocus.ALLOWED -> "allow"; MixedAudioFocus.IGNORED -> "ignore"; MixedAudioFocus.DENIED -> "deny" }
+        val op   = when (focus) {
+            MixedAudioFocus.ALLOWED -> "allow"
+            MixedAudioFocus.IGNORED -> "ignore"
+            MixedAudioFocus.DENIED  -> "deny"
+        }
         viewModelScope.launch(Dispatchers.IO) {
             pkgs.forEach { pkg ->
                 try { connectionManager.exec("appops set $pkg TAKE_AUDIO_FOCUS $op 2>/dev/null") } catch (_: Exception) {}
             }
-            _state.update { it.copy(selectedPkgs = emptySet(), isBatchMode = false, snackbar = "Set focus to ${focus.name} for ${pkgs.size} apps") }
+            _state.update { it.copy(
+                selectedPkgs = emptySet(),
+                isBatchMode  = false,
+                snackbar     = "Set focus to ${focus.name} for ${pkgs.size} apps",
+            ) }
             loadApps()
         }
     }
 
-    fun onFilterChanged(q: String) = _state.update { it.copy(filterQuery = q) }
+    fun onFilterChanged(q: String)       = _state.update { it.copy(filterQuery = q) }
     fun onFilterModeChanged(m: MixedAudioFilter) = _state.update { it.copy(filterMode = m) }
     fun onSortChanged(s: MixedAudioSort) = _state.update { it.copy(sortBy = s) }
-    fun clearSnackbar() = _state.update { it.copy(snackbar = null) }
+    fun clearSnackbar()                  = _state.update { it.copy(snackbar = null) }
 
     fun filteredApps(): List<MixedAudioAppState> {
-        val q = _state.value.filterQuery.trim().lowercase()
+        val q    = _state.value.filterQuery.trim().lowercase()
         var list = _state.value.apps
         if (q.isNotBlank()) list = list.filter { it.appName.contains(q, true) || it.pkg.contains(q, true) }
         list = when (_state.value.filterMode) {
@@ -241,9 +256,9 @@ class MixedAudioViewModel @Inject constructor(
         }
     }
 
-    private fun getAppName(pm: PackageManager, pkg: String): String = try {
-        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
-    } catch (_: Exception) { pkg.split(".").last().replaceFirstChar { it.uppercase() } }
+    /** Derive a human-readable label from a package name — no local PackageManager needed. */
+    private fun pkgToLabel(pkg: String): String =
+        pkg.split(".").last().replaceFirstChar { it.uppercase() }
 }
 
 enum class MixedAudioPreset { MUSIC_MODE, PODCAST_MODE, SILENT_MODE, RESTORE_ALL }

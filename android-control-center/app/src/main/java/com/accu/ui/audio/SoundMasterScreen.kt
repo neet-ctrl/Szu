@@ -1,11 +1,5 @@
 package com.accu.ui.audio
 
-import android.app.Activity
-import android.content.Context
-import android.media.AudioDeviceInfo
-import android.media.projection.MediaProjectionManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -39,19 +33,10 @@ fun SoundMasterScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHost = remember { SnackbarHostState() }
-    val ctx = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(state.snackbar) {
         state.snackbar?.let { snackbarHost.showSnackbar(it); viewModel.clearSnackbar() }
-    }
-
-    val projectionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.let { data -> viewModel.onProjectionGranted(data, ctx) }
-        }
     }
 
     var showAddAppSheet by remember { mutableStateOf(false) }
@@ -114,18 +99,13 @@ fun SoundMasterScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // ── Service Control Card ──
+            // ── Control Card ──
             ServiceControlCard(
-                isRunning = state.isServiceRunning,
+                isRunning  = state.isControlActive,
                 entryCount = state.entries.size,
-                latencyMap = state.latencyMap,
-                onStart = { activity ->
-                    viewModel.grantPermissionsAndStart(activity) { pm ->
-                        projectionLauncher.launch(pm.createScreenCaptureIntent())
-                    }
-                },
-                onStop = { viewModel.stopService(ctx) },
-                ctx = ctx,
+                connectionStatus = state.connectionStatus,
+                onStart    = { viewModel.activateControl() },
+                onStop     = { viewModel.deactivateControl() },
             )
 
             // ── Search + Quick Actions ──
@@ -153,11 +133,9 @@ fun SoundMasterScreen(
                     } else {
                         items(filtered, key = { "${it.pkg}:${it.outputDeviceId}" }) { entry ->
                             SoundMasterEntryCard(
-                                entry = entry,
-                                devices = state.audioDevices,
-                                isServiceRunning = state.isServiceRunning,
-                                rms = state.rmsMap[entry.pkg] ?: 0f,
-                                onVolumeChange = { viewModel.updateVolume(entry, it) },
+                                entry            = entry,
+                                isControlActive  = state.isControlActive,
+                                onVolumeChange   = { viewModel.updateVolume(entry, it) },
                                 onBalanceChange = { viewModel.updateBalance(entry, it) },
                                 onEqChange = { band, v -> viewModel.updateEqBand(entry, band, v) },
                                 onRemove = { viewModel.removeEntry(entry) },
@@ -175,12 +153,11 @@ fun SoundMasterScreen(
     // ── Add App Bottom Sheet ──
     if (showAddAppSheet) {
         AddAppBottomSheet(
-            apps = state.availableApps,
-            devices = state.audioDevices,
+            apps            = state.availableApps,
             existingEntries = state.entries,
-            isLoading = state.isLoadingApps,
-            onAdd = { pkg, deviceId -> viewModel.addEntry(pkg, pkg.split(".").last(), deviceId) },
-            onDismiss = { showAddAppSheet = false },
+            isLoading       = state.isLoadingApps,
+            onAdd           = { pkg -> viewModel.addEntry(pkg, pkg.split(".").last()) },
+            onDismiss       = { showAddAppSheet = false },
         )
     }
 
@@ -212,21 +189,23 @@ fun SoundMasterScreen(
 private fun ServiceControlCard(
     isRunning: Boolean,
     entryCount: Int,
-    latencyMap: Map<String, Float>,
-    onStart: (Activity) -> Unit,
+    connectionStatus: String,
+    onStart: () -> Unit,
     onStop: () -> Unit,
-    ctx: Context,
 ) {
-    val activity = ctx as? Activity
-    val statusColor = if (isRunning) AccentGreen else MaterialTheme.colorScheme.error
-    val avgLatency = if (latencyMap.isNotEmpty()) latencyMap.values.average().toInt() else 0
+    val isConnected = connectionStatus.startsWith("CONNECTED")
+    val statusColor = when {
+        isRunning   -> AccentGreen
+        isConnected -> MaterialTheme.colorScheme.primary
+        else        -> MaterialTheme.colorScheme.error
+    }
 
     Card(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(containerColor = statusColor.copy(0.1f)),
-        shape = RoundedCornerShape(16.dp),
+        shape  = RoundedCornerShape(16.dp),
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -239,30 +218,42 @@ private fun ServiceControlCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (isRunning) "Sound Master Active" else "Sound Master Stopped",
-                        style = MaterialTheme.typography.titleSmall,
+                        when {
+                            isRunning   -> "Sound Master Active"
+                            isConnected -> "Sound Master Ready"
+                            else        -> "Not Connected"
+                        },
+                        style      = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                     )
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    if (isRunning) "Controlling $entryCount app${if (entryCount != 1) "s" else ""} · Avg latency: ${avgLatency}ms"
-                    else "Add apps below, then press Start",
+                    when {
+                        isRunning   -> "Controlling $entryCount app${if (entryCount != 1) "s" else ""} on target device ($connectionStatus)"
+                        isConnected -> "Add apps below, then tap Activate — all commands run on target device"
+                        else        -> "Connect via ACCU Center first (Root / Wireless ADB / OTG)"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = statusColor,
                 )
             }
             Spacer(Modifier.width(12.dp))
             FilledTonalButton(
-                onClick = { if (isRunning) onStop() else activity?.let { onStart(it) } },
-                colors = ButtonDefaults.filledTonalButtonColors(
+                onClick  = { if (isRunning) onStop() else onStart() },
+                enabled  = isConnected || isRunning,
+                colors   = ButtonDefaults.filledTonalButtonColors(
                     containerColor = statusColor.copy(0.2f),
-                    contentColor = statusColor,
+                    contentColor   = statusColor,
                 ),
             ) {
-                Icon(if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow, null, Modifier.size(18.dp))
+                Icon(
+                    if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
+                    null,
+                    Modifier.size(18.dp),
+                )
                 Spacer(Modifier.width(4.dp))
-                Text(if (isRunning) "Stop" else "Start")
+                Text(if (isRunning) "Stop" else "Activate")
             }
         }
     }
@@ -310,9 +301,7 @@ private fun SearchAndActionsBar(
 @Composable
 private fun SoundMasterEntryCard(
     entry: SoundMasterEntry,
-    devices: List<AudioDeviceInfo?>,
-    isServiceRunning: Boolean,
-    rms: Float,
+    isControlActive: Boolean,
     onVolumeChange: (Float) -> Unit,
     onBalanceChange: (Float) -> Unit,
     onEqChange: (Int, Float) -> Unit,
@@ -324,7 +313,6 @@ private fun SoundMasterEntryCard(
     var expanded by remember { mutableStateOf(false) }
     val appLabel = remember(entry.pkg) { entry.pkg.split(".").last().replaceFirstChar { it.uppercase() } }
     val isBoost = entry.volume > 100f
-    val deviceName = devices.find { it?.id == entry.outputDeviceId }.displayName()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -347,9 +335,12 @@ private fun SoundMasterEntryCard(
                             Spacer(Modifier.width(6.dp))
                             Icon(Icons.Default.Lock, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (isServiceRunning && rms > 0) {
+                        if (isControlActive) {
                             Spacer(Modifier.width(6.dp))
-                            RmsIndicator(rms = rms)
+                            Box(
+                                Modifier.size(8.dp).clip(CircleShape)
+                                    .background(AccentGreen)
+                            )
                         }
                     }
                     Text(
@@ -360,9 +351,9 @@ private fun SoundMasterEntryCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "→ $deviceName",
+                        if (isControlActive) "● Active on target device" else "○ Inactive",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (isControlActive) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -479,57 +470,47 @@ private fun SoundMasterEntryCard(
     }
 }
 
-@Composable
-private fun RmsIndicator(rms: Float) {
-    val animatedRms by animateFloatAsState(
-        targetValue = (rms / 32768f).coerceIn(0f, 1f),
-        animationSpec = tween(200),
-    )
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-        repeat(4) { i ->
-            val active = animatedRms > (i * 0.25f)
-            Box(
-                Modifier
-                    .width(2.dp)
-                    .height((6 + i * 3).dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(if (active) AccentGreen else MaterialTheme.colorScheme.outlineVariant),
-            )
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddAppBottomSheet(
     apps: List<Pair<String, String>>,
-    devices: List<AudioDeviceInfo?>,
     existingEntries: List<SoundMasterEntry>,
     isLoading: Boolean,
-    onAdd: (String, Int) -> Unit,
+    onAdd: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var selectedPkg by remember { mutableStateOf<String?>(null) }
-    var selectedDevice by remember { mutableStateOf<AudioDeviceInfo?>(null) }
     var search by remember { mutableStateOf("") }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
-            Text("Add App", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Add App (from target device)",
+                style      = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
-                value = search,
+                value         = search,
                 onValueChange = { search = it },
-                placeholder = { Text("Search apps…") },
-                leadingIcon = { Icon(Icons.Default.Search, null) },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                placeholder   = { Text("Search apps…") },
+                leadingIcon   = { Icon(Icons.Default.Search, null) },
+                modifier      = Modifier.fillMaxWidth(),
+                singleLine    = true,
+                shape         = RoundedCornerShape(12.dp),
             )
             Spacer(Modifier.height(8.dp))
             if (isLoading) {
                 Box(Modifier.fillMaxWidth().height(120.dp), Alignment.Center) {
                     CircularProgressIndicator()
+                }
+            } else if (apps.isEmpty()) {
+                Box(Modifier.fillMaxWidth().height(80.dp), Alignment.Center) {
+                    Text(
+                        "No apps loaded — tap the + button to refresh from target",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             } else {
                 val filtered = apps.filter { (pkg, name) ->
@@ -539,44 +520,30 @@ private fun AddAppBottomSheet(
                     items(filtered) { (pkg, name) ->
                         val alreadyAdded = existingEntries.any { it.pkg == pkg }
                         ListItem(
-                            headlineContent = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            headlineContent   = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             supportingContent = { Text(pkg, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            trailingContent = {
+                            trailingContent   = {
                                 if (alreadyAdded) {
                                     Text("Added", style = MaterialTheme.typography.labelSmall, color = AccentGreen)
                                 } else if (selectedPkg == pkg) {
                                     Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             },
-                            modifier = Modifier.clickable(enabled = !alreadyAdded) { selectedPkg = if (selectedPkg == pkg) null else pkg },
-                            colors = if (selectedPkg == pkg) ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.3f)) else ListItemDefaults.colors(),
-                        )
-                    }
-                }
-            }
-            if (devices.size > 1) {
-                Spacer(Modifier.height(8.dp))
-                Text("Output Device", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(devices) { device ->
-                        FilterChip(
-                            selected = selectedDevice == device,
-                            onClick = { selectedDevice = device },
-                            label = { Text(device.displayName(), fontSize = 11.sp) },
+                            modifier = Modifier.clickable(enabled = !alreadyAdded) {
+                                selectedPkg = if (selectedPkg == pkg) null else pkg
+                            },
+                            colors = if (selectedPkg == pkg)
+                                ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(0.3f))
+                            else
+                                ListItemDefaults.colors(),
                         )
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = {
-                    selectedPkg?.let { pkg ->
-                        onAdd(pkg, selectedDevice?.id ?: -1)
-                        onDismiss()
-                    }
-                },
-                enabled = selectedPkg != null,
+                onClick  = { selectedPkg?.let { pkg -> onAdd(pkg); onDismiss() } },
+                enabled  = selectedPkg != null,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(Icons.Default.Add, null)
