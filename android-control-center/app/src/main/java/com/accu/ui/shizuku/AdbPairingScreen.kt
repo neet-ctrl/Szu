@@ -43,19 +43,43 @@ fun AdbPairingScreen(
     var pairingCode by remember { mutableStateOf("") }
     val clipboardManager = LocalClipboardManager.current
 
-    // Advance to step 3 automatically when ACCU detects the pairing service
-    LaunchedEffect(state.connectionState) {
+    // How many devices were connected when this screen opened — used to detect a new pairing
+    val deviceCountAtEntry = remember { state.multiDevices.size }
+    // True while the user is going through the wizard to add a second/third device
+    var addingNewDevice by remember { mutableStateOf(false) }
+
+    // Back handler: when adding a device, cancel back to step 4; otherwise exit the screen
+    val handleBack: () -> Unit = {
+        if (addingNewDevice) {
+            viewModel.onAddDeviceCancelled()
+            viewModel.stopDiscovery()
+            addingNewDevice = false
+            step = 4
+        } else {
+            onBack()
+        }
+    }
+
+    // Auto-advance steps.  Also keyed on multiDevices.size so that when a new device is
+    // registered (connectionState stays CONNECTED_WIRELESS but device count grows), we still
+    // advance to step 4 correctly.
+    LaunchedEffect(state.connectionState, state.multiDevices.size) {
+        val isConnected = state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
+                || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
+                || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG
         if (state.connectionState == AccuConnectionManager.ConnectionState.AWAITING_CODE && step < 3) {
             step = 3
         }
-        if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
-            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
-            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG) {
+        // Advance to step 4 only when:
+        //  (a) not currently adding a new device, OR
+        //  (b) a new device just joined the registry (device count grew)
+        if (isConnected && (!addingNewDevice || state.multiDevices.size > deviceCountAtEntry)) {
+            addingNewDevice = false
             step = 4
         }
     }
 
-    Scaffold(topBar = { ACCTopBar(title = "ACCU Wireless Setup", onBack = onBack) }) { padding ->
+    Scaffold(topBar = { ACCTopBar(title = "ACCU Wireless Setup", onBack = handleBack) }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
             contentPadding = PaddingValues(bottom = 32.dp),
@@ -285,11 +309,10 @@ fun AdbPairingScreen(
 
             // ── Step 4: Connected! ────────────────────────────────────────────
             item {
-                AnimatedVisibility(
-                    visible = state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS
-                            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_ROOT
-                            || state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG,
-                ) {
+                // Keyed on `step == 4` so the card hides properly when the user
+                // taps "Add Another Device" and the wizard resets to step 1 —
+                // even though the first device is still CONNECTED_WIRELESS.
+                AnimatedVisibility(visible = step == 4) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -297,15 +320,85 @@ fun AdbPairingScreen(
                         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.CheckCircle, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(8.dp))
-                            Text("ACCU Connected!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                when {
+                                    state.multiDevices.size > 1 ->
+                                        "ACCU Connected! (${state.multiDevices.size} devices)"
+                                    else -> "ACCU Connected!"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
                             Text(
                                 "All privileged features are now active.\nThis connection is remembered automatically.",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(top = 4.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             )
-                            Spacer(Modifier.height(12.dp))
+
+                            // Show device list when multiple are connected
+                            if (state.multiDevices.size > 1) {
+                                Spacer(Modifier.height(10.dp))
+                                state.multiDevices.forEach { device ->
+                                    val isActive = device.id == state.activeDeviceId
+                                    Row(
+                                        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    ) {
+                                        Icon(
+                                            if (isActive) Icons.Default.RadioButtonChecked
+                                            else Icons.Default.RadioButtonUnchecked,
+                                            null,
+                                            Modifier.size(14.dp),
+                                            tint = if (isActive) MaterialTheme.colorScheme.primary
+                                                   else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Text(
+                                            device.label.ifBlank { device.ip },
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isActive) MaterialTheme.colorScheme.primary
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        if (device.ip.isNotBlank()) {
+                                            Text(
+                                                device.ip,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontFamily = FontFamily.Monospace,
+                                            )
+                                        }
+                                        if (isActive) {
+                                            Text(
+                                                "active",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(Modifier.height(16.dp))
                             Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Done") }
+                            Spacer(Modifier.height(8.dp))
+                            // Add another device WITHOUT disconnecting the existing one
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.onBeforeAddDevice()
+                                    viewModel.stopDiscovery()
+                                    pairingCode = ""
+                                    addingNewDevice = true
+                                    step = 1
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.AddCircle, null, Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Add Another Device")
+                            }
                         }
                     }
                 }
