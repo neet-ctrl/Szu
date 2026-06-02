@@ -486,6 +486,57 @@ class AccuConnectionManager @Inject constructor(
         return execPlainShell("$adb $args")
     }
 
+    /**
+     * Push a local file to the target device.
+     *
+     * Strategy:
+     *  - ROOT:               target IS the local device — cp to remotePath directly.
+     *  - CONNECTED_WIRELESS / CONNECTED_OTG with adb binary:
+     *                        adb -s ip:port push localPath remotePath
+     *  - Fallback (no adb binary / TLS-only): base64-pipe the file via shell
+     *
+     * Returns true on success, false on failure.
+     */
+    suspend fun pushFile(localPath: String, remotePath: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            when {
+                Shell.getShell().isRoot -> {
+                    execRoot("cp '$localPath' '$remotePath' && echo ok").isSuccess
+                }
+                _state.value == ConnectionState.CONNECTED_WIRELESS || _state.value == ConnectionState.CONNECTED_OTG -> {
+                    val adb = findAdbBinary()
+                    val ip  = getLastConnectedIp()
+                    if (adb != null && ip.isNotBlank()) {
+                        val port = getLastConnectedPort()
+                        execPlainShell("$adb -s $ip:$port push '$localPath' '$remotePath'").isSuccess
+                    } else {
+                        pushViaBase64(localPath, remotePath)
+                    }
+                }
+                else -> false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "$TAG pushFile failed: $localPath -> $remotePath")
+            false
+        }
+    }
+
+    /** Transfer a file by base64-encoding it and piping through the shell connection. */
+    private suspend fun pushViaBase64(localPath: String, remotePath: String): Boolean {
+        return try {
+            val bytes = java.io.File(localPath).readBytes()
+            exec("rm -f '$remotePath' 2>/dev/null")
+            val chunkSize = 3000          // safe for shell echo line length
+            val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            b64.chunked(chunkSize).forEachIndexed { idx, chunk ->
+                val op = if (idx == 0) ">" else ">>"
+                exec("printf '%s' '$chunk' | base64 -d $op '$remotePath'")
+            }
+            val written = exec("wc -c < '$remotePath' 2>/dev/null").output.trim().toLongOrNull() ?: 0L
+            written == bytes.size.toLong()
+        } catch (_: Exception) { false }
+    }
+
     // ─── Connection state ──────────────────────────────────────────────────────
 
     /**
