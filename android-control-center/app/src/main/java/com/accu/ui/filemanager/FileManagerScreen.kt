@@ -44,10 +44,10 @@ import javax.inject.Inject
 // ─── State & Data Models ──────────────────────────────────────────────────────
 
 data class FileManagerState(
-    val currentPath: String = "/sdcard",
+    val currentPath: String = "/",
     val files: List<FileItem> = emptyList(),
     val allFiles: List<FileItem> = emptyList(),
-    val breadcrumbs: List<String> = listOf("/sdcard"),
+    val breadcrumbs: List<String> = listOf("/"),
     val selectedFiles: Set<String> = emptySet(),
     val isMultiSelect: Boolean = false,
     val isLoading: Boolean = false,
@@ -266,7 +266,8 @@ class FileManagerViewModel @Inject constructor(
     fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
 
     private fun buildBreadcrumbs(path: String): List<String> {
-        val parts = path.removePrefix("/").split("/")
+        if (path == "/") return listOf("/")
+        val parts = path.removePrefix("/").split("/").filter { it.isNotEmpty() }
         return parts.foldIndexed(mutableListOf()) { i, acc, part ->
             acc.add(if (i == 0) "/$part" else "${acc.last()}/$part"); acc
         }
@@ -275,16 +276,23 @@ class FileManagerViewModel @Inject constructor(
     private fun parseLsOutput(output: String, basePath: String): List<FileItem> = output.lines().mapNotNull { line ->
         val trimmed = line.trim()
         if (trimmed.isEmpty() || trimmed.startsWith("total")) return@mapNotNull null
-        val parts = trimmed.split("\\s+".toRegex())
+        // Use limit=9 so filenames with spaces are captured intact in the last element.
+        // Android ls -la format: perms links owner group size date time name
+        // (8 fields when name has no spaces → parts[7]; 9 when name has spaces → parts[8])
+        val parts = trimmed.split(Regex("\\s+"), limit = 9)
         if (parts.size < 5) return@mapNotNull null
-        val name = if (parts.size >= 9) parts.subList(8, parts.size).joinToString(" ") else parts.last()
+        val rawName = parts.getOrNull(8)?.trimStart() ?: parts.getOrNull(7) ?: return@mapNotNull null
+        // Strip symlink target ("bin -> usr/bin" → "bin")
+        val name = if (rawName.contains(" -> ")) rawName.substringBefore(" -> ") else rawName
         if (name in listOf(".", "..") || name.isEmpty()) return@mapNotNull null
         val isDir = parts[0].startsWith("d")
         val isLink = parts[0].startsWith("l")
         val size = if (!isDir) parts.getOrNull(4)?.toLongOrNull() ?: 0L else 0L
         val isHidden = name.startsWith(".")
         val fakeMime = getMimeTypeStr(java.io.File(name))
-        FileItem(name, "$basePath/$name", size, 0L, isDir || isLink, fakeMime, isHidden)
+        // Avoid double-slash when basePath is "/"
+        val fullPath = if (basePath == "/") "/$name" else "$basePath/$name"
+        FileItem(name, fullPath, size, 0L, isDir || isLink, fakeMime, isHidden)
     }
 
     private fun List<FileItem>.sortedWith(sortBy: FileSortBy): List<FileItem> = when (sortBy) {
