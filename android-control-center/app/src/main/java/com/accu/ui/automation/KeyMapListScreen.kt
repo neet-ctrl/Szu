@@ -1,6 +1,8 @@
 package com.accu.ui.automation
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -62,6 +64,65 @@ fun KeyMapListScreen(
     var sortAsc by remember { mutableStateOf(true) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showBugReportDialog by remember { mutableStateOf(false) }
+    var snackbarMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    // SAF launchers
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let {
+            try {
+                val json = buildString {
+                    appendLine("""{"version":1,"keyMaps":[""")
+                    keyMaps.forEachIndexed { i, km ->
+                        val actions = km.actions.joinToString(",") { a -> "\"$a\"" }
+                        val constraints = km.constraints.joinToString(",") { c -> "\"$c\"" }
+                        append("""  {"id":"${km.id}","trigger":"${km.trigger}","actions":[$actions],"constraints":[$constraints],"enabled":${km.isEnabled}}""")
+                        if (i < keyMaps.lastIndex) appendLine(",") else appendLine()
+                    }
+                    append("]}")
+                }
+                context.contentResolver.openOutputStream(uri)?.use { out -> out.write(json.toByteArray()) }
+                snackbarMessage = "Exported ${keyMaps.size} key maps"
+            } catch (e: Exception) {
+                snackbarMessage = "Export failed: ${e.message}"
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let {
+            try {
+                val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: return@let
+                val parsed = mutableListOf<KeyMapItem>()
+                Regex("""\{[^{}]*"trigger"[^{}]*\}""").findAll(json).forEach { m ->
+                    val obj = m.value
+                    fun String.jStr(key: String) = Regex(""""$key"\s*:\s*"([^"]+)"""").find(this)?.groupValues?.getOrNull(1)
+                    fun String.jBool(key: String) = Regex(""""$key"\s*:\s*(true|false)""").find(this)?.groupValues?.getOrNull(1)?.toBooleanStrictOrNull()
+                    fun String.jList(key: String) = Regex(""""$key"\s*:\s*\[([^\]]*)\]""").find(this)?.groupValues?.getOrNull(1)
+                        ?.let { content -> Regex(""""([^"]+)"""").findAll(content).map { r -> r.groupValues[1] }.toList() } ?: emptyList()
+                    val id = obj.jStr("id") ?: "km_${System.currentTimeMillis()}"
+                    val trigger = obj.jStr("trigger") ?: return@forEach
+                    val actions = obj.jList("actions")
+                    val constraints = obj.jList("constraints")
+                    val enabled = obj.jBool("enabled") ?: true
+                    parsed.add(KeyMapItem(id = id, trigger = trigger, actions = actions, constraints = constraints, isEnabled = enabled, triggerIcon = androidx.compose.material.icons.Icons.Default.Key))
+                }
+                if (parsed.isNotEmpty()) {
+                    keyMaps = keyMaps + parsed
+                    snackbarMessage = "Imported ${parsed.size} key maps"
+                } else {
+                    snackbarMessage = "No valid key maps found in file"
+                }
+            } catch (e: Exception) {
+                snackbarMessage = "Import failed: ${e.message}"
+            }
+        }
+    }
+
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { snackbarHostState.showSnackbar(it); snackbarMessage = null }
+    }
 
     val filtered = keyMaps
         .filter {
@@ -125,7 +186,7 @@ fun KeyMapListScreen(
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
                             DropdownMenu(showMenu, { showMenu = false }) {
                                 DropdownMenuItem(text = { Text("Export all key maps") }, leadingIcon = { Icon(Icons.Default.IosShare, null) }, onClick = { showExportDialog = true; showMenu = false })
-                                DropdownMenuItem(text = { Text("Import key maps") }, leadingIcon = { Icon(Icons.Default.FileOpen, null) }, onClick = { showMenu = false })
+                                DropdownMenuItem(text = { Text("Import key maps") }, leadingIcon = { Icon(Icons.Default.FileOpen, null) }, onClick = { importLauncher.launch(arrayOf("application/json", "*/*")); showMenu = false })
                                 DropdownMenuItem(text = { Text("Report a bug") }, leadingIcon = { Icon(Icons.Default.BugReport, null) }, onClick = { showBugReportDialog = true; showMenu = false })
                             }
                         }
@@ -133,6 +194,7 @@ fun KeyMapListScreen(
                 )
             }
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNavigateToCreate,
@@ -278,7 +340,7 @@ fun KeyMapListScreen(
         }
     }
 
-    // Export dialog
+    // Export dialog — use SAF to choose save location
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
@@ -286,13 +348,22 @@ fun KeyMapListScreen(
             title = { Text("Export Key Maps") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("All ${keyMaps.size} key maps will be exported as a JSON file to your Downloads folder.", style = MaterialTheme.typography.bodySmall)
+                    Text("${keyMaps.size} key maps will be exported as a JSON file. Tap Export to choose where to save it.", style = MaterialTheme.typography.bodySmall)
                     Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Text("/sdcard/Download/keymapper_export.json", modifier = Modifier.padding(10.dp), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.FolderOpen, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Android file picker will open to choose location", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                        }
                     }
                 }
             },
-            confirmButton = { Button(onClick = { showExportDialog = false }) { Text("Export") } },
+            confirmButton = {
+                Button(onClick = {
+                    exportLauncher.launch("keymapper_export_${System.currentTimeMillis()}.json")
+                    showExportDialog = false
+                }) { Text("Export") }
+            },
             dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } },
         )
     }

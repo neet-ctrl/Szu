@@ -421,5 +421,14 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
+    /** Open App Info settings on the CONNECTED TARGET device via ADB/root. */
+    fun openAppInfoOnTarget() {
+        viewModelScope.launch {
+            val pkg = _state.value.packageName
+            val result = connectionManager.exec("am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:$pkg 2>/dev/null")
+            _state.update { it.copy(snackbarMessage = if (result.isSuccess) "Opened App Info on target device" else "Failed — check ACCU connection") }
+        }
+    }
+
     fun clearSnackbar() { _state.update { it.copy(snackbarMessage = null) } }
 }

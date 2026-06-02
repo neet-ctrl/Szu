@@ -6,3 +6,6 @@
 - [ACCU System Service Architecture](accu-system-service.md) — Full Shizuku-replica IPC privilege broker; AIDL in com.accu.api, service in com.accu.service, UI in com.accu.ui.apiservice.
 - [ACCU Boot Autostart](accu-boot-autostart.md) — BootReceiver reads PREF_AUTOSTART from PREFS_SERVICE prefs; constants live on AccuSystemService.Companion; ViewModel holds toggle state + write method; Screen uses Switch with thumbContent.
 - [ADB TLS CertificateVerify fix](adb-tls-conscrypt-key-provider.md) — Conscrypt must parse/generate RSA private key via its own provider or PSS signing fails and TLS handshake closes.
+- [Privacy Center real ADB blocking](privacy-adb-blocking.md) — PrivacyViewModel injects AccuConnectionManager; sensor blocking via appops set, firewall via cmd netpolicy (UID) or iptables (root), audit via local PackageManager; export/import use SAF Uri.
+- [AppDetail SAF APK extract](appdetail-saf.md) — Extract APK uses OpenDocumentTree (no dialog); converts "primary:Download" → /sdcard/Download; openAppInfoOnTarget uses am start ACTION_APPLICATION_DETAILS_SETTINGS.
+- [KeyMapper SAF JSON export/import](keymapper-saf.md) — CreateDocument("application/json") for export writes real JSON; OpenDocument for import parses it back into KeyMapItem list.

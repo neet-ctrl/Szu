@@ -4,7 +4,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.PermissionInfo
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -92,8 +95,18 @@ fun AppDetailScreen(
     val clipboardManager = LocalClipboardManager.current
     // Dialogs
     var showManifest by remember { mutableStateOf(false) }
-    var showSavePath by remember { mutableStateOf(false) }
-    var savePath by remember { mutableStateOf("/sdcard/Download") }
+
+    // SAF folder picker for APK extraction
+    val folderPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let { treeUri ->
+            val docId = try { DocumentsContract.getTreeDocumentId(treeUri) } catch (_: Exception) { "primary:Download" }
+            val folder = when {
+                docId.startsWith("primary:") -> "/sdcard/${docId.removePrefix("primary:").trimEnd('/')}"
+                else -> "/sdcard/Download"
+            }
+            viewModel.extractApkToPath("$folder/$packageName.apk")
+        }
+    }
 
     // Detect trackers from known list (scan declared packages/classes)
     val detectedTrackers = remember(packageName) {
@@ -120,7 +133,7 @@ fun AppDetailScreen(
                     actions = {
                         IconButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, "Force Stop") }
                         IconButton(onClick = { viewModel.openApp() }) { Icon(Icons.Default.OpenInNew, "Open App") }
-                        IconButton(onClick = { showSavePath = true }) { Icon(Icons.Default.Download, "Extract APK") }
+                        IconButton(onClick = { folderPickerLauncher.launch(null) }) { Icon(Icons.Default.Download, "Extract APK") }
                         var showMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
@@ -128,7 +141,7 @@ fun AppDetailScreen(
                                 DropdownMenuItem(text = { Text("Clear Data") }, leadingIcon = { Icon(Icons.Default.Delete, null) }, onClick = { viewModel.clearData(); showMenu = false })
                                 DropdownMenuItem(text = { Text("Uninstall") }, leadingIcon = { Icon(Icons.Default.RemoveCircle, null) }, onClick = { viewModel.uninstall(); showMenu = false })
                                 DropdownMenuItem(
-                                    text = { Text("Open App Info") },
+                                    text = { Text("Open App Info (local)") },
                                     leadingIcon = { Icon(Icons.Default.Info, null) },
                                     onClick = {
                                         context.startActivity(
@@ -137,6 +150,11 @@ fun AppDetailScreen(
                                         )
                                         showMenu = false
                                     }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Open App Info (target)") },
+                                    leadingIcon = { Icon(Icons.Default.PhoneAndroid, null) },
+                                    onClick = { viewModel.openAppInfoOnTarget(); showMenu = false }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("View Manifest") },
@@ -168,32 +186,6 @@ fun AppDetailScreen(
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        // ── APK Save Path dialog ──────────────────────────────────────────
-        if (showSavePath) {
-            AlertDialog(
-                onDismissRequest = { showSavePath = false },
-                title = { Text("Save APK") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Choose a destination path on the device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedTextField(
-                            value = savePath,
-                            onValueChange = { savePath = it },
-                            label = { Text("Save directory") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        viewModel.extractApkToPath("$savePath/${packageName}.apk")
-                        showSavePath = false
-                    }) { Text("Save") }
-                },
-                dismissButton = { TextButton(onClick = { showSavePath = false }) { Text("Cancel") } }
-            )
-        }
         // ── Manifest viewer dialog ────────────────────────────────────────
         if (showManifest) {
             AlertDialog(
@@ -232,7 +224,7 @@ fun AppDetailScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             when (selectedTab) {
-                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding)
+                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding, onExtractApk = { folderPickerLauncher.launch(null) })
                 AppDetailTab.COMPONENTS   -> ComponentsTab(state, viewModel, padding)
                 AppDetailTab.PERMISSIONS  -> PermissionsTab(state, viewModel, padding)
                 AppDetailTab.TRACKERS     -> TrackersTab(detectedTrackers, packageName, padding)
@@ -246,7 +238,7 @@ fun AppDetailScreen(
 
 // ─── Tab 1: Info ───
 @Composable
-private fun InfoTab(state: AppDetailUiState, packageName: String, context: android.content.Context, dateFormatter: SimpleDateFormat, viewModel: AppDetailViewModel, padding: PaddingValues) {
+private fun InfoTab(state: AppDetailUiState, packageName: String, context: android.content.Context, dateFormatter: SimpleDateFormat, viewModel: AppDetailViewModel, padding: PaddingValues, onExtractApk: () -> Unit = {}) {
     val sharedLibs = remember(packageName) {
         try {
             val ai = context.packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES)
@@ -282,7 +274,7 @@ private fun InfoTab(state: AppDetailUiState, packageName: String, context: andro
                 item { FilledTonalButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Force Stop") } }
                 item { OutlinedButton(onClick = { viewModel.clearData() }) { Text("Clear Data") } }
                 item { OutlinedButton(onClick = { viewModel.uninstall() }) { Text("Uninstall") } }
-                item { OutlinedButton(onClick = { showSavePath = true }) { Icon(Icons.Default.Download, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Extract APK") } }
+                item { OutlinedButton(onClick = onExtractApk) { Icon(Icons.Default.Download, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Extract APK") } }
             }
             Spacer(Modifier.height(8.dp))
         }
