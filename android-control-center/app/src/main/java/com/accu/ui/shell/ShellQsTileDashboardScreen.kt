@@ -653,9 +653,16 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             else
                 "✗ ${tile.label}: ${outputText.take(60).ifBlank { "failed (exit ${result.exitCode})" }}"
             _completionEvent.tryEmit(toastMsg)
-            val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
-            val safeTs    = ts.replace(" ", "_").replace(":", "-")
-            saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${resolvedCommand}\n\n${outputText}")
+            // MEDIA_CAPTURE tiles (screencap / screenrecord) save their actual
+            // media file on the target device via the shell command.  Saving the
+            // plain-text command output as a .txt file would produce a tiny,
+            // confusing file (Screenshot_01_Jun_17-57-08.txt, 180 B) instead of
+            // the expected PNG/MP4.  Skip the log-file for these tiles.
+            if (tile.category != TileCategory.MEDIA_CAPTURE) {
+                val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
+                val safeTs    = ts.replace(" ", "_").replace(":", "-")
+                saveResultToFolder("${safeLabel}_${safeTs}.txt", "$ ${resolvedCommand}\n\n${outputText}")
+            }
         }
     }
 

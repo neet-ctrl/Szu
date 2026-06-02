@@ -34,6 +34,9 @@ class ShellViewModel @Inject constructor(
     private val _output = MutableStateFlow<List<OutputLine>>(emptyList())
     val output: StateFlow<List<OutputLine>> = _output.asStateFlow()
 
+    private val _navigationEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val navigationEvent: SharedFlow<String> = _navigationEvent.asSharedFlow()
+
     private val _commandHistory = MutableStateFlow<List<String>>(emptyList())
     val commandHistory: StateFlow<List<String>> = _commandHistory.asStateFlow()
 
@@ -132,8 +135,8 @@ class ShellViewModel @Inject constructor(
         }
     }
 
-    fun showQrPairing() {}
-    fun showCodePairing() {}
+    fun showQrPairing()   { _navigationEvent.tryEmit("adb_pairing") }
+    fun showCodePairing() { _navigationEvent.tryEmit("adb_pairing") }
 
     fun clearOutput() { _output.value = emptyList() }
 
