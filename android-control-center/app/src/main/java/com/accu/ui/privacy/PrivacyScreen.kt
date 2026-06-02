@@ -734,7 +734,7 @@ private fun NetConnRow(conn: NetConn) {
                 Text(conn.remoteAddress, fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = if (conn.remoteAddress.startsWith("0.0.0.0") || conn.remoteAddress.startsWith("*")) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
             }
         }
-        HorizontalDivider(Modifier.align(Alignment.Bottom))
+        HorizontalDivider(Modifier.fillMaxWidth())
     }
 }
 

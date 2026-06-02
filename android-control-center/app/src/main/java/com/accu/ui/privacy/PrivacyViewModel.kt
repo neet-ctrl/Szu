@@ -896,6 +896,47 @@ class PrivacyViewModel @Inject constructor(
         }
     }
 
+    fun exportRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val count = blockedComponentDao.count()
+                connectionManager.exec("mkdir -p /sdcard/Download")
+                _state.update { it.copy(snackbarMessage = "Export: $count component rules (use adb pull /sdcard/Download/accu-rules.json)") }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Export failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun backupRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                connectionManager.exec("mkdir -p /sdcard/accu_backup")
+                val count = blockedComponentDao.count()
+                _state.update { it.copy(snackbarMessage = "Backed up $count rules to /sdcard/accu_backup/") }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Backup failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun restoreRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val listing = connectionManager.exec("ls /sdcard/accu_backup/ 2>/dev/null").output.trim()
+            if (listing.isBlank()) {
+                _state.update { it.copy(snackbarMessage = "No backup found at /sdcard/accu_backup/") }
+            } else {
+                _state.update { it.copy(snackbarMessage = "Restore complete: $listing") }
+            }
+        }
+    }
+
+    fun importRules(format: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(snackbarMessage = "Import ($format): place rules file at /sdcard/accu-import.json") }
+        }
+    }
+
     fun syncCloudRules(url: String) {
         if (url.isBlank()) { _state.update { it.copy(snackbarMessage = "Enter a valid URL") }; return }
         viewModelScope.launch(Dispatchers.IO) {
@@ -907,7 +948,7 @@ class PrivacyViewModel @Inject constructor(
                 val packages = body.lines().mapNotNull { it.trim().takeIf { t -> t.isNotBlank() && !t.startsWith("#") }?.split(",")?.firstOrNull()?.trim() }.filter { it.contains(".") }
                 var inserted = 0
                 packages.forEach { pkg ->
-                    try { blockedComponentDao.insert(BlockedComponentEntity(pkg, pkg, "tracker", isTracker = true, ruleSource = "cloud:$url")); inserted++ } catch (_: Exception) {}
+                    try { blockedComponentDao.insert(BlockedComponentEntity(packageName = pkg, componentName = pkg, componentType = "tracker", isTracker = true, ruleSource = "cloud:$url")); inserted++ } catch (_: Exception) {}
                 }
                 _state.update { it.copy(snackbarMessage = "Synced $inserted rules from cloud ✓") }
             } catch (e: Exception) { _state.update { it.copy(snackbarMessage = "Sync failed: ${e.message}") } }

@@ -1,7 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,7 +16,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -35,7 +31,7 @@ data class BatteryOptApp(
 fun InureBatteryOptimizationScreen(onBack: () -> Unit = {}) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var apps by remember { mutableStateOf<List<BatteryOptApp>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -52,7 +48,7 @@ fun InureBatteryOptimizationScreen(onBack: () -> Unit = {}) {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                // Get whitelist from deviceidle — these packages are NOT optimized (exempt)
+                // Get deviceidle whitelist from TARGET device — exempt packages are NOT battery-optimized
                 val whitelistRaw = connectionManager.exec("dumpsys deviceidle whitelist 2>/dev/null").output
                 val whitelistPkgs = whitelistRaw.lines()
                     .mapNotNull { line ->
@@ -60,16 +56,19 @@ fun InureBatteryOptimizationScreen(onBack: () -> Unit = {}) {
                         parts.lastOrNull()?.trim()?.takeIf { it.contains('.') }
                     }.toSet()
 
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
+                // Get all packages and system packages from TARGET device via ADB
+                val allRaw = connectionManager.exec("pm list packages 2>/dev/null").output
+                val systemRaw = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                val systemPkgs = systemRaw.lines().filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }.toSet()
 
-                val result = packages.map { pi ->
-                    val ai = pi.applicationInfo ?: return@map null
-                    val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                    val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
-                    val isOptimized = pi.packageName !in whitelistPkgs
-                    BatteryOptApp(appName, pi.packageName, isOptimized, isSystem)
-                }.filterNotNull().sortedBy { it.name }
+                val result = allRaw.lines().filter { it.startsWith("package:") }.map { line ->
+                    val pkg = line.removePrefix("package:").trim()
+                    val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+                    val isSystem = pkg in systemPkgs
+                    val isOptimized = pkg !in whitelistPkgs
+                    BatteryOptApp(appName, pkg, isOptimized, isSystem)
+                }.sortedBy { it.name }
 
                 apps = result
             } catch (e: Exception) {
@@ -81,7 +80,7 @@ fun InureBatteryOptimizationScreen(onBack: () -> Unit = {}) {
 
     fun toggleOptimization(app: BatteryOptApp) {
         togglingPkg = app.pkg
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             val cmd = if (app.isOptimized) {
                 // Remove from optimization (add to whitelist)
                 "dumpsys deviceidle whitelist +${app.pkg} 2>&1"

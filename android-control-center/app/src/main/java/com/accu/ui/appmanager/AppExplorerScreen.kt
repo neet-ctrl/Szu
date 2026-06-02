@@ -1,10 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.Context
-import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
-import android.content.pm.PermissionInfo
-import android.os.Build
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -32,7 +27,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.text.SimpleDateFormat
@@ -150,7 +144,6 @@ fun buildAppCommands(pkg: String): List<AppCommand> = listOf(
 
 @HiltViewModel
 class AppExplorerViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val shizuku: ShizukuUtils,
     private val connectionManager: com.accu.connection.AccuConnectionManager,
 ) : ViewModel() {
@@ -162,115 +155,92 @@ class AppExplorerViewModel @Inject constructor(
 
     fun loadApps() = viewModelScope.launch(Dispatchers.IO) {
         _state.update { it.copy(isLoading = true) }
-        val appList = if (connectionManager.isRemoteSession()) {
-            loadAppsViaShell()
-        } else {
-            loadAppsViaPackageManager()
-        }
+        // Always query the connected TARGET device via ADB/shell — never local PackageManager
+        val appList = loadAppsViaShell()
         _state.update { s ->
             s.copy(apps = appList, isLoading = false).let { applyFilter(it) }
         }
     }
 
-    /** Local path: rich data via Android PackageManager API */
-    private fun loadAppsViaPackageManager(): List<AppInfo> {
-        val pm = context.packageManager
-        val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA
-        val packages = try {
-            if (Build.VERSION.SDK_INT >= 33)
-                pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(flags.toLong()))
-            else
-                @Suppress("DEPRECATION") pm.getInstalledPackages(flags)
-        } catch (_: Exception) { emptyList() }
-        return packages.mapNotNull { pkg ->
-            try { buildAppInfo(pm, pkg) } catch (_: Exception) { null }
-        }
-    }
-
     /**
-     * Remote path: shell-based listing via exec() → routes to the connected target device.
-     * Labels and icons are not available remotely — shows package name as label.
+     * Loads package list from the TARGET device via shell commands routed through
+     * AccuConnectionManager (Root / Wireless ADB / OTG ADB).  Enriches each entry
+     * with version, SDK, APK size, install/update dates via a single batch shell loop
+     * so the round-trip count is O(1) rather than O(N).
      */
     private suspend fun loadAppsViaShell(): List<AppInfo> {
-        val packages = connectionManager.listPackages()
-        return packages.map { pkg ->
+        val rawAll      = connectionManager.exec("pm list packages --show-versioncode -i 2>/dev/null").output
+        val rawSystem   = connectionManager.exec("pm list packages -s 2>/dev/null").output
+        val rawDisabled = connectionManager.exec("pm list packages -d 2>/dev/null").output
+
+        val systemPkgs  = rawSystem.lines().filter { it.startsWith("package:") }
+            .map { it.removePrefix("package:").trim() }.toSet()
+        val disabledPkgs = rawDisabled.lines().filter { it.startsWith("package:") }
+            .map { it.removePrefix("package:").trim() }.toSet()
+
+        data class Basic(val pkg: String, val vc: Long, val installer: String?)
+        val basicList = rawAll.lines().filter { it.startsWith("package:") }.mapNotNull { line ->
+            val pkg = line.substringAfter("package:").substringBefore(" ").substringBefore("\t").trim()
+            if (pkg.isEmpty()) return@mapNotNull null
+            val vc = Regex("versionCode:(\\d+)").find(line)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+            val installer = Regex("installer[=:]([^\\s]+)").find(line)?.groupValues?.getOrNull(1)
+                ?.trimEnd()?.let { if (it == "null" || it.isEmpty()) null else it }
+            Basic(pkg, vc, installer)
+        }
+        if (basicList.isEmpty()) return emptyList()
+
+        // Single shell loop on the target device — one round-trip for all packages
+        val pkgList = basicList.take(150).joinToString(" ") { "\"${it.pkg}\"" }
+        val batchScript = """for pkg in $pkgList; do path=$(pm path "${'$'}pkg" 2>/dev/null | sed 's/package://'); sz=$([ -n "${'$'}path" ] && stat -c %s "${'$'}path" 2>/dev/null || echo 0); dump=$(dumpsys package "${'$'}pkg" 2>/dev/null | grep -E 'versionName=|firstInstallTime=|lastUpdateTime=|targetSdk=|minSdk=' | head -6 | tr '\n' '|'); echo "PKG:${'$'}pkg|SZ:${'$'}sz|PATH:${'$'}path|${'$'}dump"; done 2>/dev/null"""
+        val batchOut = connectionManager.exec(batchScript).output
+
+        data class Enriched(val sz: Long, val path: String, val fields: Map<String, String>)
+        val enriched = mutableMapOf<String, Enriched>()
+        batchOut.lines().filter { it.startsWith("PKG:") }.forEach { line ->
+            val pkg  = line.substringAfter("PKG:").substringBefore("|").trim()
+            val sz   = Regex("\\|SZ:(\\d+)").find(line)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
+            val path = Regex("\\|PATH:([^|]+)").find(line)?.groupValues?.getOrNull(1)?.trim() ?: ""
+            val fields = mutableMapOf<String, String>()
+            line.split("|").forEach { part ->
+                val t = part.trim()
+                if (t.contains("=") && !t.startsWith("PKG:") && !t.startsWith("SZ:") && !t.startsWith("PATH:")) {
+                    val k = t.substringBefore("=").trim(); val v = t.substringAfter("=").trim()
+                    if (k.isNotEmpty()) fields[k] = v
+                }
+            }
+            if (pkg.isNotEmpty()) enriched[pkg] = Enriched(sz, path, fields)
+        }
+
+        return basicList.map { (pkg, vc, installer) ->
+            val e = enriched[pkg]
             AppInfo(
-                packageName     = pkg.packageName,
-                appName         = guessAppLabel(pkg.packageName),
-                versionName     = "",
-                versionCode     = 0L,
-                targetSdk       = 0,
-                minSdk          = 0,
-                installDate     = 0L,
-                updateDate      = 0L,
-                installerPackage= null,
-                apkPath         = pkg.apkPath,
-                dataDir         = "/data/data/${pkg.packageName}",
-                isSystemApp     = pkg.isSystem,
-                isEnabled       = pkg.isEnabled,
-                sizeBytes       = 0L,
-                permissions     = emptyList(),
+                packageName      = pkg,
+                appName          = guessAppLabel(pkg),
+                versionName      = e?.fields?.get("versionName") ?: "",
+                versionCode      = vc,
+                targetSdk        = e?.fields?.get("targetSdk")?.toIntOrNull() ?: 0,
+                minSdk           = e?.fields?.get("minSdk")?.toIntOrNull() ?: 0,
+                installDate      = e?.fields?.get("firstInstallTime")?.let { parseDumpTime(it) } ?: 0L,
+                updateDate       = e?.fields?.get("lastUpdateTime")?.let { parseDumpTime(it) } ?: 0L,
+                installerPackage = installer,
+                apkPath          = e?.path ?: "",
+                dataDir          = "/data/data/$pkg",
+                isSystemApp      = pkg in systemPkgs,
+                isEnabled        = pkg !in disabledPkgs,
+                sizeBytes        = e?.sz ?: 0L,
+                permissions      = emptyList(), // loaded on demand from AppDetailScreen
             )
         }
     }
 
-    /** Derive a human-readable label from the package name (for remote sessions) */
+    /** Derive a human-readable label from the package name */
     private fun guessAppLabel(packageName: String): String =
-        packageName.split(".").lastOrNull()
-            ?.replaceFirstChar { it.uppercase() }
-            ?: packageName
+        packageName.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: packageName
 
-    private fun buildAppInfo(pm: PackageManager, pkg: PackageInfo): AppInfo {
-        val ai = pkg.applicationInfo
-        val isSystem = ai != null && (ai.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
-        val perms = buildPermissionList(pm, pkg)
-        val apkFile = java.io.File(ai?.publicSourceDir ?: ai?.sourceDir ?: "")
-        val sizeBytes = try { apkFile.length() } catch (_: Exception) { 0L }
-        val installer = try {
-            if (Build.VERSION.SDK_INT >= 30)
-                pm.getInstallSourceInfo(pkg.packageName).installingPackageName
-            else @Suppress("DEPRECATION") pm.getInstallerPackageName(pkg.packageName)
-        } catch (_: Exception) { null }
-        val label = try { ai?.let { pm.getApplicationLabel(it).toString() } ?: pkg.packageName } catch (_: Exception) { pkg.packageName }
-        return AppInfo(
-            packageName = pkg.packageName, appName = label,
-            versionName = pkg.versionName ?: "?",
-            versionCode = if (Build.VERSION.SDK_INT >= 28) pkg.longVersionCode else @Suppress("DEPRECATION") pkg.versionCode.toLong(),
-            targetSdk = ai?.targetSdkVersion ?: 0,
-            minSdk = if (Build.VERSION.SDK_INT >= 24) ai?.minSdkVersion ?: 0 else 0,
-            installDate = pkg.firstInstallTime, updateDate = pkg.lastUpdateTime,
-            installerPackage = installer,
-            apkPath = ai?.sourceDir ?: "", dataDir = ai?.dataDir ?: "",
-            isSystemApp = isSystem, isEnabled = ai?.enabled != false,
-            sizeBytes = sizeBytes, permissions = perms,
-        )
-    }
-
-    private fun buildPermissionList(pm: PackageManager, pkg: PackageInfo): List<AppPermission> {
-        val declared = pkg.requestedPermissions ?: return emptyList()
-        val flags = pkg.requestedPermissionsFlags ?: IntArray(declared.size)
-        return declared.mapIndexed { i, permName ->
-            val isGranted = (flags.getOrElse(i) { 0 } and PackageInfo.REQUESTED_PERMISSION_GRANTED) != 0
-            val (protection, desc) = try {
-                val pi = pm.getPermissionInfo(permName, 0)
-                val base = pi.protection and PermissionInfo.PROTECTION_MASK_BASE
-                val prot = when {
-                    pi.protection and PermissionInfo.PROTECTION_FLAG_DEVELOPMENT != 0 -> PermProtection.DEVELOPMENT
-                    pi.protection and PermissionInfo.PROTECTION_FLAG_PRIVILEGED != 0  -> PermProtection.PRIVILEGED
-                    base == PermissionInfo.PROTECTION_DANGEROUS                        -> PermProtection.DANGEROUS
-                    base == PermissionInfo.PROTECTION_SIGNATURE                        -> PermProtection.SIGNATURE
-                    base == PermissionInfo.PROTECTION_NORMAL                           -> PermProtection.NORMAL
-                    else                                                               -> PermProtection.UNKNOWN
-                }
-                val d = pi.loadDescription(pm)?.toString() ?: friendlyDesc(permName)
-                Pair(prot, d)
-            } catch (_: Exception) { Pair(PermProtection.UNKNOWN, friendlyDesc(permName)) }
-            AppPermission(
-                name = permName, simpleName = permName.substringAfterLast('.'),
-                description = desc, protection = protection,
-                isGranted = isGranted, isToggleable = protection == PermProtection.DANGEROUS,
-            )
-        }.sortedWith(compareBy({ it.protection.ordinal }, { it.simpleName }))
+    private fun parseDumpTime(raw: String): Long {
+        val t = raw.trim()
+        t.toLongOrNull()?.let { if (it > 1_000_000_000_000L) return it }
+        return try { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).parse(t)?.time ?: 0L } catch (_: Exception) { 0L }
     }
 
     fun setFilter(f: ExplorerFilter) = _state.update { applyFilter(it.copy(filter = f)) }
@@ -314,27 +284,6 @@ class AppExplorerViewModel @Inject constructor(
 
     fun clearSnackbar() = _state.update { it.copy(snackbarMessage = null) }
 
-    private fun friendlyDesc(perm: String) = when {
-        perm.contains("CAMERA")                  -> "Access device camera"
-        perm.contains("RECORD_AUDIO")            -> "Record microphone audio"
-        perm.contains("LOCATION")                -> "Access device location (GPS/network)"
-        perm.contains("CONTACTS")                -> "Read or write contacts"
-        perm.contains("CALL_LOG")                -> "Read call history"
-        perm.contains("PHONE")                   -> "Make or read phone calls"
-        perm.contains("SMS")                     -> "Send or read SMS messages"
-        perm.contains("STORAGE") || perm.contains("MEDIA") -> "Read/write files and storage"
-        perm.contains("BLUETOOTH")               -> "Use Bluetooth hardware"
-        perm.contains("INTERNET")                -> "Full network access"
-        perm.contains("INSTALL_PACKAGES")        -> "Install app packages"
-        perm.contains("READ_LOGS")               -> "Read system logs (privileged)"
-        perm.contains("WRITE_SECURE_SETTINGS")   -> "Modify secure system settings (privileged)"
-        perm.contains("DUMP")                    -> "Dump system state (privileged)"
-        perm.contains("NOTIFICATION")            -> "Send or manage notifications"
-        perm.contains("BIOMETRIC")               -> "Use fingerprint / face unlock"
-        perm.contains("ACTIVITY_RECOGNITION")    -> "Detect physical activity (walking, running)"
-        perm.contains("BODY_SENSORS")            -> "Access body sensors (heart rate, etc.)"
-        else                                     -> "System permission: ${perm.substringAfterLast('.')}"
-    }
 }
 
 // ─────────────────────────────────────────────────────────

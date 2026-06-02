@@ -30,6 +30,7 @@ data class CompressibleFile(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SqueezerScreen(onBack: () -> Unit = {}) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var isScanning by remember { mutableStateOf(false) }
     var hasScanned by remember { mutableStateOf(false) }
     var isCompressing by remember { mutableStateOf(false) }

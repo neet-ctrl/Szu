@@ -258,14 +258,14 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
             // ── Save folder picker ────────────────────────────────────────────
             item {
                 Card(
-                    Modifier.fillMaxWidth(),
+                    onClick = { folderPickerLauncher.launch(null) },
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = if (saveFolderUri != null)
                             MaterialTheme.colorScheme.primaryContainer
                         else
                             MaterialTheme.colorScheme.secondaryContainer,
                     ),
-                    onClick = { folderPickerLauncher.launch(null) },
                 ) {
                     Row(
                         Modifier.padding(14.dp),

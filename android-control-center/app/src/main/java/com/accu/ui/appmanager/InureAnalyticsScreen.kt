@@ -1,10 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
-import android.content.pm.Signature
-import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -21,13 +16,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.accu.connection.AccuConnectionManager
+import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.security.cert.CertificateFactory
-import java.security.cert.X509Certificate
 
 data class AppUsageStat(
     val packageName: String,
@@ -58,7 +53,9 @@ private val CHART_COLORS = listOf(
 @Composable
 fun InureAnalyticsScreen(onBack: () -> Unit) {
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Usage", "Installers", "Size", "Permissions", "Min SDK", "Target SDK", "Sign Algo", "Pkg Type")
+    val tabs = listOf("Usage", "Installers", "Size", "Permissions", "Min SDK", "Target SDK", "Pkg Type")
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
 
     Scaffold(
         topBar = {
@@ -76,81 +73,58 @@ fun InureAnalyticsScreen(onBack: () -> Unit) {
                 }
             }
             when (selectedTab) {
-                0 -> UsageTab()
-                1 -> InstallerTab()
-                2 -> SizeTab()
-                3 -> PermissionsTab()
-                4 -> SdkDistributionTab(isMin = true)
-                5 -> SdkDistributionTab(isMin = false)
-                6 -> SignatureAlgorithmTab()
-                7 -> PackageTypeTab()
+                0 -> UsageTab(connectionManager)
+                1 -> InstallerTab(connectionManager)
+                2 -> SizeTab(connectionManager)
+                3 -> PermissionsTab(connectionManager)
+                4 -> SdkDistributionTab(connectionManager, isMin = true)
+                5 -> SdkDistributionTab(connectionManager, isMin = false)
+                6 -> PackageTypeTab(connectionManager)
             }
         }
     }
 }
 
+// ─── Usage Tab ───────────────────────────────────────────────────────────────
+
 @Composable
-private fun UsageTab() {
-    val context = LocalContext.current
+private fun UsageTab(connectionManager: AccuConnectionManager) {
     var stats by remember { mutableStateOf<List<AppUsageStat>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var permissionNeeded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            val hasPermission = try {
-                val ops = context.getSystemService(android.app.AppOpsManager::class.java)
-                ops.checkOpNoThrow("android:get_usage_stats", android.os.Process.myUid(), context.packageName) ==
-                    android.app.AppOpsManager.MODE_ALLOWED
-            } catch (_: Exception) { false }
-
-            if (!hasPermission) {
-                permissionNeeded = true
-                loading = false
-                return@withContext
-            }
-
             try {
-                val usm = context.getSystemService(android.app.usage.UsageStatsManager::class.java)
-                val now = System.currentTimeMillis()
-                val raw = usm.queryUsageStats(android.app.usage.UsageStatsManager.INTERVAL_DAILY, now - 86_400_000L, now) ?: emptyList()
-                val pm = context.packageManager
-
-                val aggregated = mutableMapOf<String, Long>()
-                raw.forEach { s -> aggregated[s.packageName] = (aggregated[s.packageName] ?: 0L) + s.totalTimeInForeground }
-
-                stats = aggregated.entries
-                    .filter { it.value > 0 }
+                // Query usage stats from TARGET device via ADB dumpsys — never local UsageStatsManager
+                val raw = connectionManager.exec("dumpsys usagestats 2>/dev/null").output
+                val pkgMap = mutableMapOf<String, Long>()
+                var currentPkg = ""
+                raw.lines().forEach { line ->
+                    val t = line.trim()
+                    when {
+                        t.startsWith("package=") -> {
+                            currentPkg = t.substringAfter("package=").substringBefore(" ").trim()
+                        }
+                        (t.startsWith("totalTime=") || t.startsWith("totalTimeInForeground=")) && currentPkg.isNotEmpty() -> {
+                            val ms = t.substringAfter("=").substringBefore(" ").toLongOrNull() ?: 0L
+                            pkgMap[currentPkg] = (pkgMap[currentPkg] ?: 0L) + ms
+                        }
+                    }
+                }
+                stats = pkgMap.entries
+                    .filter { it.value > 60_000L }
                     .sortedByDescending { it.value }
                     .take(10)
-                    .mapIndexedNotNull { idx, (pkg, ms) ->
-                        val name = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { return@mapIndexedNotNull null }
+                    .mapIndexed { idx, (pkg, ms) ->
+                        val name = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
                         AppUsageStat(pkg, name, ms, 0, System.currentTimeMillis(), CHART_COLORS[idx % CHART_COLORS.size])
                     }
-            } catch (_: Exception) { permissionNeeded = true }
+            } catch (_: Exception) { }
             loading = false
         }
     }
 
-    if (loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        return
-    }
-
-    if (permissionNeeded) {
-        Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Default.Lock, null, modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.height(16.dp))
-            Text("Usage Access Required", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Text("Grant 'Usage Access' permission to ACCU to see real-time screen time data.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) {
-                Text("Open Settings")
-            }
-        }
-        return
-    }
+    if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
 
     val totalMs = stats.sumOf { it.usageTimeMs }
 
@@ -175,12 +149,13 @@ private fun UsageTab() {
                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Icon(Icons.Default.BarChart, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("No usage data for today", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("No usage data available from target device", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Requires root or ADB connection to target device", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
         } else {
-            item { Text("Top Apps by Usage", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+            item { Text("Top Apps by Usage (Target Device)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
             items(stats.sortedByDescending { it.usageTimeMs }) { stat ->
                 UsageStatCard(stat = stat, total = totalMs)
             }
@@ -226,39 +201,39 @@ private fun UsageStatCard(stat: AppUsageStat, total: Long) {
                 Text(formatDuration(stat.usageTimeMs), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
             LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth(), color = stat.color)
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("${stat.launchCount} launches", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-                Text("${"%.1f".format(fraction * 100)}% of total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
-            }
+            Text("${"%.1f".format(fraction * 100)}% of total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
         }
     }
 }
 
+// ─── Installer Tab ────────────────────────────────────────────────────────────
+
 @Composable
-private fun InstallerTab() {
-    val context = LocalContext.current
+private fun InstallerTab(connectionManager: AccuConnectionManager) {
     var stats by remember { mutableStateOf<List<InstallerStat>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(0)
+                // Query packages and installers from TARGET device via ADB
+                val rawAll = connectionManager.exec("pm list packages -i 2>/dev/null").output
+                val systemRaw = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                val systemPkgs = systemRaw.lines().filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }.toSet()
+
                 val installerMap = mutableMapOf<String, Int>()
-                for (pi in packages) {
-                    val installer = try {
-                        @Suppress("DEPRECATION")
-                        pm.getInstallerPackageName(pi.packageName) ?: "Unknown"
-                    } catch (_: Exception) { "Unknown" }
-                    val label = when (installer) {
+                rawAll.lines().filter { it.startsWith("package:") }.forEach { line ->
+                    val pkg = line.substringAfter("package:").substringBefore(" ").trim()
+                    val installerRaw = Regex("installer[=:]([^\\s]+)").find(line)?.groupValues?.getOrNull(1)
+                        ?.let { if (it == "null" || it.isEmpty()) null else it }
+                    val label = when (installerRaw) {
                         "com.android.vending"   -> "Google Play"
                         "org.fdroid.fdroid"     -> "F-Droid"
                         "com.aurora.store"      -> "Aurora Store"
                         "com.amazon.venezia"    -> "Amazon"
-                        ""                      -> "Unknown"
-                        "Unknown"               -> "Unknown"
-                        else -> if ((pi.applicationInfo?.flags ?: 0) and ApplicationInfo.FLAG_SYSTEM != 0) "System" else "Sideloaded"
+                        null -> if (pkg in systemPkgs) "System" else "Unknown"
+                        else -> if (pkg in systemPkgs) "System" else "Sideloaded"
                     }
                     installerMap[label] = (installerMap[label] ?: 0) + 1
                 }
@@ -304,30 +279,32 @@ private fun PieChart(segments: List<Pair<Float, Color>>) {
     Canvas(modifier = Modifier.size(160.dp)) {
         var startAngle = -90f
         segments.forEach { (count, color) ->
-            val sweep = (count / total) * 360f
+            val sweep = if (total > 0f) (count / total) * 360f else 0f
             drawArc(color = color, startAngle = startAngle, sweepAngle = sweep, useCenter = false, style = Stroke(width = 36f), topLeft = Offset(36f, 36f), size = Size(size.width - 72f, size.height - 72f))
             startAngle += sweep
         }
     }
 }
 
+// ─── Size Tab ─────────────────────────────────────────────────────────────────
+
 @Composable
-private fun SizeTab() {
-    val context = LocalContext.current
+private fun SizeTab(connectionManager: AccuConnectionManager) {
     var apps by remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(0)
-                apps = packages.mapNotNull { pi ->
-                    try {
-                        val srcDir = pi.applicationInfo?.sourceDir ?: return@mapNotNull null
-                        val size = java.io.File(srcDir).length()
-                        if (size > 0) pm.getApplicationLabel(pi.applicationInfo!!).toString() to size else null
-                    } catch (_: Exception) { null }
+                // Get APK paths and sizes from TARGET device via ADB shell loop
+                val script = """pm list packages -3 2>/dev/null | sed 's/package://' | while read pkg; do path=$(pm path "${'$'}pkg" 2>/dev/null | sed 's/package://'); [ -n "${'$'}path" ] && sz=$(stat -c %s "${'$'}path" 2>/dev/null) && [ "${'$'}sz" -gt 0 ] && echo "${'$'}pkg|${'$'}sz"; done 2>/dev/null"""
+                val raw = connectionManager.exec(script).output
+                apps = raw.lines().filter { it.contains("|") }.mapNotNull { line ->
+                    val parts = line.split("|")
+                    val pkg  = parts.getOrNull(0)?.trim() ?: return@mapNotNull null
+                    val sz   = parts.getOrNull(1)?.trim()?.toLongOrNull() ?: return@mapNotNull null
+                    val name = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+                    name to sz
                 }.sortedByDescending { it.second }.take(20)
             } catch (_: Exception) { }
             loading = false
@@ -373,23 +350,23 @@ private fun SizeMetric(label: String, value: String) {
     }
 }
 
+// ─── Permissions Tab ──────────────────────────────────────────────────────────
+
 @Composable
-private fun PermissionsTab() {
-    val context = LocalContext.current
+private fun PermissionsTab(connectionManager: AccuConnectionManager) {
     var permStats by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(PackageManager.GET_PERMISSIONS)
+                // Enumerate declared permissions across all user apps on TARGET device via ADB
+                val script = """pm list packages -3 2>/dev/null | sed 's/package://' | while read pkg; do pm dump "${'$'}pkg" 2>/dev/null | grep -o 'android.permission.[A-Z_]*'; done 2>/dev/null"""
+                val raw = connectionManager.exec(script).output
                 val permMap = mutableMapOf<String, Int>()
-                for (pi in packages) {
-                    pi.requestedPermissions?.forEach { perm ->
-                        val short = perm.substringAfterLast(".")
-                        permMap[short] = (permMap[short] ?: 0) + 1
-                    }
+                raw.lines().filter { it.startsWith("android.permission.") }.forEach { perm ->
+                    val short = perm.substringAfterLast(".")
+                    permMap[short] = (permMap[short] ?: 0) + 1
                 }
                 permStats = permMap.entries.sortedByDescending { it.value }.take(20).map { it.key to it.value }
             } catch (_: Exception) { }
@@ -400,7 +377,7 @@ private fun PermissionsTab() {
     if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { Text("Most Requested Permissions (real device data)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
+        item { Text("Most Requested Permissions (Target Device)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
         val max = permStats.firstOrNull()?.second?.toFloat() ?: 1f
         items(permStats) { (perm, count) ->
             Card(shape = RoundedCornerShape(10.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -419,21 +396,23 @@ private fun PermissionsTab() {
     }
 }
 
+// ─── SDK Distribution Tab ─────────────────────────────────────────────────────
+
 @Composable
-private fun SdkDistributionTab(isMin: Boolean) {
-    val context = LocalContext.current
+private fun SdkDistributionTab(connectionManager: AccuConnectionManager, isMin: Boolean) {
     var stats by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(isMin) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(0)
+                // Query SDK distribution from TARGET device via ADB — O(1) batch shell script
+                val field = if (isMin) "minSdk" else "targetSdk"
+                val script = """pm list packages 2>/dev/null | sed 's/package://' | while read pkg; do dumpsys package "${'$'}pkg" 2>/dev/null | grep -m1 '$field=' | grep -o '$field=[0-9]*'; done 2>/dev/null"""
+                val raw = connectionManager.exec(script).output
                 val sdkMap = mutableMapOf<Int, Int>()
-                for (pi in packages) {
-                    val sdk = if (isMin) pi.applicationInfo?.minSdkVersion ?: 0
-                    else pi.applicationInfo?.targetSdkVersion ?: 0
+                raw.lines().forEach { line ->
+                    val sdk = line.substringAfter("$field=").toIntOrNull() ?: return@forEach
                     if (sdk > 0) sdkMap[sdk] = (sdkMap[sdk] ?: 0) + 1
                 }
                 val sdkNames = mapOf(
@@ -455,7 +434,6 @@ private fun SdkDistributionTab(isMin: Boolean) {
     val maxCount = stats.firstOrNull()?.second?.toFloat() ?: 1f
 
     Column(Modifier.fillMaxSize()) {
-        // Pie chart
         Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
             PieChart(stats.take(8).mapIndexed { i, (_, count) -> count.toFloat() to CHART_COLORS[i % CHART_COLORS.size] })
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -466,8 +444,11 @@ private fun SdkDistributionTab(isMin: Boolean) {
 
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                Text(if (isMin) "Apps by Minimum Android Version" else "Apps by Target Android Version",
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isMin) "Apps by Minimum Android Version (Target Device)"
+                    else "Apps by Target Android Version (Target Device)",
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
+                )
             }
             itemsIndexed(stats) { idx, (label, count) ->
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
@@ -489,102 +470,22 @@ private fun SdkDistributionTab(isMin: Boolean) {
     }
 }
 
-@Composable
-private fun SignatureAlgorithmTab() {
-    val context = LocalContext.current
-    var stats by remember { mutableStateOf<List<Pair<String, Int>>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val pm = context.packageManager
-                @Suppress("DEPRECATION")
-                val packages = pm.getInstalledPackages(PackageManager.GET_SIGNING_CERTIFICATES)
-                val algoMap = mutableMapOf<String, Int>()
-                for (pi in packages) {
-                    val algo = try {
-                        val sigs = pi.signingInfo?.apkContentsSigners ?: pi.signingInfo?.signingCertificateHistory
-                        val certBytes = sigs?.firstOrNull()?.toByteArray()
-                        if (certBytes != null) {
-                            val cf = CertificateFactory.getInstance("X.509")
-                            val cert = cf.generateCertificate(certBytes.inputStream()) as X509Certificate
-                            cert.sigAlgName
-                        } else "Unknown"
-                    } catch (_: Exception) { "Unknown" }
-                    algoMap[algo] = (algoMap[algo] ?: 0) + 1
-                }
-                stats = algoMap.entries.sortedByDescending { it.value }.map { it.key to it.value }
-            } catch (_: Exception) { }
-            loading = false
-        }
-    }
-
-    if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
-
-    val total = stats.sumOf { it.second }
-
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-            PieChart(stats.mapIndexed { i, (_, count) -> count.toFloat() to CHART_COLORS[i % CHART_COLORS.size] })
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("$total", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Apps", style = MaterialTheme.typography.labelSmall)
-            }
-        }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { Text("Apps by Signing Algorithm", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
-            itemsIndexed(stats) { idx, (algo, count) ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(14.dp).clip(CircleShape).background(CHART_COLORS[idx % CHART_COLORS.size]))
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(algo, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
-                            val secLevel = when {
-                                algo.contains("SHA256", true) || algo.contains("SHA384", true) || algo.contains("SHA512", true) -> "Modern — Good"
-                                algo.contains("SHA1", true) || algo.contains("MD5", true) -> "Legacy — Weak"
-                                else -> "Check manually"
-                            }
-                            Text(secLevel, style = MaterialTheme.typography.labelSmall, color = when {
-                                secLevel.contains("Good") -> MaterialTheme.colorScheme.primary
-                                secLevel.contains("Weak") -> MaterialTheme.colorScheme.error
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            })
-                        }
-                        Text("$count (${"%.0f".format(count * 100f / total)}%)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-        }
-    }
-}
+// ─── Package Type Tab ─────────────────────────────────────────────────────────
 
 @Composable
-private fun PackageTypeTab() {
-    val context = LocalContext.current
+private fun PackageTypeTab(connectionManager: AccuConnectionManager) {
     var stats by remember { mutableStateOf<List<Triple<String, Int, Color>>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
-                val packages = pm.getInstalledPackages(0)
-                var systemApps = 0; var updatedSystemApps = 0; var userApps = 0; var carrierApps = 0; var otherApps = 0
-                for (pi in packages) {
-                    val flags = pi.applicationInfo?.flags ?: 0
-                    when {
-                        flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP != 0 -> updatedSystemApps++
-                        flags and ApplicationInfo.FLAG_SYSTEM != 0 -> systemApps++
-                        pi.packageName.startsWith("com.google.android") && flags and ApplicationInfo.FLAG_SYSTEM == 0 -> userApps++
-                        else -> userApps++
-                    }
-                }
+                // Count package categories on TARGET device via ADB
+                val userCount   = connectionManager.exec("pm list packages -3 2>/dev/null | wc -l").output.trim().toIntOrNull() ?: 0
+                val systemCount = connectionManager.exec("pm list packages -s 2>/dev/null | wc -l").output.trim().toIntOrNull() ?: 0
                 stats = listOf(
-                    Triple("User Apps", userApps, CHART_COLORS[0]),
-                    Triple("System Apps", systemApps, CHART_COLORS[1]),
-                    Triple("Updated System", updatedSystemApps, CHART_COLORS[2]),
+                    Triple("User Apps",    userCount,   CHART_COLORS[0]),
+                    Triple("System Apps",  systemCount, CHART_COLORS[1]),
                 ).filter { it.second > 0 }
             } catch (_: Exception) { }
             loading = false
@@ -594,29 +495,25 @@ private fun PackageTypeTab() {
     if (loading) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }; return }
 
     val total = stats.sumOf { it.second }
-
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-            PieChart(stats.map { (_, count, color) -> count.toFloat() to color })
+            PieChart(stats.map { it.second.toFloat() to it.third })
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("$total", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Total", style = MaterialTheme.typography.labelSmall)
+                Text("Total Apps", style = MaterialTheme.typography.labelSmall)
             }
         }
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item { Text("Apps by Package Type", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
-            val max = stats.maxOfOrNull { it.second }?.toFloat() ?: 1f
+            item { Text("App Categories (Target Device)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold) }
             items(stats) { (label, count, color) ->
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(14.dp).clip(CircleShape).background(color))
-                            Spacer(Modifier.width(10.dp))
-                            Text(label, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                            Text("$count (${"%.0f".format(count * 100f / total)}%)", fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        LinearProgressIndicator(progress = { count / max }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = color)
+                Card(shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(color))
+                        Spacer(Modifier.width(10.dp))
+                        Text(label, modifier = Modifier.weight(1f))
+                        Text("$count", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        if (total > 0) Text("${"%.0f".format(count * 100f / total)}%", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

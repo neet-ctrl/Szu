@@ -2,7 +2,6 @@ package com.accu.ui.appmanager
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.pm.PermissionInfo
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -105,18 +104,10 @@ fun AppDetailScreen(
         uri?.let { viewModel.extractApkToControllerUri(it, context.contentResolver) }
     }
 
-    // Detect trackers from known list (scan declared packages/classes)
-    val detectedTrackers = remember(packageName) {
-        try {
-            val pm = context.packageManager
-            val pkg = pm.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS)
-            val allClasses = buildList {
-                pkg.activities?.forEach { add(it.name) }
-                pkg.services?.forEach { add(it.name) }
-                pkg.receivers?.forEach { add(it.name) }
-            }
-            KNOWN_TRACKERS.filter { (prefix, _, _) -> allClasses.any { it.startsWith(prefix) } }
-        } catch (_: Exception) { emptyList() }
+    // Detect trackers using components already loaded from the TARGET device by AppDetailViewModel
+    val detectedTrackers = remember(state.activities, state.services, state.receivers) {
+        val allClasses = (state.activities + state.services + state.receivers).map { it.name }
+        KNOWN_TRACKERS.filter { (prefix, _, _) -> allClasses.any { it.startsWith(prefix) } }
     }
 
     LaunchedEffect(state.snackbarMessage) { state.snackbarMessage?.let { snackbar.showSnackbar(it); viewModel.clearSnackbar() } }
@@ -130,7 +121,7 @@ fun AppDetailScreen(
                     actions = {
                         IconButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, "Force Stop") }
                         IconButton(onClick = { viewModel.openApp() }) { Icon(Icons.Default.OpenInNew, "Open App") }
-                        IconButton(onClick = { folderPickerLauncher.launch(null) }) { Icon(Icons.Default.Download, "Extract APK") }
+                        IconButton(onClick = { folderPickerLauncher.launch("app.apk") }) { Icon(Icons.Default.Download, "Extract APK") }
                         var showMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
@@ -226,7 +217,7 @@ fun AppDetailScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             when (selectedTab) {
-                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding, onExtractApk = { folderPickerLauncher.launch(null) })
+                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding, onExtractApk = { folderPickerLauncher.launch("app.apk") })
                 AppDetailTab.COMPONENTS   -> ComponentsTab(state, viewModel, padding)
                 AppDetailTab.PERMISSIONS  -> PermissionsTab(state, viewModel, padding)
                 AppDetailTab.TRACKERS     -> TrackersTab(detectedTrackers, packageName, padding)
@@ -246,12 +237,8 @@ fun AppDetailScreen(
 // ─── Tab 1: Info ───
 @Composable
 private fun InfoTab(state: AppDetailUiState, packageName: String, context: android.content.Context, dateFormatter: SimpleDateFormat, viewModel: AppDetailViewModel, padding: PaddingValues, onExtractApk: () -> Unit = {}) {
-    val sharedLibs = remember(packageName) {
-        try {
-            val ai = context.packageManager.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES)
-            ai.sharedLibraryFiles?.toList() ?: emptyList()
-        } catch (_: Exception) { emptyList<String>() }
-    }
+    // Shared library detail is shown in the dedicated "Libraries" tab via ADB scan
+    val sharedLibs = emptyList<String>()
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 32.dp)) {
         // Header
         item {
@@ -460,67 +447,55 @@ private fun TrackersTab(detectedTrackers: List<Triple<String, String, String>>, 
 // ─── Tab 5: Certificates ───
 @Composable
 private fun CertificatesTab(packageName: String, context: android.content.Context, padding: PaddingValues) {
-    val certInfo = remember(packageName) {
-        try {
-            @Suppress("DEPRECATION")
-            val pkg = context.packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
-            @Suppress("DEPRECATION")
-            val sigs = pkg.signatures?.toList() ?: emptyList()
-            sigs.map { sig ->
-                val cert = java.security.cert.CertificateFactory.getInstance("X509").generateCertificate(java.io.ByteArrayInputStream(sig.toByteArray())) as java.security.cert.X509Certificate
-                mapOf(
-                    "Subject"    to cert.subjectDN.name,
-                    "Issuer"     to cert.issuerDN.name,
-                    "Serial"     to cert.serialNumber.toString(16).uppercase(),
-                    "Not Before" to cert.notBefore.toString(),
-                    "Not After"  to cert.notAfter.toString(),
-                    "Algorithm"  to cert.sigAlgName,
-                    "SHA-256"    to bytesToHex(java.security.MessageDigest.getInstance("SHA-256").digest(sig.toByteArray())),
-                    "SHA-1"      to bytesToHex(java.security.MessageDigest.getInstance("SHA-1").digest(sig.toByteArray())),
-                    "MD5"        to bytesToHex(java.security.MessageDigest.getInstance("MD5").digest(sig.toByteArray())),
-                )
-            }
-        } catch (_: Exception) { emptyList() }
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+    var certLines by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(packageName) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output
+                    .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                certLines = if (apkPath.isNotEmpty()) {
+                    connectionManager.exec("keytool -printcert -jarfile \"$apkPath\" 2>/dev/null || dumpsys package $packageName 2>/dev/null | grep -A 25 'Signatures\\|Signing keys\\|signingCerts'").output
+                } else {
+                    connectionManager.exec("dumpsys package $packageName 2>/dev/null | grep -A 25 'Signatures\\|Signing keys\\|signingCerts'").output
+                }
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+
+    if (loading) {
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
     }
 
     LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (certInfo.isEmpty()) {
-            item { Text("Could not read certificate information.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        if (certLines.isBlank()) {
+            item {
+                Column(Modifier.fillMaxWidth().padding(top = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Outlined.Shield, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Certificate info not available for this package.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Requires root or keytool in PATH on the target device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            return@LazyColumn
         }
-        itemsIndexed(certInfo) { i, cert ->
+        item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Certificate ${i+1}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text("Signing Certificate (Target Device)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    val certClipboard = LocalClipboardManager.current
-                    cert.forEach { (key, value) ->
-                        val isCopyable = key.contains("SHA") || key == "Serial" || key == "MD5" || key == "Subject" || key == "Issuer"
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(key, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(75.dp))
-                            Text(
-                                value,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = if (key.contains("SHA") || key == "Serial" || key == "MD5") FontFamily.Monospace else FontFamily.Default,
-                                modifier = Modifier.weight(1f),
-                                maxLines = if (key.contains("SHA") || key == "MD5" || key == "Serial") 1 else 2,
-                            )
-                            if (isCopyable) {
-                                IconButton(
-                                    onClick = { certClipboard.setText(AnnotatedString(value)) },
-                                    modifier = Modifier.size(24.dp),
-                                ) {
-                                    Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                                }
-                            }
-                        }
+                    SelectionContainer {
+                        Text(certLines, fontFamily = FontFamily.Monospace, fontSize = 11.sp, lineHeight = 16.sp)
                     }
                 }
             }
         }
     }
 }
-
-private fun bytesToHex(bytes: ByteArray) = bytes.joinToString(":") { "%02X".format(it) }
 
 // ─── Tab 6: App Ops ───
 private val APP_OPS_TEMPLATE = listOf(
@@ -685,11 +660,11 @@ private fun SharedLibsTab(packageName: String, context: android.content.Context,
         withContext(Dispatchers.IO) {
             try {
                 val result = mutableListOf<Pair<String, String>>()
-                // 1. Declared shared libraries from manifest
-                val pm = context.packageManager
-                val ai = pm.getApplicationInfo(packageName, android.content.pm.PackageManager.GET_SHARED_LIBRARY_FILES)
-                ai.sharedLibraryFiles?.forEach { path ->
-                    result += path.substringAfterLast("/") to "System Library"
+                // 1. Declared libraries from target device's package manager (via ADB)
+                val declaredRaw = connectionManager.exec("pm dump $packageName 2>/dev/null | grep -E 'usesLibrary|requiredLibrary|usesSdkLibrary' | head -20").output
+                declaredRaw.lines().forEach { line ->
+                    val lib = line.substringAfter(":").trim().takeIf { it.isNotBlank() } ?: return@forEach
+                    result += lib to "Declared Library"
                 }
                 // 2. Native .so libraries in APK
                 val apkPath = connectionManager.exec("pm path $packageName 2>/dev/null").output

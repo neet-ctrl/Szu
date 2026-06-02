@@ -1,7 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.app.AppOpsManager
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -28,7 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
+import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -44,14 +44,6 @@ data class UsageStat(
 )
 
 private const val PREFS_LIMITS = "inure_usage_limits"
-
-private fun hasUsageStatsPermission(context: Context): Boolean {
-    return try {
-        val ops = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        val mode = ops.checkOpNoThrow("android:get_usage_stats", android.os.Process.myUid(), context.packageName)
-        mode == AppOpsManager.MODE_ALLOWED
-    } catch (_: Exception) { false }
-}
 
 private fun relativeTime(lastUsed: Long): String {
     val diff = System.currentTimeMillis() - lastUsed
@@ -69,14 +61,15 @@ private fun relativeTime(lastUsed: Long): String {
 @Composable
 fun InureUsageStatsScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
 
     var period  by remember { mutableStateOf(0) }
     val periods = listOf("Today", "This Week", "This Month")
     var sortBy  by remember { mutableStateOf("usage") }
     var stats   by remember { mutableStateOf<List<UsageStat>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var permissionNeeded by remember { mutableStateOf(false) }
-    var showLimitDialog  by remember { mutableStateOf<UsageStat?>(null) }
+    var showLimitDialog by remember { mutableStateOf<UsageStat?>(null) }
     var snackbar by remember { mutableStateOf<String?>(null) }
     val snackbarHost = remember { SnackbarHostState() }
     var limitMap by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -85,68 +78,61 @@ fun InureUsageStatsScreen(onBack: () -> Unit = {}) {
 
     LaunchedEffect(period) {
         loading = true
-        if (!hasUsageStatsPermission(context)) {
-            permissionNeeded = true
-            loading = false
-            return@LaunchedEffect
-        }
-        permissionNeeded = false
         withContext(Dispatchers.IO) {
             try {
                 val prefs = context.getSharedPreferences(PREFS_LIMITS, Context.MODE_PRIVATE)
                 val limits = prefs.all.mapValues { (it.value as? Int) ?: 0 }
                 limitMap = limits
 
-                val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-                val now = System.currentTimeMillis()
-                val startTime = when (period) {
-                    0    -> now - 86_400_000L
-                    1    -> now - 7  * 86_400_000L
-                    else -> now - 30 * 86_400_000L
-                }
-                val interval = when (period) {
-                    0    -> UsageStatsManager.INTERVAL_DAILY
-                    1    -> UsageStatsManager.INTERVAL_WEEKLY
-                    else -> UsageStatsManager.INTERVAL_MONTHLY
-                }
-                val raw = usm.queryUsageStats(interval, startTime, now) ?: emptyList()
+                // Query usage stats from TARGET device via ADB — never local UsageStatsManager
+                val raw = connectionManager.exec("dumpsys usagestats 2>/dev/null").output
 
                 val aggregated = mutableMapOf<String, Triple<Long, Int, Long>>()
-                raw.forEach { s ->
-                    if (s.totalTimeInForeground <= 0) return@forEach
-                    val existing = aggregated[s.packageName]
-                    aggregated[s.packageName] = if (existing != null) {
-                        Triple(
-                            existing.first + s.totalTimeInForeground,
-                            existing.second,
-                            maxOf(existing.third, s.lastTimeUsed),
-                        )
-                    } else {
-                        Triple(s.totalTimeInForeground, 0, s.lastTimeUsed)
+                var currentPkg = ""
+                var currentTotal = 0L
+                var currentLast = 0L
+
+                fun flushCurrent() {
+                    if (currentPkg.isNotEmpty() && currentTotal > 0) {
+                        val existing = aggregated[currentPkg]
+                        aggregated[currentPkg] = if (existing != null)
+                            Triple(existing.first + currentTotal, existing.second, maxOf(existing.third, currentLast))
+                        else Triple(currentTotal, 0, currentLast)
                     }
                 }
 
-                val pm = context.packageManager
+                raw.lines().forEach { line ->
+                    val t = line.trim()
+                    when {
+                        t.startsWith("package=") -> {
+                            flushCurrent()
+                            currentPkg = t.substringAfter("package=").substringBefore(" ").trim()
+                            currentTotal = 0L; currentLast = 0L
+                        }
+                        (t.startsWith("totalTime=") || t.startsWith("totalTimeInForeground=")) && currentPkg.isNotEmpty() ->
+                            currentTotal += t.substringAfter("=").substringBefore(" ").toLongOrNull() ?: 0L
+                        (t.startsWith("lastTime=") || t.startsWith("lastTimeUsed=")) && currentPkg.isNotEmpty() -> {
+                            val ts = t.substringAfter("=").substringBefore(" ").toLongOrNull() ?: 0L
+                            if (ts > currentLast) currentLast = ts
+                        }
+                    }
+                }
+                flushCurrent()
+
                 val result = aggregated.mapNotNull { (pkg, data) ->
                     val (totalMs, _, lastUsedMs) = data
                     val totalMins = (totalMs / 60_000).toInt()
                     if (totalMins <= 0) return@mapNotNull null
-                    val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { pkg }
+                    val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
                     UsageStat(
-                        appName      = appName,
-                        pkg          = pkg,
-                        todayMins    = totalMins,
-                        weekMins     = totalMins,
-                        launchCount  = 0,
-                        lastUsed     = relativeTime(lastUsedMs),
-                        category     = "App",
-                        dailyLimitMins = limits[pkg] ?: 0,
+                        appName = appName, pkg = pkg,
+                        todayMins = totalMins, weekMins = totalMins,
+                        launchCount = 0, lastUsed = relativeTime(lastUsedMs),
+                        category = "App", dailyLimitMins = limits[pkg] ?: 0,
                     )
                 }.sortedByDescending { it.todayMins }.take(60)
                 stats = result
-            } catch (_: Exception) {
-                permissionNeeded = true
-            }
+            } catch (_: Exception) { }
             loading = false
         }
     }
@@ -179,23 +165,6 @@ fun InureUsageStatsScreen(onBack: () -> Unit = {}) {
         },
         snackbarHost = { SnackbarHost(snackbarHost) },
     ) { padding ->
-        if (permissionNeeded) {
-            Column(Modifier.fillMaxSize().padding(padding), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Lock, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.height(16.dp))
-                Text("Usage Access Required", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                Text("Grant 'Usage Access' to ACCU in Settings to view real usage stats.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(24.dp))
-                Button(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) {
-                    Icon(Icons.Default.Settings, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Open Usage Access Settings")
-                }
-            }
-            return@Scaffold
-        }
-
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(bottom = 16.dp),

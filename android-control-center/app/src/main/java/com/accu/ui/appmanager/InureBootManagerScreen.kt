@@ -1,7 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -15,7 +13,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -25,7 +22,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -44,7 +40,7 @@ data class BootReceiver(
 fun InureBootManagerScreen(onBack: () -> Unit = {}) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var apps by remember { mutableStateOf<List<BootReceiver>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -65,19 +61,19 @@ fun InureBootManagerScreen(onBack: () -> Unit = {}) {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             try {
-                val pm = context.packageManager
+                // Query system packages on TARGET device via ADB
+                val systemPkgsRaw = connectionManager.exec("pm list packages -s 2>/dev/null").output
+                val systemPkgs = systemPkgsRaw.lines().filter { it.startsWith("package:") }
+                    .map { it.removePrefix("package:").trim() }.toSet()
 
-                // Query receivers for BOOT_COMPLETED
+                // Query receivers for BOOT_COMPLETED on TARGET device
                 val raw = connectionManager.exec("pm query-receivers --action android.intent.action.BOOT_COMPLETED -f 2>/dev/null").output
 
                 val result = mutableListOf<BootReceiver>()
                 val seenKeys = mutableSetOf<String>()
 
-                // Parse output: lines like "  com.example/com.example.BootReceiver filter ..."
-                // or "    Activity: com.example/.BootReceiver"
                 for (line in raw.lines()) {
                     val trimmed = line.trim()
-                    // Match "package/class" patterns
                     val match = Regex("([a-zA-Z][a-zA-Z0-9_]*(?:\\.[a-zA-Z][a-zA-Z0-9_]*)+)/([a-zA-Z][a-zA-Z0-9_$.]*(?:\\.[a-zA-Z0-9_$.]+)*)").find(trimmed)
                     if (match != null) {
                         val pkg = match.groupValues[1]
@@ -85,44 +81,15 @@ fun InureBootManagerScreen(onBack: () -> Unit = {}) {
                         if (cls.startsWith(".")) cls = pkg + cls
                         val key = "$pkg/$cls"
                         if (seenKeys.add(key) && pkg.isNotEmpty() && cls.isNotEmpty()) {
-                            val appName = try { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { pkg }
-                            val isSystem = try { (pm.getApplicationInfo(pkg, 0).flags and ApplicationInfo.FLAG_SYSTEM) != 0 } catch (_: Exception) { false }
+                            // Derive app name from package name — no local PM access needed
+                            val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
+                            val isSystem = pkg in systemPkgs
 
-                            // Check if receiver is enabled via pm dump
                             val dumpLine = try {
                                 connectionManager.exec("pm dump $pkg 2>/dev/null | grep -A1 '${cls.substringAfterLast('.')}'").output
                             } catch (_: Exception) { "" }
                             val isEnabled = !dumpLine.contains("enabled=false", ignoreCase = true)
 
-                            result += BootReceiver(
-                                appName       = appName,
-                                packageName   = pkg,
-                                receiverClass = cls,
-                                isEnabled     = isEnabled,
-                                isSystem      = isSystem,
-                                disabledByAcf = false,
-                            )
-                        }
-                    }
-                }
-
-                // Fallback: if ADB returned nothing, query local PackageManager
-                if (result.isEmpty()) {
-                    val bootIntent = android.content.Intent("android.intent.action.BOOT_COMPLETED")
-                    val receiverInfos = try {
-                        @Suppress("DEPRECATION")
-                        pm.queryBroadcastReceivers(bootIntent, PackageManager.GET_DISABLED_COMPONENTS)
-                    } catch (_: Exception) { emptyList() }
-
-                    receiverInfos.forEach { ri ->
-                        val ai = ri.activityInfo?.applicationInfo ?: return@forEach
-                        val pkg = ri.activityInfo!!.packageName
-                        val cls = ri.activityInfo!!.name
-                        val key = "$pkg/$cls"
-                        if (seenKeys.add(key)) {
-                            val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pkg }
-                            val isSystem = (ai.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                            val isEnabled = ri.activityInfo!!.enabled && ai.enabled
                             result += BootReceiver(
                                 appName       = appName,
                                 packageName   = pkg,
@@ -145,7 +112,7 @@ fun InureBootManagerScreen(onBack: () -> Unit = {}) {
 
     fun toggleReceiver(app: BootReceiver, enable: Boolean) {
         togglingPkg = app.packageName + "/" + app.receiverClass
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             val cmd = if (enable) {
                 "pm enable ${app.packageName}/${app.receiverClass} 2>&1"
             } else {

@@ -1,7 +1,5 @@
 package com.accu.ui.appmanager
 
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,7 +10,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -21,7 +18,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -93,21 +89,11 @@ private suspend fun scanApkForTrackers(
 ): List<TrackerDetail> = withContext(Dispatchers.IO) {
     val trackerDetails = mutableListOf<TrackerDetail>()
     try {
-        // Try local ZipFile scan first (fast, no ADB overhead)
-        val zip = try {
-            java.util.zip.ZipFile(apkPath)
-        } catch (_: Exception) { null }
-
-        val entries = if (zip != null) {
-            zip.use { z -> z.entries().asSequence().map { it.name }.toList() }
-        } else {
-            // Fallback to ADB unzip -l
-            val raw = try {
-                connectionManager.exec("unzip -l '$apkPath' 2>/dev/null | awk '{print \$4}'").output
-            } catch (_: Exception) { "" }
-            raw.lines().filter { it.isNotBlank() }
-        }
-
+        // Always scan via ADB on the target device — never open local ZipFile
+        val raw = try {
+            connectionManager.exec("unzip -l '$apkPath' 2>/dev/null | awk '{print \$4}'").output
+        } catch (_: Exception) { "" }
+        val entries = raw.lines().filter { it.isNotBlank() }
         KNOWN_TRACKERS.forEach { tracker ->
             if (entries.any { e -> e.contains(tracker.classPathFragment, ignoreCase = true) }) {
                 trackerDetails += TrackerDetail(tracker.name, tracker.category, tracker.classPathFragment.replace('/', '.'))
@@ -122,7 +108,7 @@ private suspend fun scanApkForTrackers(
 fun InureTrackersScreen(onBack: () -> Unit = {}) {
     val vm: ShizukuViewModel = hiltViewModel()
     val connectionManager = vm.connectionManager
-    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var apps by remember { mutableStateOf<List<TrackerEntry>>(emptyList()) }
     var isScanning by remember { mutableStateOf(false) }
@@ -142,22 +128,27 @@ fun InureTrackersScreen(onBack: () -> Unit = {}) {
         isScanning = true
         hasScanned = false
         apps = emptyList()
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
-            val pm = context.packageManager
-            val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
-                .filter { showSystemApps || (it.applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) == 0) }
+        scope.launch(Dispatchers.IO) {
+            // Get packages from TARGET device via ADB — never local PackageManager
+            val filter = if (showSystemApps) "pm list packages" else "pm list packages -3"
+            val pkgsRaw = connectionManager.exec("$filter 2>/dev/null").output
+            val packages = pkgsRaw.lines().filter { it.startsWith("package:") }
+                .map { it.removePrefix("package:").trim() }.filter { it.isNotEmpty() }
 
             val result = mutableListOf<TrackerEntry>()
-            packages.forEachIndexed { idx, pi ->
-                val ai = pi.applicationInfo ?: return@forEachIndexed
-                val apkPath = ai.sourceDir ?: return@forEachIndexed
-                val appName = try { pm.getApplicationLabel(ai).toString() } catch (_: Exception) { pi.packageName }
+            packages.forEachIndexed { idx, pkg ->
+                val appName = pkg.split(".").lastOrNull()?.replaceFirstChar { it.uppercase() } ?: pkg
                 withContext(Dispatchers.Main) {
                     scanProgress = idx.toFloat() / packages.size
                     scanStatus = "Scanning $appName…"
                 }
-                val trackers = scanApkForTrackers(apkPath, connectionManager)
-                result += TrackerEntry(appName, pi.packageName, trackers.size, trackers)
+                // Get APK path on TARGET device, then scan it via ADB
+                val apkPath = try {
+                    connectionManager.exec("pm path \"$pkg\" 2>/dev/null").output
+                        .lines().firstOrNull { it.startsWith("package:") }?.removePrefix("package:")?.trim() ?: ""
+                } catch (_: Exception) { "" }
+                val trackers = if (apkPath.isNotEmpty()) scanApkForTrackers(apkPath, connectionManager) else emptyList()
+                result += TrackerEntry(appName, pkg, trackers.size, trackers)
             }
             withContext(Dispatchers.Main) {
                 apps = result.sortedByDescending { it.trackerCount }
