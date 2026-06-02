@@ -1,6 +1,7 @@
 package com.accu.ui.shell
 
-import android.content.Intent
+import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -23,8 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.accu.ui.components.ACCTopBar
 import com.accu.ui.shizuku.ShizukuViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -55,14 +56,10 @@ private fun fileIcon(item: RemoteFileItem) = when {
     else -> Icons.Default.InsertDriveFile
 }
 
-private fun fileIconTint(item: RemoteFileItem): Color? = null
-
-
 private fun parseLsLine(line: String, parentPath: String): RemoteFileItem? {
     val trimmed = line.trim()
     if (trimmed.isBlank() || trimmed.startsWith("total ")) return null
     return try {
-        // Format: permissions links owner group size date time name (busybox / toybox)
         val parts = trimmed.split(Regex("\\s+"), limit = 9)
         if (parts.size < 7) return null
         val perms = parts[0]
@@ -122,17 +119,35 @@ fun AdbFileBrowserScreen(
     var showHidden by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf("list") }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Download flow: pending bytes set before CreateDocument launcher is fired
+    var pendingDownloadBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var pendingDownloadName by remember { mutableStateOf("") }
+    val downloadLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("*/*")
+    ) { uri ->
+        uri?.let { u ->
+            val bytes = pendingDownloadBytes ?: return@let
+            scope.launch(Dispatchers.IO) {
+                context.contentResolver.openOutputStream(u)?.use { it.write(bytes) }
+                withContext(Dispatchers.Main) {
+                    snackbarHostState.showSnackbar("Downloaded \"${pendingDownloadName}\" ✓")
+                }
+                pendingDownloadBytes = null
+            }
+        }
+    }
+
     // Dialogs
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf<RemoteFileItem?>(null) }
     var showDeleteDialog by remember { mutableStateOf<List<RemoteFileItem>>(emptyList()) }
     var showInfoDialog by remember { mutableStateOf<RemoteFileItem?>(null) }
-    var showConflictDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var renameText by remember { mutableStateOf("") }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-
+    // Load directory listing via real shell command
     fun loadPath(path: String) {
         scope.launch {
             isLoading = true
@@ -144,14 +159,16 @@ fun AdbFileBrowserScreen(
                     .mapNotNull { parseLsLine(it, path) }
                     .filter { !it.name.startsWith(".") || showHidden }
             } else {
-                // Fallback to standard Java File API for local filesystem when ACCU not connected
+                // Fallback to Java File API when no ADB connection (local browsing)
                 withContext(Dispatchers.IO) {
                     try {
                         java.io.File(path).listFiles()?.map { f ->
-                            val size = if (f.isFile) {
-                                val s = f.length()
-                                when { s >= 1_048_576 -> "${"%.1f".format(s / 1_048_576.0)} MB"; s >= 1024 -> "${"%.1f".format(s / 1024.0)} KB"; else -> "$s B" }
-                            } else ""
+                            val s = f.length()
+                            val size = when {
+                                s >= 1_048_576 -> "${"%.1f".format(s / 1_048_576.0)} MB"
+                                s >= 1024 -> "${"%.1f".format(s / 1024.0)} KB"
+                                else -> "$s B"
+                            }.takeIf { f.isFile } ?: ""
                             RemoteFileItem(f.name, f.absolutePath, f.isDirectory, size, "", "")
                         }?.filter { showHidden || !it.name.startsWith(".") } ?: emptyList()
                     } catch (_: Exception) { emptyList() }
@@ -199,10 +216,38 @@ fun AdbFileBrowserScreen(
         }
     }
 
+    // Upload: read file from SAF, base64-encode, push to target via shell
     val uploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
+        uri?.let { u ->
             scope.launch {
-                snackbarHostState.showSnackbar("Uploading file to $currentPath…")
+                val cr = context.contentResolver
+                val fileName = cr.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+                    ?: "upload_${System.currentTimeMillis()}"
+                val bytes = withContext(Dispatchers.IO) {
+                    cr.openInputStream(u)?.use { it.readBytes() }
+                } ?: run { snackbarHostState.showSnackbar("Cannot read file"); return@launch }
+
+                val limitBytes = 2 * 1024 * 1024 // 2 MB
+                if (bytes.size > limitBytes) {
+                    snackbarHostState.showSnackbar("File too large (max 2 MB). Use adb push for bigger files.")
+                    return@launch
+                }
+
+                val destPath = "$currentPath/$fileName"
+                snackbarHostState.showSnackbar("Uploading $fileName…")
+                val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                val result = withContext(Dispatchers.IO) {
+                    // Write base64 string to a temp file on target, then decode it
+                    val tmpPath = "/data/local/tmp/accu_up_${System.currentTimeMillis()}.b64"
+                    connectionManager.exec("printf '%s' '$b64' > '$tmpPath' && base64 -d '$tmpPath' > '$destPath' && rm -f '$tmpPath'")
+                }
+                if (result.exitCode == 0 || result.error.isBlank()) {
+                    loadPath(currentPath)
+                    snackbarHostState.showSnackbar("Uploaded \"$fileName\" ✓")
+                } else {
+                    snackbarHostState.showSnackbar("Upload failed: ${result.error.take(80)}")
+                }
             }
         }
     }
@@ -224,10 +269,20 @@ fun AdbFileBrowserScreen(
                 TextButton(onClick = {
                     if (newFolderName.isNotBlank()) {
                         val newPath = "$currentPath/$newFolderName"
-                        files = listOf(RemoteFileItem(newFolderName, newPath, true, "", "drwxr-xr-x", "now")) + files
-                        scope.launch { snackbarHostState.showSnackbar("Folder \"$newFolderName\" created") }
-                        newFolderName = ""
+                        val name = newFolderName
                         showCreateFolderDialog = false
+                        newFolderName = ""
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                connectionManager.exec("mkdir -p \"$newPath\" 2>&1")
+                            }
+                            if (result.exitCode == 0 || result.error.isBlank()) {
+                                loadPath(currentPath)
+                                snackbarHostState.showSnackbar("Folder \"$name\" created ✓")
+                            } else {
+                                snackbarHostState.showSnackbar("mkdir failed: ${result.error.take(80)}")
+                            }
+                        }
                     }
                 }) { Text("Create") }
             },
@@ -252,12 +307,25 @@ fun AdbFileBrowserScreen(
             confirmButton = {
                 TextButton(onClick = {
                     if (renameText.isNotBlank() && renameText != fileToRename.name) {
-                        files = files.map { f ->
-                            if (f.path == fileToRename.path) f.copy(name = renameText, path = "$currentPath/$renameText") else f
+                        val newPath = "${currentPath.trimEnd('/')}/$renameText"
+                        val newName = renameText
+                        showRenameDialog = null
+                        renameText = ""
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                connectionManager.exec("mv \"${fileToRename.path}\" \"$newPath\" 2>&1")
+                            }
+                            if (result.exitCode == 0 || result.error.isBlank()) {
+                                loadPath(currentPath)
+                                snackbarHostState.showSnackbar("Renamed to \"$newName\" ✓")
+                            } else {
+                                snackbarHostState.showSnackbar("Rename failed: ${result.error.take(80)}")
+                            }
                         }
-                        scope.launch { snackbarHostState.showSnackbar("Renamed to \"$renameText\"") }
+                    } else {
+                        showRenameDialog = null
+                        renameText = ""
                     }
-                    showRenameDialog = null; renameText = ""
                 }) { Text("Rename") }
             },
             dismissButton = { TextButton(onClick = { showRenameDialog = null; renameText = "" }) { Text("Cancel") } }
@@ -271,15 +339,26 @@ fun AdbFileBrowserScreen(
             onDismissRequest = { showDeleteDialog = emptyList() },
             icon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text(if (targets.size == 1) "Delete \"${targets[0].name}\"?" else "Delete ${targets.size} items?") },
-            text = { Text("This action cannot be undone. The ${if (targets.size == 1) "item" else "items"} will be permanently deleted.") },
+            text = { Text("This action cannot be undone. The ${if (targets.size == 1) "item" else "items"} will be permanently deleted from the device.") },
             confirmButton = {
                 TextButton(onClick = {
-                    val deletedPaths = targets.map { it.path }.toSet()
-                    files = files.filter { it.path !in deletedPaths }
-                    selectedFiles = selectedFiles - deletedPaths
-                    if (selectedFiles.isEmpty()) isSelectionMode = false
-                    scope.launch { snackbarHostState.showSnackbar("Deleted ${targets.size} item(s)") }
+                    val pathArgs = targets.joinToString(" ") { "\"${it.path}\"" }
+                    val count = targets.size
                     showDeleteDialog = emptyList()
+                    selectedFiles = selectedFiles - targets.map { it.path }.toSet()
+                    if (selectedFiles.isEmpty()) isSelectionMode = false
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            connectionManager.exec("rm -rf $pathArgs 2>&1")
+                        }
+                        if (result.exitCode == 0 || result.error.isBlank()) {
+                            loadPath(currentPath)
+                            snackbarHostState.showSnackbar("Deleted $count item(s) ✓")
+                        } else {
+                            snackbarHostState.showSnackbar("Delete failed: ${result.error.take(80)}")
+                            loadPath(currentPath)
+                        }
+                    }
                 }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { showDeleteDialog = emptyList() }) { Text("Cancel") } }
@@ -326,12 +405,12 @@ fun AdbFileBrowserScreen(
                         IconButton(onClick = {
                             val sel = files.filter { it.path in selectedFiles }
                             clipboardFile = sel.firstOrNull(); clipboardOp = FileOp.COPY
-                            scope.launch { snackbarHostState.showSnackbar("${sel.size} item(s) copied to clipboard") }
+                            scope.launch { snackbarHostState.showSnackbar("${sel.size} item(s) ready to copy") }
                         }) { Icon(Icons.Default.ContentCopy, "Copy") }
                         IconButton(onClick = {
                             val sel = files.filter { it.path in selectedFiles }
                             clipboardFile = sel.firstOrNull(); clipboardOp = FileOp.MOVE
-                            scope.launch { snackbarHostState.showSnackbar("${sel.size} item(s) cut to clipboard") }
+                            scope.launch { snackbarHostState.showSnackbar("${sel.size} item(s) ready to move") }
                         }) { Icon(Icons.Default.ContentCut, "Cut") }
                         IconButton(onClick = {
                             showDeleteDialog = files.filter { it.path in selectedFiles }
@@ -378,7 +457,10 @@ fun AdbFileBrowserScreen(
                                 )
                             }
                         }
-                        IconButton(onClick = { isRefreshing = true; scope.launch { delay(600); loadPath(currentPath); isRefreshing = false } }) {
+                        IconButton(onClick = {
+                            isRefreshing = true
+                            scope.launch { loadPath(currentPath); isRefreshing = false }
+                        }) {
                             if (isRefreshing) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             else Icon(Icons.Default.Refresh, "Refresh")
                         }
@@ -394,9 +476,25 @@ fun AdbFileBrowserScreen(
                     }
                     if (clipboardFile != null && clipboardOp != null) {
                         SmallFloatingActionButton(onClick = {
-                            val op = if (clipboardOp == FileOp.COPY) "Copied" else "Moved"
-                            scope.launch { snackbarHostState.showSnackbar("$op \"${clipboardFile?.name}\" to $currentPath") }
-                            if (clipboardOp == FileOp.MOVE) { clipboardFile = null; clipboardOp = null }
+                            val src = clipboardFile ?: return@SmallFloatingActionButton
+                            val op = clipboardOp ?: return@SmallFloatingActionButton
+                            val destPath = "${currentPath.trimEnd('/')}/${src.name}"
+                            val opLabel = if (op == FileOp.COPY) "Copying" else "Moving"
+                            scope.launch {
+                                snackbarHostState.showSnackbar("$opLabel \"${src.name}\"…")
+                                val cmd = if (op == FileOp.COPY)
+                                    "cp -r \"${src.path}\" \"$destPath\" 2>&1"
+                                else
+                                    "mv \"${src.path}\" \"$destPath\" 2>&1"
+                                val result = withContext(Dispatchers.IO) { connectionManager.exec(cmd) }
+                                if (op == FileOp.MOVE) { clipboardFile = null; clipboardOp = null }
+                                if (result.exitCode == 0 || result.error.isBlank()) {
+                                    loadPath(currentPath)
+                                    snackbarHostState.showSnackbar("${if (op == FileOp.COPY) "Copied" else "Moved"} \"${src.name}\" ✓")
+                                } else {
+                                    snackbarHostState.showSnackbar("${if (op == FileOp.COPY) "Copy" else "Move"} failed: ${result.error.take(80)}")
+                                }
+                            }
                         }) { Icon(Icons.Default.ContentPaste, "Paste") }
                     }
                     FloatingActionButton(onClick = { showCreateFolderDialog = true; newFolderName = "" }) {
@@ -487,12 +585,42 @@ fun AdbFileBrowserScreen(
                                     navigateTo(file.path)
                                 }
                             },
-                            onCopy = { clipboardFile = file; clipboardOp = FileOp.COPY; scope.launch { snackbarHostState.showSnackbar("\"${file.name}\" copied to clipboard") } },
-                            onCut = { clipboardFile = file; clipboardOp = FileOp.MOVE; scope.launch { snackbarHostState.showSnackbar("\"${file.name}\" cut to clipboard") } },
+                            onCopy = {
+                                clipboardFile = file; clipboardOp = FileOp.COPY
+                                scope.launch { snackbarHostState.showSnackbar("\"${file.name}\" ready to copy — navigate to destination and tap Paste") }
+                            },
+                            onCut = {
+                                clipboardFile = file; clipboardOp = FileOp.MOVE
+                                scope.launch { snackbarHostState.showSnackbar("\"${file.name}\" ready to move — navigate to destination and tap Paste") }
+                            },
                             onRename = { showRenameDialog = file; renameText = file.name },
                             onDelete = { showDeleteDialog = listOf(file) },
                             onInfo = { showInfoDialog = file },
-                            onDownload = { scope.launch { snackbarHostState.showSnackbar("Downloading \"${file.name}\"…") } },
+                            onDownload = {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Reading \"${file.name}\"…")
+                                    val b64Result = withContext(Dispatchers.IO) {
+                                        connectionManager.exec("base64 \"${file.path}\" 2>/dev/null")
+                                    }
+                                    if (b64Result.output.isBlank()) {
+                                        snackbarHostState.showSnackbar("Download failed: ${b64Result.error.take(80)}")
+                                        return@launch
+                                    }
+                                    val bytes = try {
+                                        Base64.decode(b64Result.output.replace("\n", "").replace(" ", ""), Base64.DEFAULT)
+                                    } catch (e: Exception) {
+                                        snackbarHostState.showSnackbar("Decode error: ${e.message?.take(60)}")
+                                        return@launch
+                                    }
+                                    if (bytes.size > 50 * 1024 * 1024) {
+                                        snackbarHostState.showSnackbar("File too large to download (>50 MB). Use adb pull.")
+                                        return@launch
+                                    }
+                                    pendingDownloadBytes = bytes
+                                    pendingDownloadName = file.name
+                                    downloadLauncher.launch(file.name)
+                                }
+                            },
                         )
                     }
                 }
@@ -553,7 +681,7 @@ private fun FileListItem(
                     DropdownMenuItem(text = { Text("Copy") }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) }, onClick = { showMenu = false; onCopy() })
                     DropdownMenuItem(text = { Text("Cut") }, leadingIcon = { Icon(Icons.Default.ContentCut, null) }, onClick = { showMenu = false; onCut() })
                     DropdownMenuItem(text = { Text("Rename") }, leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, null) }, onClick = { showMenu = false; onRename() })
-                    if (!file.isDir) DropdownMenuItem(text = { Text("Download") }, leadingIcon = { Icon(Icons.Default.Download, null) }, onClick = { showMenu = false; onDownload() })
+                    if (!file.isDir) DropdownMenuItem(text = { Text("Download to this device") }, leadingIcon = { Icon(Icons.Default.Download, null) }, onClick = { showMenu = false; onDownload() })
                     DropdownMenuItem(text = { Text("Properties") }, leadingIcon = { Icon(Icons.Default.Info, null) }, onClick = { showMenu = false; onInfo() })
                     HorizontalDivider()
                     DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDelete() })

@@ -1,6 +1,7 @@
 package com.accu.ui.shell
 
 import android.net.Uri
+import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -15,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -24,16 +24,24 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.documentfile.provider.DocumentFile
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.accu.ui.components.ACCTopBar
 import com.accu.ui.components.InfoTooltipIcon
-import com.accu.ui.theme.AccentGreen
+import com.accu.ui.shizuku.ShizukuViewModel
 import com.accu.ui.theme.AccentRed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
+    val vm: ShizukuViewModel = hiltViewModel()
+    val connectionManager = vm.connectionManager
+
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -53,17 +61,20 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
     // Screenshot state — temp path uses /data/local/tmp/ on TARGET device
     var screenshotPath by remember { mutableStateOf("/data/local/tmp/accu_screenshot.png") }
     var isCapturing by remember { mutableStateOf(false) }
+    var captureStatus by remember { mutableStateOf("") }
     var capturedScreenshots by remember { mutableStateOf(listOf<String>()) }
 
-    // Recording state — temp path uses /data/local/tmp/ on TARGET device
+    // Recording state — temp path on TARGET device
     var recordingPath by remember { mutableStateOf("/data/local/tmp/accu_record.mp4") }
     var isRecording by remember { mutableStateOf(false) }
     var recordingTimer by remember { mutableIntStateOf(0) }
-    var recordingSize by remember { mutableIntStateOf(0) }  // MB estimated from bitrate
+    var recordingSize by remember { mutableIntStateOf(0) }
     var recordingBitrate by remember { mutableStateOf("8000000") }
     var recordingSize2 by remember { mutableStateOf("1280x720") }
     var recordingMaxTime by remember { mutableStateOf("180") }
     var capturedRecordings by remember { mutableStateOf(listOf<String>()) }
+    var recordingJob by remember { mutableStateOf<Job?>(null) }
+    var recordingPullStatus by remember { mutableStateOf("") }
 
     // Timer for recording
     LaunchedEffect(isRecording) {
@@ -73,13 +84,155 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
         while (isRecording) {
             delay(1000)
             recordingTimer++
-            // Estimate MB from configured bitrate: bitrate bps / 8 bits = bytes/sec, / 1_000_000 = MB/sec
             val bps = recordingBitrate.toLongOrNull() ?: 8_000_000L
             recordingSize = ((bps.toDouble() / 8_000_000.0) * recordingTimer).toInt()
         }
     }
 
     fun timerLabel(s: Int) = "%02d:%02d".format(s / 60, s % 60)
+
+    // Helper: write bytes to SAF folder, returns filename on success
+    suspend fun writeToSafFolder(folderUri: Uri, filename: String, bytes: ByteArray, mimeType: String): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val docDir = DocumentFile.fromTreeUri(context, folderUri)
+                    ?: return@withContext null
+                val existing = docDir.findFile(filename)
+                existing?.delete()
+                val docFile = docDir.createFile(mimeType, filename)
+                    ?: return@withContext null
+                context.contentResolver.openOutputStream(docFile.uri)?.use { out -> out.write(bytes) }
+                filename
+            } catch (_: Exception) { null }
+        }
+    }
+
+    fun onCaptureScreenshot() {
+        scope.launch {
+            isCapturing = true
+            captureStatus = "Capturing…"
+            try {
+                // 1. Run screencap on target device
+                val captureResult = withContext(Dispatchers.IO) {
+                    connectionManager.exec("screencap -p \"$screenshotPath\" 2>&1")
+                }
+                if (captureResult.error.isNotBlank() && captureResult.output.isBlank()) {
+                    snackbar.showSnackbar("Capture failed: ${captureResult.error.take(100)}")
+                    return@launch
+                }
+
+                captureStatus = "Reading screenshot…"
+                // 2. Read file as base64 from target
+                val b64Result = withContext(Dispatchers.IO) {
+                    connectionManager.exec("base64 \"$screenshotPath\" 2>/dev/null")
+                }
+                if (b64Result.output.isBlank()) {
+                    snackbar.showSnackbar("Failed to read screenshot from device")
+                    return@launch
+                }
+
+                // 3. Decode base64 → bytes
+                val bytes = try {
+                    Base64.decode(b64Result.output.replace("\n", "").replace(" ", ""), Base64.DEFAULT)
+                } catch (e: Exception) {
+                    snackbar.showSnackbar("Decode error: ${e.message?.take(60)}")
+                    return@launch
+                }
+
+                // 4. Cleanup temp file on target
+                withContext(Dispatchers.IO) { connectionManager.exec("rm -f \"$screenshotPath\"") }
+
+                // 5. Save to SAF folder on controller
+                val ts = System.currentTimeMillis()
+                val fname = "screenshot_$ts.png"
+                captureStatus = "Saving…"
+                val fUri = saveFolderUri
+                if (fUri != null) {
+                    val saved = writeToSafFolder(fUri, fname, bytes, "image/png")
+                    if (saved != null) {
+                        capturedScreenshots = capturedScreenshots + saved
+                        snackbar.showSnackbar("Screenshot saved: $saved ✓")
+                    } else {
+                        snackbar.showSnackbar("Save failed — try choosing a different folder")
+                    }
+                } else {
+                    // No folder chosen — prompt user to pick
+                    snackbar.showSnackbar("Choose a save folder first, then capture again")
+                    folderPickerLauncher.launch(null)
+                }
+            } finally {
+                isCapturing = false
+                captureStatus = ""
+            }
+        }
+    }
+
+    fun onStartRecording() {
+        val maxTimeSecs = recordingMaxTime.toIntOrNull()?.coerceIn(1, 180) ?: 180
+        val cmd = "screenrecord --size $recordingSize2 --bit-rate $recordingBitrate --time-limit $maxTimeSecs \"$recordingPath\" 2>&1"
+        isRecording = true
+        recordingPullStatus = ""
+        recordingJob = scope.launch(Dispatchers.IO) {
+            connectionManager.exec(cmd)
+            // Recording ended (by time-limit or stop signal) — pull the file
+            withContext(Dispatchers.Main) { recordingPullStatus = "Pulling recording…" }
+
+            val ts = System.currentTimeMillis()
+            val estimatedMB = recordingSize
+            val fname = "recording_$ts.mp4"
+
+            val fUri = saveFolderUri
+            if (fUri != null && estimatedMB <= 60) {
+                withContext(Dispatchers.Main) { recordingPullStatus = "Encoding (${estimatedMB}MB)…" }
+                val b64Result = connectionManager.exec("base64 \"$recordingPath\" 2>/dev/null")
+                if (b64Result.output.isNotBlank()) {
+                    val bytes = try {
+                        Base64.decode(b64Result.output.replace("\n", "").replace(" ", ""), Base64.DEFAULT)
+                    } catch (_: Exception) { null }
+                    if (bytes != null) {
+                        val saved = writeToSafFolder(fUri, fname, bytes, "video/mp4")
+                        connectionManager.exec("rm -f \"$recordingPath\"")
+                        withContext(Dispatchers.Main) {
+                            if (saved != null) {
+                                capturedRecordings = capturedRecordings + saved
+                                snackbar.showSnackbar("Recording saved: $saved ✓")
+                            } else {
+                                snackbar.showSnackbar("Save failed — file left at $recordingPath on target")
+                            }
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            snackbar.showSnackbar("Decode failed — file left at $recordingPath on target")
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        snackbar.showSnackbar("Recording at $recordingPath on target — pull with: adb pull $recordingPath")
+                    }
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    val reason = if (fUri == null) "No save folder chosen" else "File too large (${estimatedMB}MB)"
+                    snackbar.showSnackbar("$reason — pull manually: adb pull $recordingPath")
+                    capturedRecordings = capturedRecordings + fname
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                isRecording = false
+                recordingPullStatus = ""
+                recordingJob = null
+            }
+        }
+    }
+
+    fun onStopRecording() {
+        scope.launch(Dispatchers.IO) {
+            // Send SIGINT to screenrecord so it finalises the MP4 cleanly
+            connectionManager.exec("pkill -SIGINT screenrecord 2>/dev/null; killall -2 screenrecord 2>/dev/null")
+        }
+        // isRecording stays true until the recordingJob coroutine completes and resets it
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -90,7 +243,7 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                 actions = {
                     InfoTooltipIcon(
                         title = "How it works",
-                        description = "Screenshots:\nadb shell screencap -p <temp-path>\nadb pull <temp-path> <save-folder>\nadb shell rm <temp-path>\n\nScreen recording:\nadb shell screenrecord <temp-path>\nThen pulled to your chosen save folder.\n\nTap 'Choose Save Folder' to select where files land on THIS device.",
+                        description = "Screenshots:\nscreencap -p <temp-path>\nbase64-pull → saved to chosen folder\nrm <temp-path>\n\nScreen recording:\nscreenrecord <temp-path> (blocking)\npkill -SIGINT screenrecord to stop\nbase64-pull → saved to chosen folder\n\nFiles ≤60 MB are pulled automatically.\nLarger recordings stay on target — use: adb pull $recordingPath",
                     )
                 },
             )
@@ -178,34 +331,24 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                         )
 
                         // ADB commands breakdown
-                        val saveDir = saveFolderName.takeIf { it != "Not chosen (tap to pick)" } ?: "<chosen-folder>"
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Commands executed:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                CmdRow("adb shell screencap -p $screenshotPath", clipboard)
-                                CmdRow("adb pull $screenshotPath $saveDir/", clipboard)
-                                CmdRow("adb shell rm $screenshotPath", clipboard)
+                                CmdRow("screencap -p $screenshotPath", clipboard)
+                                CmdRow("base64 $screenshotPath  →  decode → SAF write", clipboard)
+                                CmdRow("rm -f $screenshotPath", clipboard)
                             }
                         }
 
                         Button(
-                            onClick = {
-                                scope.launch {
-                                    isCapturing = true
-                                    delay(1500)
-                                    isCapturing = false
-                                    val ts = System.currentTimeMillis()
-                                    capturedScreenshots = capturedScreenshots + "screenshot_$ts.png"
-                                    snackbar.showSnackbar("Screenshot saved: screenshot_$ts.png")
-                                }
-                            },
+                            onClick = { onCaptureScreenshot() },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !isCapturing,
+                            enabled = !isCapturing && !isRecording,
                         ) {
                             if (isCapturing) {
                                 CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                                 Spacer(Modifier.width(8.dp))
-                                Text("Capturing…")
+                                Text(captureStatus.ifBlank { "Capturing…" })
                             } else {
                                 Icon(Icons.Default.Screenshot, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -215,14 +358,14 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
 
                         if (capturedScreenshots.isNotEmpty()) {
                             HorizontalDivider()
-                            Text("Captured (${capturedScreenshots.size})", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Text("Saved (${capturedScreenshots.size})", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                             capturedScreenshots.reversed().forEach { name ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Image, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.width(8.dp))
                                     Text(name, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                    IconButton(onClick = { clipboard.setText(AnnotatedString("adb pull $screenshotPath")) }, modifier = Modifier.size(28.dp)) {
-                                        Icon(Icons.Outlined.ContentCopy, "Copy pull cmd", Modifier.size(14.dp))
+                                    IconButton(onClick = { clipboard.setText(AnnotatedString(name)) }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Outlined.ContentCopy, "Copy name", Modifier.size(14.dp))
                                     }
                                     IconButton(onClick = { capturedScreenshots = capturedScreenshots - name }, modifier = Modifier.size(28.dp)) {
                                         Icon(Icons.Outlined.Delete, "Remove", Modifier.size(14.dp), tint = AccentRed)
@@ -239,32 +382,56 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(shape = RoundedCornerShape(10.dp), color = if (isRecording) AccentRed.copy(0.15f) else MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(44.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isRecording) AccentRed.copy(0.15f) else MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier.size(44.dp)
+                            ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(if (isRecording) Icons.Default.FiberManualRecord else Icons.Default.Videocam, null, Modifier.size(24.dp), tint = if (isRecording) AccentRed else MaterialTheme.colorScheme.primary)
+                                    Icon(
+                                        if (isRecording) Icons.Default.FiberManualRecord else Icons.Default.Videocam,
+                                        null, Modifier.size(24.dp),
+                                        tint = if (isRecording) AccentRed else MaterialTheme.colorScheme.primary
+                                    )
                                 }
                             }
                             Column {
                                 Text("Screen Recording", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Record device screen via ADB (Android 4.4+)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("Record device screen via screenrecord (Android 4.4+)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
                         // Live recording indicator
                         AnimatedVisibility(visible = isRecording) {
                             Surface(shape = RoundedCornerShape(12.dp), color = AccentRed.copy(0.08f)) {
-                                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Box(Modifier.size(10.dp).background(AccentRed, androidx.compose.foundation.shape.CircleShape))
-                                    Text("RECORDING  ${timerLabel(recordingTimer)}", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = AccentRed, fontFamily = FontFamily.Monospace)
-                                    Spacer(Modifier.weight(1f))
-                                    Text("~${recordingSize} MB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        Box(Modifier.size(10.dp).background(AccentRed, androidx.compose.foundation.shape.CircleShape))
+                                        Text(
+                                            "RECORDING  ${timerLabel(recordingTimer)}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentRed,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                        Text("~${recordingSize} MB", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (recordingPullStatus.isNotBlank()) {
+                                        Text(recordingPullStatus, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                             }
                         }
 
                         if (!isRecording) {
-                            OutlinedTextField(value = recordingPath, onValueChange = { recordingPath = it }, label = { Text("Output path on device") }, modifier = Modifier.fillMaxWidth(), singleLine = true, textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), leadingIcon = { Icon(Icons.Outlined.VideoFile, null, Modifier.size(16.dp)) })
-
+                            OutlinedTextField(
+                                value = recordingPath, onValueChange = { recordingPath = it },
+                                label = { Text("Output path on TARGET device") },
+                                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                leadingIcon = { Icon(Icons.Outlined.VideoFile, null, Modifier.size(16.dp)) }
+                            )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedTextField(value = recordingSize2, onValueChange = { recordingSize2 = it }, label = { Text("Size (e.g. 1280x720)") }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(value = recordingBitrate, onValueChange = { recordingBitrate = it }, label = { Text("Bitrate (bps)") }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
@@ -273,32 +440,33 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                         }
 
                         // Command preview
-                        val recordCmd = "adb shell screenrecord --size $recordingSize2 --bit-rate $recordingBitrate --time-limit $recordingMaxTime $recordingPath"
+                        val recordCmd = "screenrecord --size $recordingSize2 --bit-rate $recordingBitrate --time-limit $recordingMaxTime $recordingPath"
                         Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Commands:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 CmdRow(recordCmd, clipboard)
-                                CmdRow("adb pull $recordingPath", clipboard)
-                                CmdRow("adb shell rm $recordingPath", clipboard)
+                                CmdRow("pkill -SIGINT screenrecord  (to stop)", clipboard)
+                                CmdRow("base64 $recordingPath  →  SAF write  (≤60 MB)", clipboard)
                             }
                         }
 
                         if (!isRecording) {
-                            Button(onClick = { isRecording = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AccentRed)) {
+                            Button(
+                                onClick = { onStartRecording() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = AccentRed),
+                                enabled = !isCapturing,
+                            ) {
                                 Icon(Icons.Default.FiberManualRecord, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text("Start Recording", color = Color.White)
                             }
                         } else {
-                            Button(onClick = {
-                                scope.launch {
-                                    isRecording = false
-                                    delay(800)
-                                    val ts = System.currentTimeMillis()
-                                    capturedRecordings = capturedRecordings + "recording_${ts}.mp4"
-                                    snackbar.showSnackbar("Recording saved: recording_${ts}.mp4 (~${recordingSize} MB)")
-                                }
-                            }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
+                            Button(
+                                onClick = { onStopRecording() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            ) {
                                 Icon(Icons.Default.Stop, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text("Stop Recording", color = Color.White)
@@ -332,12 +500,12 @@ fun AdbScreenCaptureScreen(onBack: () -> Unit = {}) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("Tips & Notes", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                         listOf(
+                            "Choose a save folder first — screenshots and short recordings pull automatically.",
+                            "Recordings ≤60 MB are pulled via base64. Larger files stay on target — use adb pull.",
                             "screenrecord max duration is 3 minutes (180 seconds) on most devices.",
                             "On Android 11+, use Wireless ADB — no USB cable required.",
-                            "screencap saves in PNG format; screenrecord saves in .mp4 (H.264).",
-                            "Recorded files stay on the device until you pull them — run the pull command after stopping.",
-                            "If recording appears slow, reduce bitrate (e.g. 4000000) or size (e.g. 720x1280).",
-                            "On Samsung: use 'adb shell wm size' to find native resolution first.",
+                            "screencap saves PNG; screenrecord saves MP4 (H.264).",
+                            "On Samsung: use 'wm size' to find native resolution first.",
                         ).forEach { tip ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text("•", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
