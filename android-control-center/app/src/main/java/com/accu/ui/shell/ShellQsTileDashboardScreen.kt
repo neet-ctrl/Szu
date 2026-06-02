@@ -642,6 +642,42 @@ class ShellQsTileDashboardViewModel @Inject constructor(
         } catch (_: Exception) {}
     }
 
+    /** Map a lowercase file extension to the correct MIME type. */
+    private fun mimeForExt(ext: String): String = when (ext) {
+        "png"                      -> "image/png"
+        "jpg", "jpeg"              -> "image/jpeg"
+        "webp"                     -> "image/webp"
+        "gif"                      -> "image/gif"
+        "bmp"                      -> "image/bmp"
+        "heic", "heif"             -> "image/heic"
+        "mp4"                      -> "video/mp4"
+        "mkv"                      -> "video/x-matroska"
+        "webm"                     -> "video/webm"
+        "avi"                      -> "video/x-msvideo"
+        "3gp"                      -> "video/3gpp"
+        "mp3"                      -> "audio/mpeg"
+        "wav"                      -> "audio/wav"
+        "m4a"                      -> "audio/mp4"
+        "ogg"                      -> "audio/ogg"
+        "flac"                     -> "audio/flac"
+        "aac"                      -> "audio/aac"
+        "pdf"                      -> "application/pdf"
+        "apk"                      -> "application/vnd.android.package-archive"
+        "zip"                      -> "application/zip"
+        "tar"                      -> "application/x-tar"
+        "gz", "tgz"                -> "application/gzip"
+        "bz2"                      -> "application/x-bzip2"
+        "7z"                       -> "application/x-7z-compressed"
+        "rar"                      -> "application/x-rar-compressed"
+        "json"                     -> "application/json"
+        "xml"                      -> "application/xml"
+        "csv"                      -> "text/csv"
+        "html", "htm"              -> "text/html"
+        "sh", "bash", "zsh"        -> "application/x-sh"
+        "so"                       -> "application/octet-stream"
+        else                       -> "text/plain"
+    }
+
     private suspend fun pullViaBase64(
         srcPath: String,
         destName: String,
@@ -675,6 +711,12 @@ class ShellQsTileDashboardViewModel @Inject constructor(
             // This makes screenshot/recording/media tiles respect the SAF-picked folder.
             val mediaFolder = _state.value.mediaFolder
             val resolvedCommand = tile.command.replace("/sdcard/DCIM/ACCU", mediaFolder)
+            // For MEDIA_CAPTURE tiles, stamp a reference file so we can detect EVERY
+            // new file the command creates (PNG, MP4, APK, ZIP, PDF, …) by timestamp.
+            val refFile = "/tmp/accu_pull_ref_$startMs"
+            if (tile.category == TileCategory.MEDIA_CAPTURE) {
+                connectionManager.exec("touch \"$refFile\" ; mkdir -p \"$mediaFolder\" 2>/dev/null")
+            }
             val result = try {
                 connectionManager.exec(resolvedCommand)
             } catch (e: Exception) {
@@ -717,25 +759,20 @@ class ShellQsTileDashboardViewModel @Inject constructor(
                 "✗ ${tile.label}: ${outputText.take(60).ifBlank { "failed (exit ${result.exitCode})" }}"
             _completionEvent.tryEmit(toastMsg)
             if (tile.category == TileCategory.MEDIA_CAPTURE) {
-                // MEDIA_CAPTURE tiles save PNG/MP4 on the device via the shell command.
-                // Auto-pull the actual media file to the user's SAF-chosen save folder.
-                val cmd = resolvedCommand.lowercase()
-                val isCapture = cmd.contains("screencap")
-                val isRecord  = cmd.contains("screenrecord") &&
-                    !cmd.contains(" ls ") && !cmd.startsWith("ls") && !cmd.contains("du ")
-                if ((isCapture || isRecord) && _state.value.mediaFolderUri.isNotBlank()) {
-                    val ext  = if (isCapture) "png" else "mp4"
-                    val mime = if (isCapture) "image/png" else "video/mp4"
-                    // Find the newest file of this type written to the media folder
-                    val lsResult = connectionManager.exec(
-                        "ls -t \"$mediaFolder\"/*.$ext 2>/dev/null | head -1"
-                    )
-                    val srcPath = lsResult.output.trim()
-                    if (srcPath.isNotBlank()) {
-                        val destName = "${if (isCapture) "screenshot" else "recording"}_${System.currentTimeMillis()}.$ext"
-                        pullMediaFileToSaf(srcPath, destName, mime)
+                // Pull ALL new files created in the media folder since the command started.
+                // This covers screenshots (.png), recordings (.mp4), extracted APKs (.apk),
+                // archives (.zip / .tar / .gz), and any custom media-tile output.
+                if (_state.value.mediaFolderUri.isNotBlank()) {
+                    val newFiles = connectionManager.exec(
+                        "find \"$mediaFolder\" -maxdepth 3 -type f -newer \"$refFile\" 2>/dev/null"
+                    ).output.lines().map { it.trim() }.filter { it.isNotBlank() }
+                    for (srcPath in newFiles) {
+                        val fileName = srcPath.substringAfterLast("/")
+                        val ext      = fileName.substringAfterLast(".", "").lowercase()
+                        pullMediaFileToSaf(srcPath, fileName, mimeForExt(ext))
                     }
                 }
+                connectionManager.exec("rm -f \"$refFile\" 2>/dev/null")
             } else {
                 val safeLabel = tile.label.replace(Regex("[^a-zA-Z0-9_-]"), "_")
                 val safeTs    = ts.replace(" ", "_").replace(":", "-")

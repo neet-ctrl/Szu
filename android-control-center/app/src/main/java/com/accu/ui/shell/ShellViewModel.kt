@@ -253,7 +253,34 @@ class ShellViewModel @Inject constructor(
                     ?: throw Exception("Cannot open chosen folder")
                 val existing = docDir.findFile(filename)
                 existing?.delete()
-                val docFile = docDir.createFile("text/plain", filename)
+                val mime = when (filename.substringAfterLast('.', "").lowercase()) {
+                    "png"               -> "image/png"
+                    "jpg", "jpeg"       -> "image/jpeg"
+                    "webp"              -> "image/webp"
+                    "gif"               -> "image/gif"
+                    "mp4"               -> "video/mp4"
+                    "mkv"               -> "video/x-matroska"
+                    "webm"              -> "video/webm"
+                    "mp3"               -> "audio/mpeg"
+                    "wav"               -> "audio/wav"
+                    "m4a"               -> "audio/mp4"
+                    "ogg"               -> "audio/ogg"
+                    "flac"              -> "audio/flac"
+                    "aac"               -> "audio/aac"
+                    "pdf"               -> "application/pdf"
+                    "apk"               -> "application/vnd.android.package-archive"
+                    "zip"               -> "application/zip"
+                    "tar"               -> "application/x-tar"
+                    "gz", "tgz"         -> "application/gzip"
+                    "7z"                -> "application/x-7z-compressed"
+                    "json"              -> "application/json"
+                    "xml"               -> "application/xml"
+                    "csv"               -> "text/csv"
+                    "html", "htm"       -> "text/html"
+                    "sh", "bash"        -> "application/x-sh"
+                    else                -> "text/plain"
+                }
+                val docFile = docDir.createFile(mime, filename)
                     ?: throw Exception("Cannot create file in chosen folder")
                 context.contentResolver.openOutputStream(docFile.uri)?.use { out ->
                     out.write(content.toByteArray())
