@@ -3,7 +3,6 @@ package com.accu.ui.appmanager
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
@@ -271,21 +270,26 @@ class AppManagerViewModel @Inject constructor(
                     ?.removePrefix("package:")?.trim()
                     ?: throw Exception("Could not find APK path for $packageName")
 
-                val bytes: ByteArray = when (connectionManager.getConnectionState()) {
-                    AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
-                        // Root = same physical device — read the APK directly
-                        val localFile = File(apkPath)
-                        if (localFile.exists()) localFile.readBytes()
-                        else readApkViaBase64(apkPath)
-                    }
-                    else -> readApkViaBase64(apkPath)
-                }
-
-                contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                // Stream directly to the output URI — no full ByteArray kept in RAM
+                val out = contentResolver.openOutputStream(uri)
                     ?: throw Exception("Cannot open output stream for selected URI")
 
+                val savedKb: Long = when (connectionManager.getConnectionState()) {
+                    AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
+                        val localFile = File(apkPath)
+                        if (localFile.exists()) {
+                            localFile.inputStream().use { it.copyTo(out) }
+                            out.close()
+                            localFile.length() / 1024
+                        } else {
+                            pullApkToStream(apkPath, out)
+                        }
+                    }
+                    else -> pullApkToStream(apkPath, out)
+                }
+
                 _state.update {
-                    it.copy(snackbarMessage = "APK saved — ${bytes.size / 1024} KB written to chosen location")
+                    it.copy(snackbarMessage = "APK saved — $savedKb KB written to chosen location")
                 }
             } catch (e: Exception) {
                 Timber.e(e, "extractApkToUri failed for $packageName")
@@ -294,13 +298,26 @@ class AppManagerViewModel @Inject constructor(
         }
     }
 
-    private suspend fun readApkViaBase64(remotePath: String): ByteArray {
-        val b64Result = connectionManager.exec("base64 '$remotePath' 2>/dev/null")
-        if (b64Result.output.isBlank()) throw Exception("base64 read returned empty — check privilege")
-        return Base64.decode(
-            b64Result.output.replace("\\s+".toRegex(), ""),
-            Base64.DEFAULT,
-        )
+    /**
+     * Pull a remote APK to a temp file then stream it into [out] — no ByteArray in RAM.
+     * Returns the number of KB written.
+     */
+    private suspend fun pullApkToStream(remotePath: String, out: java.io.OutputStream): Long {
+        val tempFile = File(ctx.cacheDir, "accu_apk_${System.currentTimeMillis()}.apk")
+        return try {
+            val ok = connectionManager.pullFile(remotePath, tempFile.absolutePath)
+            if (ok && tempFile.exists()) {
+                val size = tempFile.length()
+                tempFile.inputStream().use { it.copyTo(out) }
+                out.close()
+                size / 1024
+            } else {
+                out.close()
+                throw Exception("Could not extract APK — check connection and privilege")
+            }
+        } finally {
+            tempFile.delete()
+        }
     }
 
     fun toggleMultiSelect() { _state.update { it.copy(isMultiSelect = !it.isMultiSelect, selectedApps = emptySet()) } }

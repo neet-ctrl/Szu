@@ -221,14 +221,32 @@ fun AdbFileBrowserScreen(
         uri?.let { u ->
             scope.launch {
                 val cr = context.contentResolver
-                val fileName = cr.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
-                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-                    ?: "upload_${System.currentTimeMillis()}"
+                val fileInfo = cr.query(
+                    u,
+                    arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE),
+                    null, null, null,
+                )?.use { c ->
+                    if (c.moveToFirst()) {
+                        val name = c.getString(0) ?: "upload_${System.currentTimeMillis()}"
+                        val size = if (!c.isNull(1)) c.getLong(1) else -1L
+                        name to size
+                    } else null
+                } ?: ("upload_${System.currentTimeMillis()}" to -1L)
+                val fileName  = fileInfo.first
+                val fileSize  = fileInfo.second
+
+                // Check size BEFORE reading — readBytes() on a huge file OOMs before we get a chance to check
+                val limitBytes = 2L * 1024 * 1024 // 2 MB
+                if (fileSize > limitBytes) {
+                    snackbarHostState.showSnackbar("File too large (max 2 MB). Use adb push for bigger files.")
+                    return@launch
+                }
+
                 val bytes = withContext(Dispatchers.IO) {
                     cr.openInputStream(u)?.use { it.readBytes() }
                 } ?: run { snackbarHostState.showSnackbar("Cannot read file"); return@launch }
 
-                val limitBytes = 2 * 1024 * 1024 // 2 MB
+                // Secondary guard for files whose SAF size was unknown (-1)
                 if (bytes.size > limitBytes) {
                     snackbarHostState.showSnackbar("File too large (max 2 MB). Use adb push for bigger files.")
                     return@launch

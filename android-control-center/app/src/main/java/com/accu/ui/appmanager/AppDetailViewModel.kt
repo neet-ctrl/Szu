@@ -1,11 +1,13 @@
 package com.accu.ui.appmanager
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
 import com.accu.data.repositories.AppRepository
 import com.accu.data.repositories.FreezeMethod
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -59,6 +61,7 @@ data class ComponentUiModel(
 
 @HiltViewModel
 class AppDetailViewModel @Inject constructor(
+    @ApplicationContext private val ctx: Context,
     private val connectionManager: AccuConnectionManager,
     private val appRepository: AppRepository,
 ) : ViewModel() {
@@ -290,18 +293,25 @@ class AppDetailViewModel @Inject constructor(
                     ?.removePrefix("package:")?.trim()
                     ?: throw Exception("Could not find APK path for $pkg")
 
-                val bytes: ByteArray = when (connectionManager.getConnectionState()) {
-                    com.accu.connection.AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
-                        val f = java.io.File(apkPath)
-                        if (f.exists()) f.readBytes() else readApkViaBase64(apkPath)
-                    }
-                    else -> readApkViaBase64(apkPath)
-                }
-
-                contentResolver.openOutputStream(uri)?.use { out -> out.write(bytes) }
+                // Stream directly to the output URI — no full ByteArray kept in RAM
+                val outputStream = contentResolver.openOutputStream(uri)
                     ?: throw Exception("Cannot open output stream for chosen location")
 
-                _state.update { it.copy(snackbarMessage = "APK saved — ${bytes.size / 1024} KB written to chosen location") }
+                val savedKb: Long = when (connectionManager.getConnectionState()) {
+                    com.accu.connection.AccuConnectionManager.ConnectionState.CONNECTED_ROOT -> {
+                        val f = java.io.File(apkPath)
+                        if (f.exists()) {
+                            f.inputStream().use { it.copyTo(outputStream) }
+                            outputStream.close()
+                            f.length() / 1024
+                        } else {
+                            pullApkToStream(apkPath, outputStream)
+                        }
+                    }
+                    else -> pullApkToStream(apkPath, outputStream)
+                }
+
+                _state.update { it.copy(snackbarMessage = "APK saved — $savedKb KB written to chosen location") }
             } catch (e: Exception) {
                 Timber.e(e, "extractApkToControllerUri failed")
                 _state.update { it.copy(snackbarMessage = "Failed to extract APK: ${e.message}") }
@@ -309,12 +319,26 @@ class AppDetailViewModel @Inject constructor(
         }
     }
 
-    private suspend fun readApkViaBase64(remotePath: String): ByteArray {
-        val b64 = connectionManager.exec("base64 '$remotePath' 2>/dev/null")
-        if (b64.output.isBlank()) throw Exception("base64 read returned empty — check privilege")
-        return android.util.Base64.decode(
-            b64.output.replace("\\s+".toRegex(), ""), android.util.Base64.DEFAULT
-        )
+    /**
+     * Pull a remote APK to a temp file then stream it into [out] — no ByteArray in RAM.
+     * Returns the number of KB written.
+     */
+    private suspend fun pullApkToStream(remotePath: String, out: java.io.OutputStream): Long {
+        val tempFile = java.io.File(ctx.cacheDir, "accu_apk_${System.currentTimeMillis()}.apk")
+        return try {
+            val ok = connectionManager.pullFile(remotePath, tempFile.absolutePath)
+            if (ok && tempFile.exists()) {
+                val size = tempFile.length()
+                tempFile.inputStream().use { it.copyTo(out) }
+                out.close()
+                size / 1024
+            } else {
+                out.close()
+                throw Exception("Could not extract APK — check connection and privilege")
+            }
+        } finally {
+            tempFile.delete()
+        }
     }
 
     fun forceStop() {

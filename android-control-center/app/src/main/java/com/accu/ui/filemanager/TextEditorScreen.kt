@@ -39,12 +39,21 @@ fun TextEditorScreen(
         withContext(Dispatchers.IO) {
             try {
                 val file = File(filePath)
-                content = if (file.exists() && file.canRead()) {
-                    file.readText()
-                } else {
-                    "# ${file.name}\n\nStart typing…"
+                when {
+                    !file.exists() || !file.canRead() -> {
+                        content = "# ${file.name}\n\nStart typing…"
+                        loadError = null
+                    }
+                    file.length() > 4L * 1024 * 1024 -> {
+                        content = ""
+                        loadError = "File is too large to edit (${file.length() / 1024 / 1024} MB). " +
+                                    "Maximum is 4 MB — use a PC editor for large files."
+                    }
+                    else -> {
+                        content = file.readText()
+                        loadError = null
+                    }
                 }
-                loadError = null
             } catch (e: Exception) {
                 content = ""
                 loadError = e.message

@@ -555,6 +555,30 @@ class AccuConnectionManager @Inject constructor(
     }
 
     /**
+     * Read from [stream] into a String, stopping at [limitMb] MB to prevent OOM.
+     * Appends a truncation notice when the cap is hit so callers can detect it.
+     */
+    private fun readStreamCapped(stream: java.io.InputStream, limitMb: Int = 8): String {
+        val limitBytes = limitMb * 1024 * 1024
+        val sb = StringBuilder()
+        val reader = stream.bufferedReader()
+        val buf = CharArray(8192)
+        var totalRead = 0
+        while (true) {
+            val n = reader.read(buf)
+            if (n == -1) break
+            if (totalRead + n > limitBytes) {
+                sb.append(buf, 0, limitBytes - totalRead)
+                sb.append("\n[output capped at ${limitMb} MB — use adb shell for large outputs]")
+                break
+            }
+            sb.append(buf, 0, n)
+            totalRead += n
+        }
+        return sb.toString()
+    }
+
+    /**
      * Execute via plain shell (Runtime.exec) as app UID.
      * Good for read-only commands; privileged writes require root.
      *
@@ -562,6 +586,7 @@ class AccuConnectionManager @Inject constructor(
      * interactive `adb pair` builds that prompt for the code via stdin.
      *
      * Reads stdout and stderr on separate threads to prevent pipe-buffer deadlock.
+     * Output is capped at 8 MB each to prevent OOM from commands with huge output.
      */
     fun execPlainShell(command: String, stdinInput: String? = null): ShellResult = try {
         val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
@@ -574,11 +599,12 @@ class AccuConnectionManager @Inject constructor(
             }
         } catch (_: Exception) {}
 
-        // Read stdout + stderr concurrently to prevent pipe-buffer deadlock
+        // Read stdout + stderr concurrently to prevent pipe-buffer deadlock.
+        // readStreamCapped limits each to 8 MB to prevent OOM from huge outputs.
         val stdoutRef = java.util.concurrent.atomic.AtomicReference("")
         val stderrRef = java.util.concurrent.atomic.AtomicReference("")
-        val t1 = Thread { stdoutRef.set(process.inputStream.bufferedReader().readText()) }
-        val t2 = Thread { stderrRef.set(process.errorStream.bufferedReader().readText()) }
+        val t1 = Thread { stdoutRef.set(readStreamCapped(process.inputStream)) }
+        val t2 = Thread { stderrRef.set(readStreamCapped(process.errorStream)) }
         t1.start(); t2.start()
         val exit = process.waitFor()
         t1.join(10_000); t2.join(10_000)
@@ -639,7 +665,14 @@ class AccuConnectionManager @Inject constructor(
     /** Transfer a file by base64-encoding it and piping through the shell connection. */
     private suspend fun pushViaBase64(localPath: String, remotePath: String): Boolean {
         return try {
-            val bytes = java.io.File(localPath).readBytes()
+            val file = java.io.File(localPath)
+            // Base64 encoding doubles the file in RAM (raw bytes + b64 string).
+            // Refuse files > 50 MB — callers must use `adb push` or `cp` for large files.
+            if (file.length() > 50L * 1024 * 1024) {
+                Timber.w("$TAG pushViaBase64: ${file.length() / 1024 / 1024} MB exceeds 50 MB safety limit — aborting")
+                return false
+            }
+            val bytes = file.readBytes()
             exec("rm -f '$remotePath' 2>/dev/null")
             val chunkSize = 3000          // safe for shell echo line length
             val b64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
@@ -650,6 +683,42 @@ class AccuConnectionManager @Inject constructor(
             val written = exec("wc -c < '$remotePath' 2>/dev/null").output.trim().toLongOrNull() ?: 0L
             written == bytes.size.toLong()
         } catch (_: Exception) { false }
+    }
+
+    /**
+     * Pull a file FROM the target device to a local path — mirrors pushFile().
+     * Streams via `adb pull` or `cp`; never loads file contents into a ByteArray.
+     *
+     *  - ROOT:             cp remotePath localPath (same physical device)
+     *  - WIRELESS / OTG:  adb -s ip:port pull remotePath localPath
+     *  - No adb binary:   returns false — caller must handle the fallback
+     *
+     * Returns true on success, false on failure.
+     */
+    suspend fun pullFile(remotePath: String, localPath: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            when {
+                Shell.getShell().isRoot ->
+                    execRoot("cp '$remotePath' '$localPath' && echo ok").isSuccess
+
+                _state.value == ConnectionState.CONNECTED_WIRELESS ||
+                _state.value == ConnectionState.CONNECTED_OTG -> {
+                    val adb  = findAdbBinary()
+                    val ip   = getLastConnectedIp()
+                    if (adb != null && ip.isNotBlank()) {
+                        val port = getLastConnectedPort()
+                        execPlainShell("$adb -s $ip:$port pull '$remotePath' '$localPath'").isSuccess
+                    } else {
+                        false
+                    }
+                }
+
+                else -> false
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "$TAG pullFile failed: $remotePath -> $localPath")
+            false
+        }
     }
 
     // ─── Connection state ──────────────────────────────────────────────────────

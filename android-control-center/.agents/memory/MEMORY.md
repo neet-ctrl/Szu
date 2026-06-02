@@ -1,0 +1,1 @@
+- [OOM fix pattern](oom-fix.md) — four root causes of java.lang.OutOfMemoryError fixed; always stream large files, never readBytes() unguarded
