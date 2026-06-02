@@ -106,8 +106,12 @@ class AccuServiceImpl(
         scope.launch {
             try {
                 val result = connectionManager.exec(command)
-                try { callback.onStdoutLine(result.output) } catch (_: Exception) {}
-                if (result.error.isNotBlank()) try { callback.onStderrLine(result.error) } catch (_: Exception) {}
+                result.output.lines().forEach { line ->
+                    try { callback.onStdoutLine(line) } catch (_: Exception) {}
+                }
+                result.error.lines().filter { it.isNotBlank() }.forEach { line ->
+                    try { callback.onStderrLine(line) } catch (_: Exception) {}
+                }
                 try { callback.onExit(result.exitCode) } catch (_: Exception) {}
             } catch (e: Exception) {
                 try { callback.onStderrLine(e.message ?: "error"); callback.onExit(-1) } catch (_: Exception) {}

@@ -1,0 +1,34 @@
+ACCU Crash Report — Jun 02, 2026 14:51:21
+java.lang.RuntimeException: Unable to start service com.accu.services.CallRecordingService@8569473 with Intent { act=com.accu.ACTION_START_RECORDING cmp=com.accu.controlcenter/com.accu.services.CallRecordingService (has extras) }: java.lang.SecurityException: Starting FGS with type phoneCall callerApp=ProcessRecord{26d2ecc 30233:com.accu.controlcenter/u0a693} targetSDK=34 requires permissions: all of the permissions allOf=true [android.permission.FOREGROUND_SERVICE_PHONE_CALL] any of the permissions allOf=false [android.permission.MANAGE_OWN_CALLS, android.app.role.DIALER] 
+
+java.lang.RuntimeException: Unable to start service com.accu.services.CallRecordingService@8569473 with Intent { act=com.accu.ACTION_START_RECORDING cmp=com.accu.controlcenter/com.accu.services.CallRecordingService (has extras) }: java.lang.SecurityException: Starting FGS with type phoneCall callerApp=ProcessRecord{26d2ecc 30233:com.accu.controlcenter/u0a693} targetSDK=34 requires permissions: all of the permissions allOf=true [android.permission.FOREGROUND_SERVICE_PHONE_CALL] any of the permissions allOf=false [android.permission.MANAGE_OWN_CALLS, android.app.role.DIALER] 
+	at android.app.ActivityThread.handleServiceArgs(ActivityThread.java:5438)
+	at android.app.ActivityThread.-$$Nest$mhandleServiceArgs(Unknown Source:0)
+	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2619)
+	at android.os.Handler.dispatchMessage(Handler.java:107)
+	at android.os.Looper.loopOnce(Looper.java:311)
+	at android.os.Looper.loop(Looper.java:408)
+	at android.app.ActivityThread.main(ActivityThread.java:9119)
+	at java.lang.reflect.Method.invoke(Native Method)
+	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:627)
+	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:970)
+Caused by: java.lang.SecurityException: Starting FGS with type phoneCall callerApp=ProcessRecord{26d2ecc 30233:com.accu.controlcenter/u0a693} targetSDK=34 requires permissions: all of the permissions allOf=true [android.permission.FOREGROUND_SERVICE_PHONE_CALL] any of the permissions allOf=false [android.permission.MANAGE_OWN_CALLS, android.app.role.DIALER] 
+	at android.os.Parcel.createExceptionOrNull(Parcel.java:3251)
+	at android.os.Parcel.createException(Parcel.java:3235)
+	at android.os.Parcel.readException(Parcel.java:3218)
+	at android.os.Parcel.readException(Parcel.java:3160)
+	at android.app.IActivityManager$Stub$Proxy.setServiceForeground(IActivityManager.java:7691)
+	at android.app.Service.startForeground(Service.java:776)
+	at com.accu.services.CallRecordingService.onStartCommand(Unknown Source:130)
+	at android.app.ActivityThread.handleServiceArgs(ActivityThread.java:5420)
+	... 9 more
+Caused by: android.os.RemoteException: Remote stack trace:
+	at com.android.server.am.ActiveServices.validateForegroundServiceType(ActiveServices.java:3031)
+	at com.android.server.am.ActiveServices.setServiceForegroundInnerLocked(ActiveServices.java:2709)
+	at com.android.server.am.ActiveServices.setServiceForegroundLocked(ActiveServices.java:1963)
+	at com.android.server.am.ActivityManagerService.setServiceForeground(ActivityManagerService.java:15781)
+	at android.app.IActivityManager$Stub.onTransact$setServiceForeground$(IActivityManager.java:13603)
+
+
+
+Cause chain: [{"type":"java.lang.SecurityException","message":"Starting FGS with type phoneCall callerApp=ProcessRecord{26d2ecc 30233:com.accu.controlcenter\/u0a693} targetSDK=34 requires permissions: all of the permissions allOf=true [android.permission.FOREGROUND_SERVICE_PHONE_CALL] any of the permissions allOf=false [android.permission.MANAGE_OWN_CALLS, android.app.role.DIALER] "},{"type":"android.os.RemoteException","message":"Remote stack trace:\n\tat com.android.server.am.ActiveServices.validateForegroundServiceType(ActiveServices.java:3031)\n\tat com.android.server.am.ActiveServices.setServiceForegroundInnerLocked(ActiveServices.java:2709)\n\tat com.android.server.am.ActiveServices.setServiceForegroundLocked(ActiveServices.java:1963)\n\tat com.android.server.am.ActivityManagerService.setServiceForeground(ActivityManagerService.java:15781)\n\tat android.app.IActivityManager$Stub.onTransact$setServiceForeground$(IActivityManager.java:13603)\n"}]

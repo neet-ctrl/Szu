@@ -87,7 +87,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             LogManager.info("Permission", "Requesting ACCU permission — dialog will appear")
             val result = try { accu.requestPermission() } catch (e: Exception) { CrashManager.record("requestPermission()", e); AccuConstants.PERMISSION_SERVICE_UNAVAILABLE }
-            LogManager.log("Permission", "Result: ${result.toPermissionLabel()}", if (result.isGranted()) LogLevel.SUCCESS else LogLevel.WARNING)
+            LogManager.log("Permission", "Result: ${result.toCallbackLabel()}", if (result.isGranted()) LogLevel.SUCCESS else LogLevel.WARNING)
         }
     }
 
