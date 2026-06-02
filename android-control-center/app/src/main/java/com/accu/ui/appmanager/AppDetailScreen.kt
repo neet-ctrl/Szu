@@ -130,7 +130,7 @@ fun AppDetailScreen(
                     actions = {
                         IconButton(onClick = { viewModel.forceStop() }) { Icon(Icons.Default.Stop, "Force Stop") }
                         IconButton(onClick = { viewModel.openApp() }) { Icon(Icons.Default.OpenInNew, "Open App") }
-                        IconButton(onClick = { folderPickerLauncher.launch(null) }) { Icon(Icons.Default.Download, "Extract APK") }
+                        IconButton(onClick = { folderPickerLauncher.launch("app.apk") }) { Icon(Icons.Default.Download, "Extract APK") }
                         var showMenu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, null) }
@@ -226,7 +226,7 @@ fun AppDetailScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             when (selectedTab) {
-                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding, onExtractApk = { folderPickerLauncher.launch(null) })
+                AppDetailTab.INFO         -> InfoTab(state, packageName, context, dateFormatter, viewModel, padding, onExtractApk = { folderPickerLauncher.launch("app.apk") })
                 AppDetailTab.COMPONENTS   -> ComponentsTab(state, viewModel, padding)
                 AppDetailTab.PERMISSIONS  -> PermissionsTab(state, viewModel, padding)
                 AppDetailTab.TRACKERS     -> TrackersTab(detectedTrackers, packageName, padding)

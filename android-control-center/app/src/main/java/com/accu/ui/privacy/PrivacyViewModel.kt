@@ -888,6 +888,59 @@ class PrivacyViewModel @Inject constructor(
         }
     }
 
+    fun exportRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val components = blockedComponentDao.observeAll().first()
+                val rules = privacyRuleDao.observeAll().first()
+                val json = buildString {
+                    appendLine("""{"version":2,"components":[""")
+                    components.forEachIndexed { i, c ->
+                        append("""  {"pkg":"${c.packageName}","name":"${c.componentName}","type":"${c.componentType}","tracker":${c.isTracker}}""")
+                        if (i < components.lastIndex) appendLine(",") else appendLine()
+                    }
+                    appendLine("""],"rules":[""")
+                    rules.forEachIndexed { i, r ->
+                        append("""  {"pkg":"${r.packageName}","type":"${r.ruleType}","name":"${r.ruleName}","enabled":${r.isEnabled}}""")
+                        if (i < rules.lastIndex) appendLine(",") else appendLine()
+                    }
+                    append("]}")
+                }
+                val file = java.io.File(context.filesDir, "accu_rules_backup.json")
+                file.writeText(json)
+                _state.update { it.copy(snackbarMessage = "Exported ${components.size} rules ✓") }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Export failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun backupRules() { exportRules() }
+
+    fun restoreRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = java.io.File(context.filesDir, "accu_rules_backup.json")
+                if (!file.exists()) { _state.update { it.copy(snackbarMessage = "No backup found") }; return@launch }
+                importRulesFrom(file.readText())
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Restore failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun importRules(format: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = java.io.File(context.filesDir, "accu_rules_backup.json")
+                if (!file.exists()) { _state.update { it.copy(snackbarMessage = "No rules file found to import") }; return@launch }
+                importRulesFrom(file.readText())
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Import failed: ${e.message}") }
+            }
+        }
+    }
+
     fun clearAllRules() {
         viewModelScope.launch {
             blockedComponentDao.deleteAll()
@@ -907,7 +960,7 @@ class PrivacyViewModel @Inject constructor(
                 val packages = body.lines().mapNotNull { it.trim().takeIf { t -> t.isNotBlank() && !t.startsWith("#") }?.split(",")?.firstOrNull()?.trim() }.filter { it.contains(".") }
                 var inserted = 0
                 packages.forEach { pkg ->
-                    try { blockedComponentDao.insert(BlockedComponentEntity(pkg, pkg, "tracker", isTracker = true, ruleSource = "cloud:$url")); inserted++ } catch (_: Exception) {}
+                    try { blockedComponentDao.insert(BlockedComponentEntity(packageName = pkg, componentName = pkg, componentType = "tracker", isTracker = true, ruleSource = "cloud:$url")); inserted++ } catch (_: Exception) {}
                 }
                 _state.update { it.copy(snackbarMessage = "Synced $inserted rules from cloud ✓") }
             } catch (e: Exception) { _state.update { it.copy(snackbarMessage = "Sync failed: ${e.message}") } }
