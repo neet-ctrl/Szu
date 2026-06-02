@@ -513,7 +513,7 @@ fun FileManagerScreen(
                             )
                         }
                         if (i < state.breadcrumbs.size - 1) {
-                            Icon(Icons.Default.ChevronRight, null, Modifier.size(14.dp).align(Alignment.CenterVertically), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Icon(Icons.Default.ChevronRight, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

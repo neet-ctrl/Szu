@@ -1,7 +1,7 @@
 package com.accu.services
 
 import android.app.Service
-import android.content.ContentObserver
+import android.database.ContentObserver
 import android.content.Context
 import android.content.Intent
 import android.media.AudioDeviceInfo
@@ -78,12 +78,14 @@ class AccuSoundMasterService : Service() {
             )
         }
         onDynamicDetach = { pkg, outputId ->
+            run {
             val thread = packageThreads[pkg] ?: return@run
             thread.deleteOutput(outputId, false)
             if (thread.mPlayers.isEmpty()) {
                 thread.interrupt()
                 packageThreads.remove(pkg)
             }
+            } // end run
         }
         getLatencyMap = {
             packageThreads.map { it.key to it.value.getLatency() }.toMap()

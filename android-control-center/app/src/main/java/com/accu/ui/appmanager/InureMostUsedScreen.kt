@@ -273,15 +273,3 @@ private fun MostUsedAppCard(rank: Int, app: UsedAppEntry, totalMaxMs: Long, onCl
     }
 }
 
-private fun formatDuration(ms: Long): String {
-    if (ms <= 0) return "—"
-    val totalSec = ms / 1000
-    val hours = totalSec / 3600
-    val minutes = (totalSec % 3600) / 60
-    val seconds = totalSec % 60
-    return when {
-        hours > 0   -> "${hours}h ${minutes}m"
-        minutes > 0 -> "${minutes}m ${seconds}s"
-        else        -> "${seconds}s"
-    }
-}

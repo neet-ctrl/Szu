@@ -22,9 +22,11 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.lifecycle.*
+import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.accu.ui.theme.ACCTheme
 import kotlinx.coroutines.*
 
@@ -115,8 +117,8 @@ class SoundMasterOverlayService : Service() {
     private fun buildOverlayView() {
         overlayView = ComposeView(this).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-            ViewTreeLifecycleOwner.set(this, lifecycleOwner)
-            ViewTreeSavedStateRegistryOwner.set(this, lifecycleOwner)
+            this.setViewTreeLifecycleOwner(lifecycleOwner)
+            this.setViewTreeSavedStateRegistryOwner(lifecycleOwner)
             setContent {
                 ACCTheme {
                     val visible by _visible

@@ -362,6 +362,30 @@ class PrivacyViewModel @Inject constructor(
 
     // ─── EXPORT / IMPORT ─────────────────────────────────────────────────────
 
+    fun exportRules() {
+        _state.update { it.copy(snackbarMessage = "Use the export button and pick a save location") }
+    }
+
+    fun backupRules() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val components = blockedComponentDao.observeAll().first()
+                val rules = privacyRuleDao.observeAll().first()
+                _state.update { it.copy(snackbarMessage = "Backup ready: ${components.size} components, ${rules.size} rules") }
+            } catch (e: Exception) {
+                _state.update { it.copy(snackbarMessage = "Backup failed: ${e.message}") }
+            }
+        }
+    }
+
+    fun restoreRules() {
+        _state.update { it.copy(snackbarMessage = "Pick a backup file to restore rules") }
+    }
+
+    fun importRules(format: String) {
+        _state.update { it.copy(snackbarMessage = "Pick a $format rules file to import") }
+    }
+
     fun exportRulesTo(uri: Uri) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

@@ -772,7 +772,7 @@ private fun BinaryViewer(file: File) {
             hexContent = runCatching {
                 val bytes = file.inputStream().use { it.readBytes().take(4096).toByteArray() }
                 buildString {
-                    bytes.chunked(16).forEachIndexed { lineIdx, lineBytes ->
+                    bytes.toList().chunked(16).forEachIndexed { lineIdx, lineBytes ->
                         append("%08X  ".format(lineIdx * 16))
                         lineBytes.forEach { b -> append("%02X ".format(b.toInt() and 0xFF)) }
                         repeat(16 - lineBytes.size) { append("   ") }

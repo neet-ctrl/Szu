@@ -231,7 +231,7 @@ private fun PrivacyDashboard(state: PrivacyUiState, viewModel: PrivacyViewModel)
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ElevatedCard(Modifier.weight(1f), onClick = { viewModel.onTabChange(PrivacyTab.SENSORS) }) {
+                ElevatedCard(onClick = { viewModel.onTabChange(PrivacyTab.SENSORS) }, modifier = Modifier.weight(1f)) {
                     Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Sensors, null, Modifier.size(28.dp), tint = AccentCyan)
                         Spacer(Modifier.height(4.dp))
@@ -239,7 +239,7 @@ private fun PrivacyDashboard(state: PrivacyUiState, viewModel: PrivacyViewModel)
                         Text("Block cam/mic/location per-app", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
                     }
                 }
-                ElevatedCard(Modifier.weight(1f), onClick = { viewModel.onTabChange(PrivacyTab.FIREWALL) }) {
+                ElevatedCard(onClick = { viewModel.onTabChange(PrivacyTab.FIREWALL) }, modifier = Modifier.weight(1f)) {
                     Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Fireplace, null, Modifier.size(28.dp), tint = AccentOrange)
                         Spacer(Modifier.height(4.dp))
@@ -247,7 +247,7 @@ private fun PrivacyDashboard(state: PrivacyUiState, viewModel: PrivacyViewModel)
                         Text("Restrict background data", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
                     }
                 }
-                ElevatedCard(Modifier.weight(1f), onClick = { viewModel.onTabChange(PrivacyTab.AUDIT) }) {
+                ElevatedCard(onClick = { viewModel.onTabChange(PrivacyTab.AUDIT) }, modifier = Modifier.weight(1f)) {
                     Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Security, null, Modifier.size(28.dp), tint = AccentGreen)
                         Spacer(Modifier.height(4.dp))

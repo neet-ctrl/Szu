@@ -221,9 +221,9 @@ private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
             ) {
                 when {
                     state.isLoading -> CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp, color = accentColor)
-                    isConnected     -> Icon(Icons.Filled.CheckCircle, null, tint = AccentGreen,   Modifier.size(30.dp))
-                    state.isAvailable -> Icon(Icons.Outlined.Lock,    null, tint = Color(0xFF7C3AED), Modifier.size(28.dp))
-                    else            -> Icon(Icons.Outlined.ErrorOutline, null, tint = AccentRed,  Modifier.size(28.dp))
+                    isConnected     -> Icon(Icons.Filled.CheckCircle, null, Modifier.size(30.dp), tint = AccentGreen)
+                    state.isAvailable -> Icon(Icons.Outlined.Lock,    null, Modifier.size(28.dp), tint = Color(0xFF7C3AED))
+                    else            -> Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(28.dp), tint = AccentRed)
                 }
             }
             Column(Modifier.weight(1f)) {
