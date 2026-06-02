@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -76,33 +77,43 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun ACCTheme(
+    config: ACCThemeConfig = ACCThemeConfig(),
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
+    val effectiveDark = config.isDark || darkTheme
+
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        config.useDynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (effectiveDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        effectiveDark -> {
+            val base = config.preset.toDarkColorScheme()
+            if (config.isAmoled) base.copy(
+                background = Color(0xFF000000),
+                surface    = Color(0xFF000000),
+            ) else base
+        }
+        else -> config.preset.toLightColorScheme()
     }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
+            window.statusBarColor     = colorScheme.background.toArgb()
             window.navigationBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars     = !effectiveDark
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !effectiveDark
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = ACCTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalACCThemeConfig provides config) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography  = ACCTypography,
+            content     = content,
+        )
+    }
 }

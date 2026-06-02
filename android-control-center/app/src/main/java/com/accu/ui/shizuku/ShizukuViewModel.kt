@@ -5,6 +5,8 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.accu.connection.AccuConnectionManager
+import com.accu.ui.theme.ACCThemeConfig
+import com.accu.ui.theme.ThemeManager
 import com.accu.utils.ShizukuUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -14,6 +16,60 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
+
+// ── Full device info snapshot from the connected target ───────────────────────
+data class TargetDeviceInfo(
+    // Identity
+    val model: String = "",
+    val manufacturer: String = "",
+    val brand: String = "",
+    val codename: String = "",
+    val serial: String = "",
+    // Software
+    val androidVersion: String = "",
+    val sdkLevel: String = "",
+    val buildFingerprint: String = "",
+    val buildType: String = "",
+    val buildDate: String = "",
+    val kernelVersion: String = "",
+    val uptimeSecs: Long = 0L,
+    val javaHeap: String = "",
+    val locale: String = "",
+    val timezone: String = "",
+    // Hardware
+    val cpuAbi: String = "",
+    val cpuCores: Int = 0,
+    val cpuMaxFreqMhz: Int = 0,
+    val cpuGovernor: String = "",
+    val totalRamMb: Long = 0L,
+    val availRamMb: Long = 0L,
+    // Display
+    val displayWidth: Int = 0,
+    val displayHeight: Int = 0,
+    val displayDensityDpi: Int = 0,
+    // Battery
+    val batteryLevel: Int = -1,
+    val batteryHealth: String = "",
+    val batteryTempC: Float = 0f,
+    val batteryVoltage: Int = 0,
+    val batteryStatus: String = "",
+    val batteryPlugged: String = "",
+    val batteryTechnology: String = "",
+    // Storage
+    val totalStorageMb: Long = 0L,
+    val availStorageMb: Long = 0L,
+    // Network
+    val wifiSsid: String = "",
+    val mobileOperator: String = "",
+    val mobileNetworkType: String = "",
+    val deviceIpAddress: String = "",
+    // Security
+    val encryptionState: String = "",
+    val selinuxEnforce: String = "",
+    val bootloaderState: String = "",
+    // Loading indicator
+    val isLoading: Boolean = false,
+)
 
 data class ShizukuUiState(
     val isAvailable: Boolean = false,
@@ -29,20 +85,11 @@ data class ShizukuUiState(
     val deviceIp: String = "",
     val isPairing: Boolean = false,
     val pairingStatus: String = "",
-    /** True when pairing succeeded but the TLS connection phase failed — enables "Retry Connection". */
     val isConnectionFailed: Boolean = false,
-    /** Full raw error from the failed connection attempt, shown in the expanded error card. */
     val connectionFailedRaw: String = "",
-    /** Host that was tried when connection failed — shown in the error card. */
     val connectionFailedHost: String = "",
-    /** Port that was tried when connection failed — shown in the error card. */
     val connectionFailedPort: Int = 0,
     val isRetryingConnection: Boolean = false,
-    /**
-     * Comprehensive debug snapshot built at the moment of connection failure.
-     * Contains host/port, host-device info, all session log entries, and the full
-     * exception stack trace. Copied to clipboard by the "Copy Debug Log" button.
-     */
     val connectionDebugLog: String = "",
     val serverPid: Int = -1,
     val serverStartMethod: String = "",
@@ -53,7 +100,7 @@ data class ShizukuUiState(
     val authorizedAppsSearch: String = "",
     val rishInfo: RishInfo = RishInfo(),
     val blackNightMode: Boolean = false,
-    val useSystemColors: Boolean = true,
+    val useSystemColors: Boolean = false,
     val autoStartOnBoot: Boolean = false,
     val showNotification: Boolean = true,
     val requireUnlockForTiles: Boolean = false,
@@ -62,12 +109,12 @@ data class ShizukuUiState(
     val connectionState: AccuConnectionManager.ConnectionState = AccuConnectionManager.ConnectionState.DISCONNECTED,
     val discoveredPairingIp: String = "",
     val discoveredPairingPort: Int = 0,
-    /** ro.product.model of the connected target device */
+    // Legacy flat fields kept for connection debug log (populated from TargetDeviceInfo)
     val deviceModel: String = "",
-    /** ro.build.version.release (e.g. "14") */
     val androidVersion: String = "",
-    /** ro.build.version.sdk (e.g. "34") */
     val sdkLevel: String = "",
+    // Full target device info
+    val targetInfo: TargetDeviceInfo = TargetDeviceInfo(),
 )
 
 data class ShizukuLogEntry(
@@ -106,12 +153,26 @@ class ShizukuViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val shizukuUtils: ShizukuUtils,
     private val connectionManager: AccuConnectionManager,
+    private val themeManager: ThemeManager,
 ) : ViewModel() {
+
+    private var _currentThemeConfig = ACCThemeConfig()
 
     private val _state = MutableStateFlow(ShizukuUiState())
     val state: StateFlow<ShizukuUiState> = _state.asStateFlow()
 
     init {
+        // Sync ThemeManager config into UI state for Settings toggles
+        viewModelScope.launch {
+            themeManager.themeConfig.collect { cfg ->
+                _currentThemeConfig = cfg
+                _state.update { it.copy(
+                    blackNightMode  = cfg.isAmoled,
+                    useSystemColors = cfg.useDynamicColor,
+                ) }
+            }
+        }
+
         // Observe AccuConnectionManager state changes
         viewModelScope.launch {
             connectionManager.state.collect { connState ->
@@ -158,14 +219,6 @@ class ShizukuViewModel @Inject constructor(
 
             val apps = if (isConnected) loadAuthorizedApps() else _state.value.authorizedApps
 
-            // Fetch target device info — routes through exec() so it targets the connected device
-            val deviceModel = if (isConnected)
-                connectionManager.exec("getprop ro.product.model").output.trim() else ""
-            val androidVersion = if (isConnected)
-                connectionManager.exec("getprop ro.build.version.release").output.trim() else ""
-            val sdkLevel = if (isConnected)
-                connectionManager.exec("getprop ro.build.version.sdk").output.trim() else ""
-
             _state.update {
                 it.copy(
                     connectionState = connState,
@@ -182,17 +235,158 @@ class ShizukuViewModel @Inject constructor(
                         else -> "Not connected"
                     },
                     authorizedApps = apps,
-                    deviceModel = deviceModel,
-                    androidVersion = androidVersion,
-                    sdkLevel = sdkLevel,
                     isLoading = false,
                 )
             }
 
             if (isConnected) {
                 addLog("ACCU privilege active — method: ${_state.value.serverStartMethod}", LogLevel.SUCCESS)
+                refreshDeviceInfo()
             } else {
                 addLog("ACCU not connected — limited functionality", LogLevel.WARNING)
+                _state.update { it.copy(
+                    deviceModel = "", androidVersion = "", sdkLevel = "",
+                    targetInfo = TargetDeviceInfo(),
+                ) }
+            }
+        }
+    }
+
+    fun refreshDeviceInfo() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _state.update { it.copy(targetInfo = it.targetInfo.copy(isLoading = true)) }
+            try {
+                // ── batch getprop ─────────────────────────────────────────────
+                val props = connectionManager.exec("""
+                    for KEY in ro.product.model ro.product.manufacturer ro.product.brand \
+                                ro.product.device ro.serialno ro.build.version.release \
+                                ro.build.version.sdk ro.build.fingerprint ro.build.type \
+                                ro.build.date ro.product.cpu.abi ro.crypto.state \
+                                ro.boot.verifiedbootstate persist.sys.locale \
+                                persist.sys.timezone dalvik.vm.heapsize \
+                                gsm.operator.alpha gsm.network.type; do
+                        echo "${'$'}KEY=$(getprop ${'$'}KEY)"
+                    done
+                """.trimIndent()).output.trim()
+
+                val p = props.lines().associate { line ->
+                    val idx = line.indexOf('=')
+                    if (idx < 0) "" to "" else line.substring(0, idx) to line.substring(idx + 1)
+                }
+                fun prop(key: String) = p[key]?.trim().orEmpty()
+
+                // ── battery ───────────────────────────────────────────────────
+                val batRaw = connectionManager.exec("dumpsys battery").output
+                fun batVal(k: String) = Regex("$k:\\s*(\\S+)").find(batRaw)?.groupValues?.getOrElse(1) { "" }?.trim().orEmpty()
+                val batLevel   = batVal("level").toIntOrNull() ?: -1
+                val batHealth  = when (batVal("health").toIntOrNull()) {
+                    1 -> "Unknown" ; 2 -> "Good" ; 3 -> "Overheat"
+                    4 -> "Dead" ; 5 -> "Over voltage" ; 6 -> "Unspecified failure" ; 7 -> "Cold"
+                    else -> batVal("health").ifEmpty { "N/A" }
+                }
+                val batTempRaw = batVal("temperature").toIntOrNull() ?: 0
+                val batTempC   = batTempRaw / 10f
+                val batVoltage = batVal("voltage").toIntOrNull() ?: 0
+                val batStatus  = when (batVal("status").toIntOrNull()) {
+                    1 -> "Unknown" ; 2 -> "Charging" ; 3 -> "Discharging"
+                    4 -> "Not charging" ; 5 -> "Full"
+                    else -> batVal("status").ifEmpty { "N/A" }
+                }
+                val batPlugged = when (batVal("plugged").toIntOrNull()) {
+                    0 -> "Not plugged" ; 1 -> "AC" ; 2 -> "USB" ; 4 -> "Wireless"
+                    else -> batVal("plugged").ifEmpty { "Unknown" }
+                }
+                val batTech = batVal("technology")
+
+                // ── RAM ───────────────────────────────────────────────────────
+                val memRaw   = connectionManager.exec("cat /proc/meminfo").output
+                val totalRam = Regex("MemTotal:\\s+(\\d+)").find(memRaw)?.groupValues?.getOrElse(1) { "0" }?.toLongOrNull() ?: 0L
+                val availRam = Regex("MemAvailable:\\s+(\\d+)").find(memRaw)?.groupValues?.getOrElse(1) { "0" }?.toLongOrNull() ?: 0L
+
+                // ── display ───────────────────────────────────────────────────
+                val sizeRaw    = connectionManager.exec("wm size").output
+                val densityRaw = connectionManager.exec("wm density").output
+                val sizeMatch  = Regex("(\\d+)x(\\d+)").find(sizeRaw)
+                val dispW      = sizeMatch?.groupValues?.getOrElse(1) { "0" }?.toIntOrNull() ?: 0
+                val dispH      = sizeMatch?.groupValues?.getOrElse(2) { "0" }?.toIntOrNull() ?: 0
+                val dispDpi    = Regex("(\\d+)").find(densityRaw)?.groupValues?.getOrElse(1) { "0" }?.toIntOrNull() ?: 0
+
+                // ── CPU ───────────────────────────────────────────────────────
+                val cpuCores   = connectionManager.exec("grep -c '^processor' /proc/cpuinfo 2>/dev/null || echo 0").output.trim().toIntOrNull() ?: 0
+                val cpuMaxRaw  = connectionManager.exec("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq 2>/dev/null || echo 0").output.trim().toLongOrNull() ?: 0L
+                val cpuMaxMhz  = if (cpuMaxRaw > 0) (cpuMaxRaw / 1000).toInt() else 0
+                val cpuGov     = connectionManager.exec("cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo N/A").output.trim()
+
+                // ── storage ───────────────────────────────────────────────────
+                val dfRaw     = connectionManager.exec("df /data 2>/dev/null | tail -1").output.trim()
+                val dfCols    = dfRaw.split(Regex("\\s+"))
+                val stoTotal  = dfCols.getOrElse(1) { "0" }.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
+                val stoAvail  = dfCols.getOrElse(3) { "0" }.replace(Regex("[^0-9]"), "").toLongOrNull() ?: 0L
+
+                // ── network ───────────────────────────────────────────────────
+                val wifiSsid  = connectionManager.exec("dumpsys wifi 2>/dev/null | grep -m1 'SSID:' | sed 's/.*SSID: //' | cut -d, -f1").output.trim().ifEmpty {
+                    connectionManager.exec("getprop wifi.interface && dumpsys netstats | grep -m1 'SSID'").output.trim()
+                }
+                val deviceIpAddr = connectionManager.exec("ip route get 8.8.8.8 2>/dev/null | grep -oE 'src [0-9.]+' | awk '{print \$2}'").output.trim()
+                    .ifEmpty { prop("dhcp.wlan0.ipaddress") }
+
+                // ── kernel & uptime ───────────────────────────────────────────
+                val kernel  = connectionManager.exec("uname -r").output.trim()
+                val uptimeS = connectionManager.exec("cat /proc/uptime").output.trim()
+                    .split(" ").firstOrNull()?.toDoubleOrNull()?.toLong() ?: 0L
+
+                val info = TargetDeviceInfo(
+                    model = prop("ro.product.model"),
+                    manufacturer = prop("ro.product.manufacturer"),
+                    brand = prop("ro.product.brand"),
+                    codename = prop("ro.product.device"),
+                    serial = prop("ro.serialno").ifEmpty { "N/A" },
+                    androidVersion = prop("ro.build.version.release"),
+                    sdkLevel = prop("ro.build.version.sdk"),
+                    buildFingerprint = prop("ro.build.fingerprint"),
+                    buildType = prop("ro.build.type"),
+                    buildDate = prop("ro.build.date"),
+                    kernelVersion = kernel,
+                    uptimeSecs = uptimeS,
+                    javaHeap = prop("dalvik.vm.heapsize"),
+                    locale = prop("persist.sys.locale").ifEmpty { "System default" },
+                    timezone = prop("persist.sys.timezone"),
+                    cpuAbi = prop("ro.product.cpu.abi"),
+                    cpuCores = cpuCores,
+                    cpuMaxFreqMhz = cpuMaxMhz,
+                    cpuGovernor = cpuGov,
+                    totalRamMb = totalRam / 1024,
+                    availRamMb = availRam / 1024,
+                    displayWidth = dispW,
+                    displayHeight = dispH,
+                    displayDensityDpi = dispDpi,
+                    batteryLevel = batLevel,
+                    batteryHealth = batHealth,
+                    batteryTempC = batTempC,
+                    batteryVoltage = batVoltage,
+                    batteryStatus = batStatus,
+                    batteryPlugged = batPlugged,
+                    batteryTechnology = batTech,
+                    totalStorageMb = stoTotal / 1024,
+                    availStorageMb = stoAvail / 1024,
+                    wifiSsid = wifiSsid.take(40),
+                    mobileOperator = prop("gsm.operator.alpha"),
+                    mobileNetworkType = prop("gsm.network.type"),
+                    deviceIpAddress = deviceIpAddr,
+                    encryptionState = prop("ro.crypto.state").ifEmpty { "Unknown" },
+                    selinuxEnforce = connectionManager.exec("getenforce 2>/dev/null").output.trim().ifEmpty { "N/A" },
+                    bootloaderState = prop("ro.boot.verifiedbootstate").ifEmpty { "N/A" },
+                    isLoading = false,
+                )
+                _state.update { it.copy(
+                    targetInfo     = info,
+                    deviceModel    = info.model,
+                    androidVersion = info.androidVersion,
+                    sdkLevel       = info.sdkLevel,
+                ) }
+            } catch (e: Exception) {
+                _state.update { it.copy(targetInfo = it.targetInfo.copy(isLoading = false)) }
+                addLog("Device info fetch error: ${e.message?.take(80)}", LogLevel.WARNING)
             }
         }
     }
@@ -488,8 +682,24 @@ class ShizukuViewModel @Inject constructor(
 
     // ── Settings ──────────────────────────────────────────────────────────────
 
-    fun setBlackNightMode(v: Boolean) { _state.update { it.copy(blackNightMode = v) } }
-    fun setUseSystemColors(v: Boolean) { _state.update { it.copy(useSystemColors = v) } }
+    fun setBlackNightMode(v: Boolean) {
+        _state.update { it.copy(blackNightMode = v) }
+        viewModelScope.launch {
+            val updated = _currentThemeConfig.copy(isAmoled = v)
+            _currentThemeConfig = updated
+            themeManager.save(updated)
+        }
+    }
+
+    fun setUseSystemColors(v: Boolean) {
+        _state.update { it.copy(useSystemColors = v) }
+        viewModelScope.launch {
+            val updated = _currentThemeConfig.copy(useDynamicColor = v)
+            _currentThemeConfig = updated
+            themeManager.save(updated)
+        }
+    }
+
     fun setAutoStartOnBoot(v: Boolean) { _state.update { it.copy(autoStartOnBoot = v) } }
     fun setShowNotification(v: Boolean) { _state.update { it.copy(showNotification = v) } }
     fun setRequireUnlockForTiles(v: Boolean) { _state.update { it.copy(requireUnlockForTiles = v) } }

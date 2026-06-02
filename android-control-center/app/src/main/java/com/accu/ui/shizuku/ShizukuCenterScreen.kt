@@ -1,6 +1,7 @@
 package com.accu.ui.shizuku
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -16,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -23,6 +26,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -37,6 +41,7 @@ import com.accu.ui.theme.AccentOrange
 import com.accu.ui.theme.AccentCyan
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,160 +112,651 @@ fun AccuCenterScreen(
 
 // ── Tab 1: Status ─────────────────────────────────────────────────────────────
 
+private enum class DeviceInfoCategory(val label: String, val icon: ImageVector, val accentColor: Color) {
+    OVERVIEW ("Overview",  Icons.Outlined.Dashboard,          Color(0xFF4A90D9)),
+    DEVICE   ("Device",    Icons.Outlined.PhoneAndroid,       Color(0xFF7C83FF)),
+    HARDWARE ("Hardware",  Icons.Outlined.Memory,             Color(0xFF00BCD4)),
+    BATTERY  ("Battery",   Icons.Outlined.BatteryFull,        Color(0xFF66BB6A)),
+    STORAGE  ("Storage",   Icons.Outlined.Storage,            Color(0xFFFF8A65)),
+    NETWORK  ("Network",   Icons.Outlined.Wifi,               Color(0xFF26C6DA)),
+    SYSTEM   ("System",    Icons.Outlined.Android,            Color(0xFFAB47BC)),
+    SECURITY ("Security",  Icons.Outlined.Security,           Color(0xFFEF5350)),
+}
+
 @Composable
 private fun StatusTab(state: ShizukuUiState, vm: ShizukuViewModel) {
-    LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            // Main status card
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = when {
-                        state.isLoading -> MaterialTheme.colorScheme.surfaceVariant
-                        state.isAvailable && state.isGranted -> Color(0xFF14532D).copy(alpha = 0.15f)
-                        state.isAvailable -> Color(0xFF7C3AED).copy(alpha = 0.1f)
-                        else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                    }
-                ),
-                modifier = Modifier.fillMaxWidth()
+    var category by remember { mutableStateOf(DeviceInfoCategory.OVERVIEW) }
+    val info = state.targetInfo
+
+    Column(Modifier.fillMaxSize()) {
+        // ── Connection banner ─────────────────────────────────────────────────
+        ConnectionBanner(state, vm)
+
+        // ── Category filter strip ─────────────────────────────────────────────
+        if (state.isGranted) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Box(Modifier.size(56.dp).clip(CircleShape).background(
-                        when {
-                            state.isLoading -> MaterialTheme.colorScheme.outline.copy(0.2f)
-                            state.isAvailable && state.isGranted -> AccentGreen.copy(0.2f)
-                            state.isAvailable -> Color(0xFF7C3AED).copy(0.2f)
-                            else -> AccentRed.copy(0.2f)
-                        }
-                    ), contentAlignment = Alignment.Center) {
-                        when {
-                            state.isLoading -> CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
-                            state.isAvailable && state.isGranted -> Icon(Icons.Filled.CheckCircle, null, tint = AccentGreen, modifier = Modifier.size(32.dp))
-                            state.isAvailable -> Icon(Icons.Outlined.Lock, null, tint = Color(0xFF7C3AED), modifier = Modifier.size(32.dp))
-                            else -> Icon(Icons.Outlined.ErrorOutline, null, tint = AccentRed, modifier = Modifier.size(32.dp))
-                        }
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            when {
-                                state.isLoading -> "Checking…"
-                                state.isAvailable && state.isGranted -> "ACCU Connected"
-                                state.isAvailable -> "Connecting…"
-                                else -> "Not Connected"
-                            },
-                            style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            when {
-                                state.isAvailable && state.isGranted -> "${state.serverStartMethod} • uid=${state.uid}"
-                                state.isAvailable -> "Establishing privilege connection…"
-                                else -> "Setup wireless ADB or use root"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                items(DeviceInfoCategory.entries) { cat ->
+                    val selected = category == cat
+                    FilterChip(
+                        selected = selected,
+                        onClick  = { category = cat },
+                        label    = { Text(cat.label, style = MaterialTheme.typography.labelMedium) },
+                        leadingIcon = {
+                            Icon(cat.icon, null, Modifier.size(14.dp),
+                                tint = if (selected) cat.accentColor else MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = cat.accentColor.copy(alpha = 0.18f),
+                            selectedLabelColor     = cat.accentColor,
+                            selectedLeadingIconColor = cat.accentColor,
+                        ),
+                    )
                 }
             }
+            HorizontalDivider()
         }
 
-        // Action buttons
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!state.isGranted && state.isAvailable) {
-                    Button(onClick = vm::requestPermission, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Key, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Grant Permission")
-                    }
-                }
-                if (!state.isAvailable) {
-                    OutlinedButton(onClick = vm::startWithAdb, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Wifi, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Wireless ADB")
-                    }
-                    OutlinedButton(onClick = vm::connectOtg, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Usb, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("OTG / USB")
-                    }
-                    if (state.isRootAvailable) {
-                        OutlinedButton(onClick = vm::startWithRoot, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Outlined.AdminPanelSettings, null, Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Use Root")
-                        }
-                    }
-                } else {
-                    OutlinedButton(onClick = vm::restartServer, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.RestartAlt, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Restart")
-                    }
-                    OutlinedButton(onClick = vm::stopServer, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentRed)) {
-                        Icon(Icons.Outlined.Stop, null, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Stop")
-                    }
-                }
-            }
-        }
-
-        // Server info grid
-        if (state.isAvailable) {
-            item {
-                Text("Server Details", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(6.dp))
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoRow("Version", "v${state.version} (patch ${state.patchVersion})", Icons.Outlined.Info)
-                        InfoRow("UID", when (state.uid) { 0 -> "0 (root)" ; 2000 -> "2000 (adb shell)" ; else -> "${state.uid}" }, Icons.Outlined.Person)
-                        InfoRow("PID", if (state.serverPid > 0) "${state.serverPid}" else "Unknown", Icons.Outlined.Memory)
-                        InfoRow("Start method", state.serverStartMethod.ifEmpty { "Unknown" }, Icons.Outlined.PlayCircle)
-                        if (state.seLinuxContext.isNotEmpty()) InfoRow("SELinux", state.seLinuxContext, Icons.Outlined.Security)
-                        InfoRow("Permission test", if (state.permissionGranted) "Passed ✓" else "Failed", Icons.Outlined.VerifiedUser, if (state.permissionGranted) AccentGreen else AccentRed)
-                        InfoRow("Authorized apps", "${state.authorizedApps.count { it.isGranted }}", Icons.Outlined.Apps)
-                    }
-                }
-            }
-        }
-
-        // Device info
-        if (state.deviceIp.isNotEmpty()) {
-            item {
-                Text("Network", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(6.dp))
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        InfoRow("Device IP", state.deviceIp, Icons.Outlined.Language)
-                        InfoRow("Wireless ADB", if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS) "Connected" else "Not connected", Icons.Outlined.Wifi, if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS) AccentGreen else MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (state.connectedAdbDevices.isNotEmpty()) {
-                            InfoRow("ADB devices", "${state.connectedAdbDevices.size} connected", Icons.Outlined.DeviceHub, AccentCyan)
-                        }
-                    }
-                }
-            }
-        }
-
-        // How to start
-        if (!state.isAvailable) {
-            item {
-                Text("How to Start Shizuku", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(6.dp))
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        HowToStep(1, "Wireless ADB (recommended)", "Enable Developer Options → Wireless debugging → Pair device")
-                        HowToStep(2, "Run the ADB command", "adb shell sh /sdcard/Android/data/moe.shizuku.privileged.api/start.sh")
-                        HowToStep(3, "Or use Root", "Tap 'Start via Root' above if your device is rooted")
-                    }
+        // ── Category content ──────────────────────────────────────────────────
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            if (!state.isGranted) {
+                // Not connected — show connect options
+                item { ConnectOptions(state, vm) }
+                if (!state.isAvailable) item { HowToConnectCard() }
+            } else {
+                when (category) {
+                    DeviceInfoCategory.OVERVIEW  -> overviewItems(state, info, vm)
+                    DeviceInfoCategory.DEVICE    -> deviceItems(info)
+                    DeviceInfoCategory.HARDWARE  -> hardwareItems(info)
+                    DeviceInfoCategory.BATTERY   -> batteryItems(info)
+                    DeviceInfoCategory.STORAGE   -> storageItems(info)
+                    DeviceInfoCategory.NETWORK   -> networkItems(state, info)
+                    DeviceInfoCategory.SYSTEM    -> systemItems(info)
+                    DeviceInfoCategory.SECURITY  -> securityItems(info)
                 }
             }
         }
     }
+}
+
+// ── Connection Banner ─────────────────────────────────────────────────────────
+
+@Composable
+private fun ConnectionBanner(state: ShizukuUiState, vm: ShizukuViewModel) {
+    val info = state.targetInfo
+    val isConnected = state.isGranted
+    val accentColor = when {
+        state.isLoading           -> MaterialTheme.colorScheme.outline
+        isConnected               -> AccentGreen
+        state.isAvailable         -> Color(0xFF7C3AED)
+        else                      -> AccentRed
+    }
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val gradient = Brush.verticalGradient(
+                    listOf(accentColor.copy(alpha = 0.12f), Color.Transparent),
+                    startY = 0f, endY = size.height,
+                )
+                drawRect(gradient)
+            }
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            // Animated status dot
+            Box(
+                Modifier.size(52.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                when {
+                    state.isLoading -> CircularProgressIndicator(Modifier.size(26.dp), strokeWidth = 3.dp, color = accentColor)
+                    isConnected     -> Icon(Icons.Filled.CheckCircle, null, tint = AccentGreen,   Modifier.size(30.dp))
+                    state.isAvailable -> Icon(Icons.Outlined.Lock,    null, tint = Color(0xFF7C3AED), Modifier.size(28.dp))
+                    else            -> Icon(Icons.Outlined.ErrorOutline, null, tint = AccentRed,  Modifier.size(28.dp))
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = when {
+                        state.isLoading   -> "Checking…"
+                        isConnected       -> if (info.model.isNotEmpty()) info.model else "ACCU Connected"
+                        state.isAvailable -> "Connecting…"
+                        else              -> "Not Connected"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = when {
+                        isConnected -> buildString {
+                            if (info.manufacturer.isNotEmpty()) append("${info.manufacturer} · ")
+                            append(state.serverStartMethod)
+                        }
+                        state.isAvailable -> "Establishing privilege connection…"
+                        else -> "Set up Wireless ADB or use Root"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (isConnected && info.androidVersion.isNotEmpty()) {
+                    Text(
+                        "Android ${info.androidVersion} (SDK ${info.sdkLevel}) · uid=${state.uid}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accentColor.copy(alpha = 0.85f),
+                    )
+                }
+            }
+            // Quick action icons
+            if (isConnected) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = vm::refreshDeviceInfo, modifier = Modifier.size(36.dp)) {
+                        if (info.isLoading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Outlined.Refresh, null, Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = vm::stopServer, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.Stop, null, Modifier.size(18.dp), tint = AccentRed)
+                    }
+                }
+            }
+        }
+        // Thin accent line at bottom
+        Box(Modifier.fillMaxWidth().height(1.5.dp).align(Alignment.BottomStart).background(accentColor.copy(alpha = 0.4f)))
+    }
+}
+
+// ── Overview items ────────────────────────────────────────────────────────────
+
+private fun LazyListScope.overviewItems(state: ShizukuUiState, info: TargetDeviceInfo, vm: ShizukuViewModel) {
+    if (info.isLoading) {
+        item {
+            Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator()
+                    Text("Fetching device info…", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4A90D9))
+                }
+            }
+        }
+        return
+    }
+
+    // Quick stat cards
+    item {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Outlined.BatteryFull,
+                label = "Battery",
+                value = if (info.batteryLevel >= 0) "${info.batteryLevel}%" else "—",
+                accent = when {
+                    info.batteryLevel < 20 -> AccentRed
+                    info.batteryLevel < 50 -> AccentOrange
+                    else -> AccentGreen
+                },
+                sub = info.batteryStatus,
+            )
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Outlined.Memory,
+                label = "RAM",
+                value = if (info.totalRamMb > 0) "${info.totalRamMb / 1024}GB" else "—",
+                accent = Color(0xFF00BCD4),
+                sub = if (info.availRamMb > 0) "${info.availRamMb}MB free" else "",
+            )
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Outlined.Storage,
+                label = "Storage",
+                value = if (info.totalStorageMb > 0) "${"%.0f".format(info.totalStorageMb / 1024f)}GB" else "—",
+                accent = Color(0xFFFF8A65),
+                sub = if (info.availStorageMb > 0) "${"%.0f".format(info.availStorageMb / 1024f)}GB free" else "",
+            )
+        }
+    }
+
+    // Server details card
+    item {
+        DeviceInfoCard("ACCU Server", Icons.Outlined.Hub, Color(0xFF4A90D9)) {
+            InfoRow2("Version",     "v${state.version} patch ${state.patchVersion}", Icons.Outlined.Info)
+            InfoRow2("UID",         when (state.uid) { 0 -> "0 (root)" ; 2000 -> "2000 (adb)" ; else -> "${state.uid}" }, Icons.Outlined.Person)
+            InfoRow2("Start method", state.serverStartMethod, Icons.Outlined.PlayCircle)
+            InfoRow2("Permission",  if (state.permissionGranted) "Passed ✓" else "Failed", Icons.Outlined.VerifiedUser,
+                if (state.permissionGranted) AccentGreen else AccentRed)
+        }
+    }
+
+    // Target overview
+    if (info.model.isNotEmpty()) {
+        item {
+            DeviceInfoCard("Target Device", Icons.Outlined.PhoneAndroid, Color(0xFF7C83FF)) {
+                InfoRow2("Model",        "${info.manufacturer} ${info.model}", Icons.Outlined.PhoneAndroid)
+                InfoRow2("Android",      "Android ${info.androidVersion} (SDK ${info.sdkLevel})", Icons.Outlined.Android)
+                InfoRow2("CPU",          if (info.cpuCores > 0) "${info.cpuCores}-core ${info.cpuAbi}" else info.cpuAbi, Icons.Outlined.DeveloperBoard)
+                InfoRow2("IP Address",   info.deviceIpAddress.ifEmpty { state.deviceIp }, Icons.Outlined.Language)
+            }
+        }
+    }
+
+    // Action buttons
+    item {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = vm::restartServer, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.RestartAlt, null, Modifier.size(15.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("Restart", style = MaterialTheme.typography.labelMedium)
+            }
+            OutlinedButton(onClick = vm::runDiagnostics, modifier = Modifier.weight(1f)) {
+                if (state.diagnosticsRunning) CircularProgressIndicator(Modifier.size(15.dp), strokeWidth = 2.dp)
+                else Icon(Icons.Outlined.BugReport, null, Modifier.size(15.dp))
+                Spacer(Modifier.width(5.dp))
+                Text("Diagnostics", style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+// ── Device info items ─────────────────────────────────────────────────────────
+
+private fun LazyListScope.deviceItems(info: TargetDeviceInfo) {
+    item {
+        DeviceInfoCard("Identity", Icons.Outlined.Badge, Color(0xFF7C83FF)) {
+            InfoRow2("Model",        info.model,           Icons.Outlined.PhoneAndroid)
+            InfoRow2("Manufacturer", info.manufacturer,    Icons.Outlined.Business)
+            InfoRow2("Brand",        info.brand,           Icons.Outlined.Label)
+            InfoRow2("Codename",     info.codename,        Icons.Outlined.Code)
+            InfoRow2("Serial No.",   info.serial,          Icons.Outlined.Pin)
+        }
+    }
+    item {
+        DeviceInfoCard("Display", Icons.Outlined.Tv, Color(0xFF9C27B0)) {
+            InfoRow2("Resolution",  if (info.displayWidth > 0) "${info.displayWidth} × ${info.displayHeight}" else "—", Icons.Outlined.AspectRatio)
+            InfoRow2("Density",     if (info.displayDensityDpi > 0) "${info.displayDensityDpi} dpi" else "—", Icons.Outlined.Tune)
+        }
+    }
+}
+
+// ── Hardware items ────────────────────────────────────────────────────────────
+
+private fun LazyListScope.hardwareItems(info: TargetDeviceInfo) {
+    item {
+        DeviceInfoCard("Processor", Icons.Outlined.Memory, Color(0xFF00BCD4)) {
+            InfoRow2("Architecture", info.cpuAbi,            Icons.Outlined.DeveloperBoard)
+            InfoRow2("Cores",       if (info.cpuCores > 0) "${info.cpuCores} cores" else "—", Icons.Outlined.GridOn)
+            InfoRow2("Max Freq",    if (info.cpuMaxFreqMhz > 0) "${info.cpuMaxFreqMhz} MHz" else "—", Icons.Outlined.Speed)
+            InfoRow2("Governor",    info.cpuGovernor,         Icons.Outlined.Settings)
+        }
+    }
+    item {
+        val usedRam = (info.totalRamMb - info.availRamMb).coerceAtLeast(0)
+        val ramPct  = if (info.totalRamMb > 0) usedRam.toFloat() / info.totalRamMb else 0f
+
+        DeviceInfoCard("Memory (RAM)", Icons.Outlined.Memory, Color(0xFF00ACC1)) {
+            InfoRow2("Total",     if (info.totalRamMb > 0) "${"%.1f".format(info.totalRamMb / 1024f)} GB" else "—", Icons.Outlined.Memory)
+            InfoRow2("Available", if (info.availRamMb > 0) "${info.availRamMb} MB"  else "—", Icons.Outlined.CheckCircle, AccentGreen)
+            InfoRow2("Used",      if (usedRam > 0) "${usedRam} MB" else "—",          Icons.Outlined.PieChart)
+            InfoRow2("Heap limit", info.javaHeap,              Icons.Outlined.Code)
+            if (info.totalRamMb > 0) {
+                Spacer(Modifier.height(4.dp))
+                GradientProgressBar(ramPct, Color(0xFF00BCD4))
+                Text("${(ramPct * 100).roundToInt()}% used", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+    }
+    item {
+        DeviceInfoCard("Display", Icons.Outlined.Tv, Color(0xFF9C27B0)) {
+            InfoRow2("Resolution",  if (info.displayWidth > 0) "${info.displayWidth} × ${info.displayHeight} px" else "—", Icons.Outlined.AspectRatio)
+            InfoRow2("Density",     if (info.displayDensityDpi > 0) "${info.displayDensityDpi} dpi" else "—", Icons.Outlined.Tune)
+        }
+    }
+}
+
+// ── Battery items ─────────────────────────────────────────────────────────────
+
+private fun LazyListScope.batteryItems(info: TargetDeviceInfo) {
+    item {
+        val batColor = when {
+            info.batteryLevel < 20 -> AccentRed
+            info.batteryLevel < 50 -> AccentOrange
+            else                   -> AccentGreen
+        }
+
+        DeviceInfoCard("Battery", Icons.Outlined.BatteryFull, batColor) {
+            // Big level display
+            if (info.batteryLevel >= 0) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "${info.batteryLevel}%",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Black,
+                            color = batColor,
+                        )
+                        Text(info.batteryStatus, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                GradientProgressBar(info.batteryLevel / 100f, batColor)
+                Spacer(Modifier.height(8.dp))
+            }
+            InfoRow2("Health",      info.batteryHealth,       Icons.Outlined.Favorite,
+                if (info.batteryHealth == "Good") AccentGreen else AccentOrange)
+            InfoRow2("Temperature", if (info.batteryTempC > 0) "${"%.1f".format(info.batteryTempC)}°C" else "—",
+                Icons.Outlined.Whatshot, if (info.batteryTempC > 40) AccentRed else Color.Unspecified)
+            InfoRow2("Voltage",     if (info.batteryVoltage > 0) "${info.batteryVoltage} mV" else "—", Icons.Outlined.FlashOn)
+            InfoRow2("Technology",  info.batteryTechnology,   Icons.Outlined.Layers)
+            InfoRow2("Plug type",   info.batteryPlugged,      Icons.Outlined.Power)
+        }
+    }
+}
+
+// ── Storage items ─────────────────────────────────────────────────────────────
+
+private fun LazyListScope.storageItems(info: TargetDeviceInfo) {
+    item {
+        val usedSto = (info.totalStorageMb - info.availStorageMb).coerceAtLeast(0)
+        val stoPct  = if (info.totalStorageMb > 0) usedSto.toFloat() / info.totalStorageMb else 0f
+
+        DeviceInfoCard("Internal Storage", Icons.Outlined.Storage, Color(0xFFFF8A65)) {
+            InfoRow2("Total",    if (info.totalStorageMb > 0) "${"%.1f".format(info.totalStorageMb / 1024f)} GB" else "—", Icons.Outlined.Storage)
+            InfoRow2("Free",     if (info.availStorageMb > 0) "${"%.1f".format(info.availStorageMb / 1024f)} GB" else "—", Icons.Outlined.CheckCircle, AccentGreen)
+            InfoRow2("Used",     if (usedSto > 0) "${"%.1f".format(usedSto / 1024f)} GB" else "—", Icons.Outlined.PieChart)
+            if (info.totalStorageMb > 0) {
+                Spacer(Modifier.height(4.dp))
+                GradientProgressBar(stoPct, if (stoPct > 0.9f) AccentRed else Color(0xFFFF8A65))
+                Text(
+                    "${"%.0f".format(stoPct * 100)}% used · ${"%.1f".format(info.availStorageMb / 1024f)} GB free",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+}
+
+// ── Network items ─────────────────────────────────────────────────────────────
+
+private fun LazyListScope.networkItems(state: ShizukuUiState, info: TargetDeviceInfo) {
+    item {
+        DeviceInfoCard("Connection", Icons.Outlined.Wifi, Color(0xFF26C6DA)) {
+            InfoRow2("IP Address",  info.deviceIpAddress.ifEmpty { state.deviceIp }, Icons.Outlined.Language)
+            InfoRow2("ADB method",  state.serverStartMethod, Icons.Outlined.Usb)
+            InfoRow2("ADB state",
+                if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_WIRELESS) "Wireless ADB ✓"
+                else if (state.connectionState == AccuConnectionManager.ConnectionState.CONNECTED_OTG) "USB ADB ✓"
+                else "Connected",
+                Icons.Outlined.Wifi,
+                AccentGreen)
+        }
+    }
+    if (info.wifiSsid.isNotEmpty()) {
+        item {
+            DeviceInfoCard("Wi-Fi", Icons.Outlined.Wifi, Color(0xFF4FC3F7)) {
+                InfoRow2("Network (SSID)", info.wifiSsid.take(32), Icons.Outlined.NetworkWifi)
+            }
+        }
+    }
+    if (info.mobileOperator.isNotEmpty()) {
+        item {
+            DeviceInfoCard("Mobile", Icons.Outlined.SignalCellularAlt, Color(0xFF4CAF50)) {
+                InfoRow2("Operator",     info.mobileOperator,     Icons.Outlined.Business)
+                InfoRow2("Network type", info.mobileNetworkType,  Icons.Outlined.SignalCellularAlt)
+            }
+        }
+    }
+}
+
+// ── System items ──────────────────────────────────────────────────────────────
+
+private fun LazyListScope.systemItems(info: TargetDeviceInfo) {
+    item {
+        DeviceInfoCard("Android", Icons.Outlined.Android, Color(0xFFAB47BC)) {
+            InfoRow2("Version",     "Android ${info.androidVersion}",   Icons.Outlined.Android)
+            InfoRow2("API Level",   "SDK ${info.sdkLevel}",             Icons.Outlined.Code)
+            InfoRow2("Build Type",  info.buildType,                     Icons.Outlined.Build)
+            InfoRow2("Build Date",  info.buildDate,                     Icons.Outlined.CalendarToday)
+            InfoRow2("Fingerprint", info.buildFingerprint,              Icons.Outlined.Fingerprint)
+        }
+    }
+    item {
+        DeviceInfoCard("Runtime", Icons.Outlined.Terminal, Color(0xFF7E57C2)) {
+            InfoRow2("Kernel",   info.kernelVersion,  Icons.Outlined.DeveloperMode)
+            InfoRow2("Uptime",   formatUptime(info.uptimeSecs), Icons.Outlined.Timer)
+            InfoRow2("Java Heap", info.javaHeap,      Icons.Outlined.Code)
+            InfoRow2("Locale",   info.locale,         Icons.Outlined.Language)
+            InfoRow2("Timezone", info.timezone,       Icons.Outlined.Schedule)
+        }
+    }
+}
+
+// ── Security items ────────────────────────────────────────────────────────────
+
+private fun LazyListScope.securityItems(info: TargetDeviceInfo) {
+    item {
+        DeviceInfoCard("Security", Icons.Outlined.Security, Color(0xFFEF5350)) {
+            InfoRow2("Encryption",  info.encryptionState.replaceFirstChar { it.uppercase() },
+                Icons.Outlined.Lock,
+                if (info.encryptionState.lowercase() == "encrypted") AccentGreen else AccentOrange)
+            InfoRow2("SELinux",     info.selinuxEnforce,
+                Icons.Outlined.Shield,
+                if (info.selinuxEnforce.lowercase() == "enforcing") AccentGreen else AccentOrange)
+            InfoRow2("Bootloader",  info.bootloaderState.replaceFirstChar { it.uppercase() },
+                Icons.Outlined.VerifiedUser,
+                if (info.bootloaderState.lowercase() in listOf("green", "verified")) AccentGreen else AccentOrange)
+            InfoRow2("ACCU UID",    when (0) { 0 -> "uid=0 (root)" ; else -> "uid (adb)" }, Icons.Outlined.Person)
+        }
+    }
+}
+
+// ── Connect options (shown when not connected) ─────────────────────────────────
+
+@Composable
+private fun ConnectOptions(state: ShizukuUiState, vm: ShizukuViewModel) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!state.isGranted && state.isAvailable) {
+            Button(onClick = vm::requestPermission, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Outlined.Key, null, Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Grant Permission")
+            }
+        }
+        if (!state.isAvailable) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = vm::startWithAdb, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Outlined.Wifi, null, Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Wireless ADB")
+                }
+                OutlinedButton(onClick = vm::connectOtg, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Outlined.Usb, null, Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("OTG / USB")
+                }
+            }
+            if (state.isRootAvailable) {
+                OutlinedButton(onClick = vm::startWithRoot, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.AdminPanelSettings, null, Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Use Root")
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = vm::restartServer, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Outlined.RestartAlt, null, Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Restart")
+                }
+                OutlinedButton(onClick = vm::stopServer, modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentRed)) {
+                    Icon(Icons.Outlined.Stop, null, Modifier.size(15.dp)); Spacer(Modifier.width(4.dp)); Text("Stop", color = AccentRed)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HowToConnectCard() {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("How to Connect", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            HowToStep(1, "Wireless ADB (recommended)", "Developer Options → Wireless debugging → Pair device")
+            HowToStep(2, "Enter the pairing code", "Tap 'Wireless ADB' above, then enter the 6-digit code")
+            HowToStep(3, "Or use Root", "Tap 'Use Root' if device is rooted — no PC needed")
+        }
+    }
+}
+
+// ── UI Components ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun QuickStatCard(
+    modifier: Modifier,
+    icon: ImageVector,
+    label: String,
+    value: String,
+    accent: Color,
+    sub: String = "",
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.1f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(icon, null, Modifier.size(18.dp), tint = accent)
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = accent)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (sub.isNotEmpty()) Text(sub, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun DeviceInfoCard(
+    title: String,
+    icon: ImageVector,
+    accent: Color,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+    ) {
+        Column(
+            Modifier
+                .drawBehind {
+                    val glow = Brush.horizontalGradient(
+                        listOf(accent.copy(alpha = 0.08f), Color.Transparent),
+                        startX = 0f, endX = size.width * 0.6f,
+                    )
+                    drawRect(glow)
+                }
+                .padding(14.dp),
+        ) {
+            // Card header
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(accent.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, null, Modifier.size(17.dp), tint = accent)
+                }
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = accent)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun InfoRow2(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    tint: Color = Color.Unspecified,
+) {
+    val clipboard = LocalClipboardManager.current
+    if (value.isBlank() || value == "—") return
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(icon, null, Modifier.size(14.dp),
+            tint = if (tint != Color.Unspecified) tint else MaterialTheme.colorScheme.onSurfaceVariant.copy(0.7f))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = if (tint != Color.Unspecified) tint else MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = { clipboard.setText(AnnotatedString(value)) },
+            modifier = Modifier.size(22.dp),
+        ) {
+            Icon(Icons.Outlined.ContentCopy, "Copy", Modifier.size(11.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(0.35f))
+        }
+    }
+}
+
+@Composable
+private fun GradientProgressBar(progress: Float, color: Color) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(7.dp)
+            .clip(RoundedCornerShape(50)),
+    ) {
+        Box(Modifier.fillMaxSize().background(color.copy(alpha = 0.18f)))
+        Box(
+            Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .fillMaxHeight()
+                .background(
+                    Brush.horizontalGradient(listOf(color.copy(0.7f), color)),
+                )
+        )
+    }
+}
+
+private fun formatUptime(secs: Long): String {
+    if (secs <= 0) return "—"
+    val d = secs / 86400
+    val h = (secs % 86400) / 3600
+    val m = (secs % 3600) / 60
+    return buildString {
+        if (d > 0) append("${d}d ")
+        if (h > 0) append("${h}h ")
+        append("${m}m")
+    }.trim()
 }
 
 @Composable
